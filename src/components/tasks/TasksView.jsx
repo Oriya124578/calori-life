@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Plus, Circle, CheckCircle2, ChevronDown, Trash2, X, Star, Edit3, Repeat,
+  Plus, ChevronDown, Trash2, X, Star, Edit3, Repeat,
 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { generateFutureInstances } from '../../lib/recurrence';

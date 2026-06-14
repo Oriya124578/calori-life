@@ -377,7 +377,6 @@ export const CoachChatDrawer = ({ isOpen, onClose, dateStr, shabbatTimes, onRepl
       // ── Courses ────────────────────────────────────────────────────────
       } else if (type === 'add_course') {
         await addCourse({
-          id: `course-${Date.now()}`,
           name: payload.name,
           weeksCount: payload.weeksCount || 14,
           moedA: payload.moedA || '',

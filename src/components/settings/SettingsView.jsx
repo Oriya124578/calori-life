@@ -5,14 +5,14 @@ import { Input } from '../ui/input';
 import { useStore } from '../../store/useStore';
 import { signOut } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
-import { Settings, RefreshCcw, LogOut, BookOpen, Plus, Edit2, Trash2, Globe, Archive, ArchiveRestore, User, Clock, Palette, Bot, ExternalLink, FileText, Lock, Mail, MessageSquare, Star, Heart } from 'lucide-react';
+import { Settings, RefreshCcw, LogOut, BookOpen, Plus, Edit2, Trash2, Globe, Archive, ArchiveRestore, User, Clock, Palette, Bot, ExternalLink, Lock } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog';
 import { useTranslation } from '../../hooks/useTranslation';
 import { toast } from '../../store/useToast';
 import { cn } from '../../lib/utils';
 import { NotificationSettings } from './NotificationSettings';
 import { CITIES_LIST } from '../../lib/shabbatService';
-import { Bell, Shield, Database, Info, ChevronLeft, ChevronRight, ChevronLeftIcon, Tags } from 'lucide-react';
+import { Bell, Shield, Database, Info, ChevronLeft, ChevronRight, Tags } from 'lucide-react';
 
 /* ── cream v3 shared inline styles ── */
 const creamCard = {
@@ -67,16 +67,6 @@ const creamVal = {
   fontFamily: "'Instrument Serif', serif", fontStyle: 'italic',
   fontSize: '13px', color: '#059669', flexShrink: 0,
 };
-const creamToggle = (on) => ({
-  width: 48, height: 28, borderRadius: 14,
-  background: on ? '#059669' : 'rgba(180,140,80,.2)',
-  position: 'relative', flexShrink: 0, cursor: 'pointer', border: 'none',
-});
-const creamToggleDot = (on) => ({
-  position: 'absolute', width: 24, height: 24, borderRadius: '50%',
-  background: '#fff', top: 2, left: on ? 22 : 2,
-  boxShadow: '0 1px 3px rgba(0,0,0,.15)', transition: 'left .2s',
-});
 
 const BackButton = ({ onClick, language }) => (
   <button
@@ -93,7 +83,7 @@ const BackButton = ({ onClick, language }) => (
 );
 
 export const SettingsView = () => {
-  const { data, resetSemester, addCourse, updateCourse, archiveCourse, language, setLanguage, theme, setTheme, setProfile, pomoSettings, setPomoSettings, activeCategory, setActiveCategory, setCategory, deleteCategory } = useStore();
+  const { data, resetSemester, addCourse, updateCourse, archiveCourse, language, setLanguage, theme, setTheme, setProfile, pomoSettings, setPomoSettings, setCategory, deleteCategory } = useStore();
   const { t } = useTranslation();
   // Local section navigation (the app navigates via Zustand activeCategory, NOT
   // react-router — so settings sub-screens are plain local state). null = index.
@@ -337,7 +327,7 @@ export const SettingsView = () => {
         title: t('data', 'נתונים'),
         items: [
           { id: 'data', iconEl: <Database className="w-4 h-4" />, ic: 'gr', title: t('exportData', 'ייצוא וגיבוי'), sub: 'קובץ JSON, איפוס סמסטר' },
-          { id: 'about', iconEl: <Info className="w-4 h-4" />, ic: 'gr', title: t('aboutTitle', 'אודות'), sub: 'גרסה, רישיון, פרטיות', val: 'v6.14.1' },
+          { id: 'about', iconEl: <Info className="w-4 h-4" />, ic: 'gr', title: t('aboutTitle', 'אודות'), sub: 'גרסה, רישיון, פרטיות', val: 'v6.14.2' },
         ]
       }
     ];
@@ -427,7 +417,7 @@ export const SettingsView = () => {
           textAlign: 'center', fontFamily: "'Instrument Serif', serif",
           fontStyle: 'italic', fontSize: 13, color: 'rgba(138,122,106,.5)', padding: '14px 0 4px',
         }}>
-          Calori Life &middot; <em style={{ color: '#059669' }}>v6.14.1</em>
+          Calori Life &middot; <em style={{ color: '#059669' }}>v6.14.2</em>
         </div>
       </div>
     );
@@ -977,7 +967,7 @@ export const SettingsView = () => {
       <CardContent className="space-y-3">
         <div className="flex items-center justify-between p-4 rounded-xl border bg-card">
           <span className="font-semibold text-foreground">Calori Life</span>
-          <span className="text-sm font-mono text-primary">v6.14.1</span>
+          <span className="text-sm font-mono text-primary">v6.14.2</span>
         </div>
         <a href="/privacy" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-4 rounded-xl border bg-card hover:bg-muted/40 transition-colors">
           <span className="font-semibold text-foreground flex items-center gap-2"><Lock className="w-4 h-4" /> מדיניות פרטיות</span>
@@ -1012,7 +1002,7 @@ export const SettingsView = () => {
         for (const ev of googleEvents) {
           try {
             await deleteEvent(store.uid, ev.id);
-          } catch(e) {}
+          } catch { /* best-effort cleanup; ignore per-event failures */ }
         }
       }
     };

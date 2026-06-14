@@ -550,38 +550,6 @@ export const CommandCenterView = () => {
     handleAutoPlan(dayProfile);
   };
 
-  // One input, two behaviors: with an existing timeline the command TUNES it;
-  // with an empty day it PLANS from scratch using the text as the day directive
-  // ("יש לי מחר מבחן, שאלמד כל היום" / "יש לי נסיעה ב-16:00").
-  const handleAiCommand = () => {
-    const cmd = tuneCommand.trim();
-    if (!cmd) return;
-    if (timelineBlocks.length === 0) {
-      setTuneCommand('');
-      setClarifierText(cmd);
-    } else {
-      handleTuneSchedule();
-    }
-  };
-
-  const handleClarifierSubmit = (directive) => {
-    setClarifierText(null);
-    handleAutoPlan(directive);
-  };
-
-  // Consume a replan/tune command handed off from the global manager chat.
-  useEffect(() => {
-    if (!pendingTuneCommand) return;
-    const cmd = pendingTuneCommand;
-    setPendingTuneCommand(null);
-    if (timelineBlocks.length === 0) {
-      setClarifierText(cmd);
-    } else {
-      handleTuneSchedule(cmd);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingTuneCommand]);
-
   // Tune schedule with input query
   const handleTuneSchedule = async (cmdOverride) => {
     const cmd = typeof cmdOverride === 'string' ? cmdOverride : tuneCommand;
@@ -614,6 +582,38 @@ export const CommandCenterView = () => {
       setLoading(false);
     }
   };
+
+  // One input, two behaviors: with an existing timeline the command TUNES it;
+  // with an empty day it PLANS from scratch using the text as the day directive
+  // ("יש לי מחר מבחן, שאלמד כל היום" / "יש לי נסיעה ב-16:00").
+  const handleAiCommand = () => {
+    const cmd = tuneCommand.trim();
+    if (!cmd) return;
+    if (timelineBlocks.length === 0) {
+      setTuneCommand('');
+      setClarifierText(cmd);
+    } else {
+      handleTuneSchedule();
+    }
+  };
+
+  const handleClarifierSubmit = (directive) => {
+    setClarifierText(null);
+    handleAutoPlan(directive);
+  };
+
+  // Consume a replan/tune command handed off from the global manager chat.
+  useEffect(() => {
+    if (!pendingTuneCommand) return;
+    const cmd = pendingTuneCommand;
+    setPendingTuneCommand(null);
+    if (timelineBlocks.length === 0) {
+      setClarifierText(cmd);
+    } else {
+      handleTuneSchedule(cmd);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingTuneCommand]);
 
   // Save the schedule Draft to Firestore
   const handleSaveSchedule = async () => {

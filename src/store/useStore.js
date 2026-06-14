@@ -1013,6 +1013,7 @@ export const useStore = create((set, get) => ({
     const { uid, language } = get();
     if (!uid) return;
     const lang = language || 'he';
+    const courseId = course.id || `course-${Date.now()}`;
 
     const courseDoc = {
       name: course.name,
@@ -1033,9 +1034,9 @@ export const useStore = create((set, get) => ({
       },
       notes: {},
     };
-    await fsSetCourse(uid, course.id, courseDoc).catch(console.error);
+    await fsSetCourse(uid, courseId, courseDoc).catch(console.error);
 
-    const tasksMap = buildInitialWeeklyTasksMap(course, lang);
+    const tasksMap = buildInitialWeeklyTasksMap({ ...course, id: courseId }, lang);
     await batchSetCourseTasks(uid, tasksMap).catch(console.error);
   },
 

@@ -67,7 +67,7 @@ export const StudiesHub = () => {
           if (diff >= 0 && (nearestExamDays === null || diff < nearestExamDays)) {
             nearestExamDays = diff;
           }
-        } catch {}
+        } catch { /* skip unparseable exam date */ }
       }
     });
 
@@ -304,7 +304,7 @@ export const StudiesHub = () => {
                         {days} {isRTL ? 'יום' : 'days'}
                       </span>
                     );
-                  } catch {}
+                  } catch { /* skip unparseable exam date */ }
                   return null;
                 })()}
               </div>
