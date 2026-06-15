@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
-  Bot, Calendar as CalendarIcon, Clock, Sparkles, Trash2, Save,
+  Calendar as CalendarIcon, Clock, Sparkles, Trash2, Save,
   AlertTriangle, Plus, Check, MapPin,
   Coffee, Dumbbell, Utensils, ChevronLeft, ChevronRight, X, RefreshCw,
   Lock, Unlock, Moon, Sun, MoreVertical
@@ -991,9 +991,6 @@ export const CommandCenterView = () => {
                   </>
                 ) : (
                   <>
-                    <button onClick={openCoachChat} className="px-3 py-1.5 flex items-center gap-1 active:scale-95 transition-all cursor-pointer" style={{ borderRadius: 11, background: '#F5F0E8', color: '#8A7A6A', fontSize: 11, fontWeight: 700, border: 'none' }}>
-                      <Bot className="w-3.5 h-3.5" /> {isRTL ? 'שיחה' : 'Chat'}
-                    </button>
                     {/* Opens the day questionnaire — the answers become the AI directive */}
                     <button onClick={() => setShowMorningCoach(true)} disabled={loading} className="px-3 py-1.5 flex items-center gap-1 active:scale-95 transition-all cursor-pointer" style={{ borderRadius: 11, background: '#7C3AED', color: '#fff', fontSize: 11, fontWeight: 700, border: 'none' }}>
                       <Sparkles className="w-3.5 h-3.5" /> {loading ? t('ccPlanning') : t('ccOrganizeWithAi')}
@@ -1192,6 +1189,7 @@ export const CommandCenterView = () => {
             <div className="flex flex-wrap gap-2">
               {(timelineBlocks.length === 0
                 ? [
+                    t('ccChipStudyAllDayGeneric', 'ללמוד כל היום — בלוקי לימוד כלליים'),
                     t('ccChipExamTomorrow', 'יש לי מבחן מחר — שאלמד כל היום'),
                     t('ccChipTripToday', 'יש לי נסיעה היום'),
                     t('ccChipLightDay', 'יום קל — רק הדברים החשובים'),

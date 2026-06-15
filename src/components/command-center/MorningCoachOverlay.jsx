@@ -142,6 +142,20 @@ export const MorningCoachOverlay = ({
     return { eventsToday, nearestExam };
   }, [data?.events, data?.courses, dateStr]);
 
+  // Which day is being planned — so the user knows when planning a future day
+  // (e.g. navigated to tomorrow before opening the questionnaire).
+  const plannedLabel = useMemo(() => {
+    const dt = parseISO(dateStr);
+    if (!isValid(dt)) return '';
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diff = differenceInCalendarDays(dt, today);
+    const dayName = dt.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long' });
+    if (diff === 0) return `היום · ${dayName}`;
+    if (diff === 1) return `מחר · ${dayName}`;
+    return dayName;
+  }, [dateStr]);
+
   const goTo = (idx) => {
     setDirection(idx > stepIdx ? 1 : -1);
     setStepIdx(Math.max(0, Math.min(STEPS.length - 1, idx)));
@@ -285,6 +299,12 @@ export const MorningCoachOverlay = ({
                       <p className="text-sm leading-relaxed" style={{ color: C.sub }}>
                         {t('morningCoachIntro', 'כמה שאלות קצרות ואבנה לך לוז מדויק ליום הזה.')}
                       </p>
+                      {plannedLabel && (
+                        <div className="inline-flex items-center gap-1.5 rounded-full px-3 py-1" style={{ background: C.greenSoft, border: `1px solid ${C.border}` }}>
+                          <CalendarCheck className="w-3.5 h-3.5" style={{ color: C.green }} />
+                          <span className="text-[12px] font-bold" style={{ color: C.greenDark }}>{plannedLabel}</span>
+                        </div>
+                      )}
                       <div className="rounded-2xl p-3.5 space-y-2" style={{ background: '#fff', border: `1px solid ${C.border}` }}>
                         <div className="flex items-center gap-2.5">
                           <CalendarCheck className="w-4 h-4 shrink-0" style={{ color: C.green }} />
