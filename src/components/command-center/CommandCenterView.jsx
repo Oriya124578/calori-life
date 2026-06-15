@@ -379,8 +379,10 @@ export const CommandCenterView = () => {
     return repaired.blocks;
   }, [getRepairBounds]);
 
-  // Call Gemini to Auto-Plan
-  const handleAutoPlan = useCallback(async (dayProfile = null) => {
+  // Call Gemini to Auto-Plan. When autoSave is true (the day questionnaire /
+  // "build my day" flow) the generated plan is persisted to cl_schedule
+  // immediately instead of left as an unsaved draft the user might lose.
+  const handleAutoPlan = useCallback(async (dayProfile = null, autoSave = false) => {
     setLoading(true);
     try {
       const fixedEvents = [];
@@ -470,8 +472,16 @@ export const CommandCenterView = () => {
 
       const processedBlocks = sanitizeAiBlocks(result.blocks);
 
-      setDraftSchedule({ date: dateStr, blocks: processedBlocks, coachNote: result.coachNote });
-      toast.success(t('ccDraftCreated'));
+      if (autoSave) {
+        // Questionnaire / "build my day": persist straight to cl_schedule so it
+        // survives reloads and shows on the home timeline — no separate Save tap.
+        await saveDraftSchedule(dateStr, processedBlocks, result.coachNote);
+        setDraftSchedule({ date: null, blocks: [], coachNote: '' });
+        toast.success(t('ccScheduleBuiltSaved', 'הלו"ז נבנה ונשמר ✓'));
+      } else {
+        setDraftSchedule({ date: dateStr, blocks: processedBlocks, coachNote: result.coachNote });
+        toast.success(t('ccDraftCreated'));
+      }
     } catch (err) {
       if (err.message === 'MISSING_GEMINI_KEY') {
         toast.error(t('ccMissingGeminiKey'));
@@ -481,7 +491,7 @@ export const CommandCenterView = () => {
     } finally {
       setLoading(false);
     }
-  }, [data, dateStr, sidebarTasks, gpsLocation, currentDate, locale, shabbatTimes, setDraftSchedule, sanitizeAiBlocks, t]);
+  }, [data, dateStr, sidebarTasks, gpsLocation, currentDate, locale, shabbatTimes, setDraftSchedule, saveDraftSchedule, sanitizeAiBlocks, t]);
 
   // NOTE: silent auto-plan on entry was removed on purpose — it regenerated a
   // fresh AI schedule on every visit and shadowed the saved cl_schedule doc.
@@ -547,7 +557,7 @@ export const CommandCenterView = () => {
   };
   const handleCoachSubmit = (dayProfile) => {
     setShowMorningCoach(false);
-    handleAutoPlan(dayProfile);
+    handleAutoPlan(dayProfile, true); // questionnaire → build & save immediately
   };
 
   // Tune schedule with input query

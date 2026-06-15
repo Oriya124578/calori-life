@@ -19,11 +19,20 @@ const getLang = () => {
 export class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, lastResetKey: props.resetKey };
   }
 
   static getDerivedStateFromError(error) {
     return { hasError: true, error };
+  }
+
+  // When the resetKey changes (e.g. the user navigates to a different tab),
+  // clear the error so a single broken view doesn't trap the user until reload.
+  static getDerivedStateFromProps(props, state) {
+    if (props.resetKey !== state.lastResetKey) {
+      return { hasError: false, error: null, lastResetKey: props.resetKey };
+    }
+    return null;
   }
 
   componentDidCatch(error, info) {

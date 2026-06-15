@@ -179,7 +179,7 @@ export const Layout = () => {
           gentle rise+fade entrance (enter-only: no AnimatePresence around
           Suspense, which is glitch-prone with lazy chunks). */}
       <main className="flex-1 relative scroll-smooth min-w-0 pb-28 pt-2">
-        <ErrorBoundary>
+        <ErrorBoundary resetKey={activeCategory}>
           <Suspense fallback={<ViewFallback />}>
             <motion.div
               key={activeCategory}
