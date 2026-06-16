@@ -3,7 +3,7 @@ import {
   Calendar as CalendarIcon, Clock, Sparkles, Trash2, Save,
   AlertTriangle, Plus, Check, MapPin,
   Coffee, Dumbbell, Utensils, ChevronLeft, ChevronRight, X, RefreshCw,
-  Lock, Unlock, Moon, Sun, MoreVertical
+  Lock, Unlock, Moon, Sun, MoreVertical, Bell, ListTodo
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../../store/useStore';
@@ -429,11 +429,20 @@ export const CommandCenterView = () => {
         });
       });
 
-      const unscheduledTasks = sidebarTasks.map((t) => ({
-        id: t.id,
-        title: t.title,
-        priority: t.priority || 'medium',
-      }));
+      // All open, not-already-scheduled tasks — independent of the sidebar's
+      // priority filter, so the AI always sees the full task set.
+      const unscheduledTasks = (data?.personalTasks || [])
+        .filter((t) => !t.done && t.scheduledDate !== dateStr)
+        .map((t) => {
+          const due = (t.dueDate || '').slice(0, 10);
+          return {
+            id: t.id,
+            title: t.title,
+            priority: t.priority || 'medium',
+            dueToday: due === dateStr || t.list === 'today',
+            overdue: !!due && due < dateStr,
+          };
+        });
 
       // Calculate travel times dynamically if Google key is present
 
@@ -874,6 +883,8 @@ export const CommandCenterView = () => {
     workout: 'border-[#7C3AED]/20 bg-purple-100/40 text-[#7C3AED] dark:bg-purple-900/20 dark:text-[#A78BFA]',
     travel: 'border-amber-500/20 bg-amber-500/5 text-amber-600 dark:text-amber-400',
     leisure: 'border-rose-500/20 bg-rose-500/5 text-rose-500 dark:text-rose-400',
+    task: 'border-[#059669]/20 bg-[#ECFDF5] text-[#065F46] dark:bg-[#059669]/10 dark:text-[#34D399]',
+    reminder: 'border-amber-500/30 bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300',
   };
 
   const blockIcons = {
@@ -884,6 +895,8 @@ export const CommandCenterView = () => {
     workout: Dumbbell,
     travel: MapPin,
     leisure: Clock,
+    task: ListTodo,
+    reminder: Bell,
   };
 
   // Cream v3 shared styles

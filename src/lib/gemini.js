@@ -23,7 +23,7 @@ You must ALWAYS output a single valid JSON object with the following structure:
   "blocks": [
     {
       "id": "string",
-      "type": "sleep | study | event | meal | workout | travel",
+      "type": "sleep | study | event | meal | workout | travel | task | reminder",
       "title": "string (Hebrew, descriptive)",
       "startTime": "HH:MM (24-hour format)",
       "endTime": "HH:MM (24-hour format)",
@@ -46,7 +46,10 @@ Scheduling Rules:
 5. Shabbat: If Shabbat starts today (Shabbat times provided in context), ensure NO blocks are scheduled from 1 hour before Shabbat starts until the end of the day. If Shabbat ends today, ensure NO blocks (like study, workout, travel) are scheduled from the start of the day until 1 hour after Shabbat ends. Shabbat time is sacred rest.
 6. Calori Workouts: If there is a planned Calori workout for today (provided in context), schedule a 'workout' block (isProposed = true, type = 'workout') at an optimal time (e.g. late afternoon/evening, avoiding study hours/fixed events).
 7. Study Blocks: Schedule study blocks ('study') focusing on courses with upcoming exams (exams are sorted by days remaining). Group tasks under these study blocks. A study block should ideally be around 90-120 minutes, or match the user's preferred duration. Name the block like "למידה: [Course Name]".
-8. Tasks: Incorporate high/med priority tasks into appropriate study blocks or as separate task blocks, setting refId to the task id.
+8. Tasks (IMPORTANT — the user expects their tasks to land in the day): the context lists the user's open tasks, each flagged "dueToday" and/or "overdue". You MUST place EVERY task flagged dueToday or overdue somewhere in the day. For each task choose its form by its nature:
+   - A SUBSTANTIAL task that needs a focused work session (e.g. "לתרגל אינפי", "לכתוב את העבודה", "ללמוד פרק 3") → a 'task' block (type: "task") with a realistic ESTIMATED duration that YOU decide (typically 20–90 min based on the task), refId = the task id, isProposed = true.
+   - A QUICK / atomic task (e.g. "להתקשר לרופא", "לשלם חשבון חשמל", "לקנות חלב", "לקבוע תור") → a 'reminder' (type: "reminder") as a POINT event: set startTime === endTime at a sensible moment, duration 0, refId = the task id, isProposed = true. A reminder does NOT occupy a time range.
+   Order by the task's priority (high first). Tasks NOT flagged dueToday/overdue are optional — add them only if the day has spare room.
 9. Meals: Schedule 'meal' blocks (e.g. breakfast, lunch, dinner) at normal times (e.g. 08:30, 13:00, 19:30) of about 30-45 minutes.
 10. Do not overlap blocks! They must be sequential.
 11. All text fields (title, notes, coachNote) MUST be in Hebrew (RTL friendly). Number/time fields should use standard numerals.
@@ -122,7 +125,7 @@ ${context.dayProfile ? `
 User's day directive — this is the MOST IMPORTANT input. Build the whole schedule around it:
   "${context.dayProfile}"
 Interpretation rules for the directive:
-- If it asks for a full / all-day study day ("שאלמד כל היום", "יום לימודים מלא", "להתמקד בלימודים כל היום", "intensive"), FILL the waking window from wake time to bedtime with study blocks. This OVERRIDES rule 13's "leave 2-3 hours empty" guidance AND rule 15's 3-block limit: create as many ~90–120 minute study blocks as needed to cover the day. Keep it humane and realistic: insert 'meal' blocks (~30–45 min) around 08:30, 13:00 and 19:30, and a short 15-minute gap between consecutive study blocks — but do NOT leave large empty stretches.
+- If it asks for a full / all-day study day ("שאלמד כל היום", "יום לימודים מלא", "להתמקד בלימודים כל היום", "intensive"), FILL the ENTIRE waking window — from wake time (${context.settings?.wakeTime || '07:00'}) all the way until about 1 hour before bedtime (${context.settings?.sleepTime || '23:00'}) — with study blocks. This OVERRIDES rule 13's "leave 2-3 hours empty" guidance AND rule 15's 3-block limit: there is NO cap on the number of study blocks — create as many ~90–120 minute blocks as it takes to reach the evening. CRITICAL: the LAST block of the day MUST end no earlier than one hour before bedtime. Do NOT stop in the afternoon or early evening — a day that ends at 16:00/17:00/18:00 for an all-day request is WRONG and unacceptable; keep generating consecutive study blocks until you reach the evening. Keep it humane and realistic: insert 'meal' blocks (~30–45 min) around 08:30, 13:00 and 19:30, and a short 15-minute gap between consecutive study blocks — but do NOT leave large empty stretches.
 - GENERIC (course-agnostic) study: if the user wants plain study blocks WITHOUT you choosing a course — e.g. "בלי קורס מסוים", "בלוקי לימוד כלליים", "אל תחליט לי קורס", "just study blocks", "רק בלוקי למידה" — title every study block generically as "לימודים" (you MAY number them, e.g. "לימודים — בלוק 1") and DO NOT set a course name, DO NOT set a refId, and DO NOT pick or mention any specific course. The same applies when there are NO upcoming exams and no course is implied: prefer generic "לימודים" blocks over guessing a course. Only attach a specific course when the user explicitly names one or asks you to focus on an exam.
 - Otherwise (a specific course or exam IS implied): prioritize the course with the nearest exam, then spread remaining blocks across the other exam courses / linked tasks.
 - If it mentions an exam ("מבחן מחר/היום ב[קורס]"), dedicate MOST study blocks to that course (this overrides rule 15's block limit — up to 5 focused blocks with real gaps between them).

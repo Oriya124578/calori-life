@@ -93,6 +93,7 @@ export const AddItemSheet = () => {
   const [pinned, setPinned] = useState(false);
   const [categoryIds, setCategoryIds] = useState([]);
   const [categoryId, setCategoryId] = useState('general');
+  const [taskListId, setTaskListId] = useState('personal');
   const [submitting, setSubmitting] = useState(false);
   const [notes, setNotes] = useState('');
   const titleRef = useRef(null);
@@ -116,6 +117,7 @@ export const AddItemSheet = () => {
       setPinned(!!addSheetPrefill?.pinned);
       setCategoryIds(addSheetPrefill?.categoryIds || []);
       setCategoryId(addSheetPrefill?.categoryId || 'general');
+      setTaskListId(addSheetPrefill?.list || 'personal');
       setNotes('');
       setSubmitting(false);
       setTimeout(() => titleRef.current?.focus(), 350);
@@ -156,6 +158,7 @@ export const AddItemSheet = () => {
           title: title.trim(),
           dueDate: dueDate || null,
           priority,
+          list: taskListId,
           categoryIds,
           starred,
           courseId: courseId || null,

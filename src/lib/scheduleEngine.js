@@ -334,8 +334,8 @@ export const validateAndRepair = (blocksIn, bounds, originalBlocks = []) => {
       repairs.push({ kind: 'swapped_times', id: b.id });
       return true;
     }
-    // e === s: point event — allowed only for meal/point types
-    if (b.type === 'meal') return true;
+    // e === s: point event — allowed for meals and reminders (no time range).
+    if (b.type === 'meal' || b.type === 'reminder') return true;
     violations.push({ kind: 'zero_duration', id: b.id });
     return false;
   });
@@ -368,6 +368,12 @@ export const validateAndRepair = (blocksIn, bounds, originalBlocks = []) => {
   }
 
   B.sort(byStartAsc);
+
+  // Point events (reminders / point meals) have no time range, so the bounds
+  // and overlap repair below would wrongly relocate or drop them (nextLegalStart
+  // refuses dur<=0). Pull them aside and pass them through untouched.
+  const pointEvents = B.filter((b) => timeToMin(b.startTime) === timeToMin(b.endTime));
+  B = B.filter((b) => timeToMin(b.startTime) !== timeToMin(b.endTime));
 
   // 5) Out-of-bounds (wake/sleep) — exempt 'sleep' type.
   const wake = bounds?.wakeMin ?? 0;
@@ -478,7 +484,8 @@ export const validateAndRepair = (blocksIn, bounds, originalBlocks = []) => {
   }
 
   return {
-    blocks: finalBlocks.sort(byStartAsc),
+    // Merge the untouched point events (reminders) back in.
+    blocks: [...finalBlocks, ...pointEvents].sort(byStartAsc),
     valid: violations.length === 0,
     violations,
     repairs,

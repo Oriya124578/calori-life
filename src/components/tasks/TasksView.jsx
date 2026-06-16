@@ -782,28 +782,52 @@ export const TasksView = () => {
   const { data, addPersonalTask, openAddSheet, addTaskList, updateTaskList, deleteTaskList } = useStore();
   const { t, language } = useTranslation();
   const isRTL = language === 'he';
-  const [activeTab, setActiveTab] = useState('personal');
+  const [activeTab, setActiveTab] = useState('all');
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [showCompleted, setShowCompleted] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const inputRef = useRef(null);
 
-  // Construct lists. The store seeds a `personal` doc into cl_taskLists, so we
-  // filter it out here to avoid showing "המשימות שלי" twice.
-  const lists = [
-    { id: 'favorites', name: t('favorites') },
-    { id: 'personal', name: t('defaultListName') },
-    ...(data?.taskLists || []).filter((l) => l.id !== 'personal')
-  ];
+  // Local today (yyyy-MM-dd) — toISOString is UTC and can roll to yesterday.
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-  // Filter tasks based on activeTab
   const allTasks = data?.personalTasks || [];
-  const filteredTasks = allTasks.filter((task) => {
-    if (activeTab === 'favorites') return !!task.starred;
-    return task.list === activeTab;
-  });
 
+  // A task belongs to "Today" if it was explicitly placed in the today list,
+  // is due today, or is overdue and still open.
+  const isTodayTask = (task) => {
+    if (task.list === 'today') return true;
+    const d = (task.dueDate || '').slice(0, 10);
+    if (!d) return false;
+    if (d === todayStr) return true;
+    if (d < todayStr && !task.done) return true; // overdue, not done
+    return false;
+  };
+
+  const matchesTab = (task, tab) => {
+    if (tab === 'all') return true;
+    if (tab === 'favorites') return !!task.starred;
+    if (tab === 'today') return isTodayTask(task);
+    return task.list === tab;
+  };
+
+  // Built-in smart categories + custom lists. The store seeds a `personal` doc
+  // into cl_taskLists, so we filter it out to avoid a duplicate "המשימות שלי".
+  // Each pill carries a pending-task count badge (Google Tasks style).
+  const lists = [
+    { id: 'all', name: t('allTasksFilter', 'הכל') },
+    { id: 'today', name: t('todayTasksFilter', 'להיום') },
+    { id: 'personal', name: t('defaultListName') },
+    { id: 'favorites', name: t('favorites') },
+    ...(data?.taskLists || []).filter((l) => l.id !== 'personal'),
+  ].map((l) => ({
+    ...l,
+    count: allTasks.filter((task) => !task.done && matchesTab(task, l.id)).length,
+  }));
+
+  const filteredTasks = allTasks.filter((task) => matchesTab(task, activeTab));
   const pendingTasks  = filteredTasks.filter((t) => !t.done);
   const completedTasks = filteredTasks.filter((t) => t.done);
 
@@ -811,18 +835,23 @@ export const TasksView = () => {
     const title = newTaskTitle.trim();
     if (!title) return;
     const isFav = activeTab === 'favorites';
+    const isToday = activeTab === 'today';
+    const isAll = activeTab === 'all';
     await addPersonalTask({
       title,
       priority: 'low',
-      list: isFav ? 'personal' : activeTab,
-      starred: isFav
+      // favorites/all have no list of their own → land in personal; today gets
+      // a real 'today' membership AND a due date so it sticks; custom → its id.
+      list: (isFav || isAll) ? 'personal' : activeTab,
+      starred: isFav,
+      dueDate: isToday ? todayStr : null,
     });
     setNewTaskTitle('');
     inputRef.current?.focus();
   };
 
   const currentList = lists.find(l => l.id === activeTab);
-  const isCustomList = activeTab !== 'favorites' && activeTab !== 'personal';
+  const isCustomList = !['all', 'today', 'favorites', 'personal'].includes(activeTab);
 
   return (
     <div
@@ -837,10 +866,10 @@ export const TasksView = () => {
             <button
               key={list.id}
               onClick={() => setActiveTab(list.id)}
-              className="shrink-0 select-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none transition-all"
+              className="shrink-0 select-none inline-flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none transition-all"
               style={{
                 borderRadius: 999,
-                padding: isActive ? '5px 14px' : '6px 13px',
+                padding: isActive ? '5px 12px' : '6px 11px',
                 fontSize: isActive ? 14 : 12,
                 fontWeight: isActive ? 400 : 600,
                 fontFamily: isActive ? serifFont : 'inherit',
@@ -851,6 +880,19 @@ export const TasksView = () => {
               }}
             >
               {list.name}
+              {list.count > 0 && (
+                <span
+                  style={{
+                    fontFamily: numbersFont, fontStyle: 'normal', fontSize: 11, fontWeight: 700,
+                    minWidth: 17, height: 17, padding: '0 4px', borderRadius: 999,
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    background: isActive ? 'rgba(255,255,255,.25)' : 'rgba(5,150,105,.1)',
+                    color: isActive ? '#fff' : '#059669',
+                  }}
+                >
+                  {list.count}
+                </span>
+              )}
             </button>
           );
         })}
@@ -890,7 +932,11 @@ export const TasksView = () => {
         style={{ background: '#fff', border: '1.5px solid rgba(5,150,105,.18)', borderRadius: 14, padding: '11px 14px' }}
       >
         <button
-          onClick={() => openAddSheet('task', { list: activeTab === 'favorites' ? 'personal' : activeTab, starred: activeTab === 'favorites' })}
+          onClick={() => openAddSheet('task', {
+            list: (activeTab === 'favorites' || activeTab === 'all') ? 'personal' : activeTab,
+            starred: activeTab === 'favorites',
+            date: activeTab === 'today' ? todayStr : undefined,
+          })}
           className="shrink-0 flex items-center justify-center focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
           style={{ width: 22, height: 22, borderRadius: 6, background: '#059669', color: '#fff', fontSize: 16, fontWeight: 300 }}
           aria-label={t('addNewItem')}

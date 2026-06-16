@@ -293,13 +293,17 @@ export const NotesView = () => {
   const [isEditOpen, setIsEditOpen] = useState(false);
 
   const allNotes     = data?.quickNotes || [];
-  
-  // Construct categories
+
+  // Construct categories, each with a note-count badge (like the tasks page).
+  const noteCount = (id) =>
+    id === 'all'       ? allNotes.length
+    : id === 'favorites' ? allNotes.filter((n) => n.pinned).length
+    : allNotes.filter((n) => n.categoryId === id).length;
   const categories = [
     { id: 'all', name: t('allNotesFilter') },
     { id: 'favorites', name: t('favorites') },
     ...(data?.noteCategories || [])
-  ];
+  ].map((c) => ({ ...c, count: noteCount(c.id) }));
 
   // Filter notes
   const filteredNotes = selectedCategoryId === 'all'
@@ -341,6 +345,19 @@ export const NotesView = () => {
               }}
             >
               {cat.name}
+              {cat.count > 0 && (
+                <span
+                  style={{
+                    fontFamily: "'Fraunces', serif", fontStyle: 'normal', fontSize: 11, fontWeight: 700,
+                    minWidth: 17, height: 17, padding: '0 4px', borderRadius: 999,
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    background: isActive ? 'rgba(255,255,255,.25)' : 'rgba(217,119,6,.1)',
+                    color: isActive ? '#fff' : '#D97706',
+                  }}
+                >
+                  {cat.count}
+                </span>
+              )}
             </button>
           );
         })}

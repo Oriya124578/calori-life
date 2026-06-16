@@ -60,7 +60,7 @@ const normalizeBlock = (b) => {
   };
   if (b.duration != null) out.duration = b.duration;
   if (b.status != null) out.status = b.status;
-  if (b.isPointEvent || (b.type === 'meal' && b.startTime === b.endTime)) {
+  if (b.isPointEvent || ((b.type === 'meal' || b.type === 'reminder') && b.startTime === b.endTime)) {
     out.isPointEvent = true;
   }
   return out;

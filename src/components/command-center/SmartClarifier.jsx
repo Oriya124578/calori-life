@@ -29,6 +29,9 @@ const detectIntents = (text) => {
 
 const hasTimeInfo = (text) => /\b\d{1,2}[:.]\d{2}\b|\b\d{1,2}\s*(בבוקר|בצהריים|בערב|בלילה|am|pm)\b/i.test(text);
 const hasSubjectInfo = (text) => /אינפי|אלגברה|תכנות|מבני|לוגיקה|C\b/i.test(text);
+// "Whole day" intent — when present we must NOT force a start/end hour, otherwise
+// the composed directive caps the day (e.g. "עד 17:00") and the schedule stops early.
+const isAllDayStudy = (text) => /כל\s*היום|כל\s*הזמן|יום\s*(לימודים\s*)?מלא|כל\s*שעות\s*היום|intensive|all[\s-]*day|whole[\s-]*day/i.test(text);
 
 const TIME_OPTIONS = [
   { value: '06:00', label: '06:00' }, { value: '07:00', label: '07:00' },
@@ -75,13 +78,16 @@ const slideVariants = {
 export const SmartClarifier = ({ userText, onSubmit, onCancel, courses = [] }) => {
   const intents = useMemo(() => detectIntents(userText), [userText]);
   const needsTimes = !hasTimeInfo(userText);
+  const allDayStudy = useMemo(() => isAllDayStudy(userText), [userText]);
 
   const questions = useMemo(() => {
     const qs = [];
 
     intents.forEach(intent => {
       if (intent.key === 'study') {
-        if (needsTimes) {
+        // For an all-day study request the hours are implied (wake→bedtime); asking
+        // start/end would only let the user accidentally cap the day. Skip them.
+        if (needsTimes && !allDayStudy) {
           qs.push({ id: `study_start`, type: 'time', intent: 'study', label: 'מאיזה שעה ללמוד?', icon: Clock, color: intent.color });
           qs.push({ id: `study_end`, type: 'time', intent: 'study', label: 'עד איזה שעה?', icon: Clock, color: intent.color });
         }
@@ -113,7 +119,7 @@ export const SmartClarifier = ({ userText, onSubmit, onCancel, courses = [] }) =
       return [];
     }
     return qs;
-  }, [intents, needsTimes, courses, userText]);
+  }, [intents, needsTimes, allDayStudy, courses, userText]);
 
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState({});
@@ -165,7 +171,7 @@ export const SmartClarifier = ({ userText, onSubmit, onCancel, courses = [] }) =
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 60 }}
       transition={{ type: 'spring', stiffness: 400, damping: 35 }}
-      className="fixed inset-0 z-50 flex items-end justify-center"
+      className="fixed inset-0 z-[130] flex items-end justify-center"
       style={{ background: 'rgba(0,0,0,.35)' }}
       dir="rtl"
     >

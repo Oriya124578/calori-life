@@ -219,8 +219,9 @@ export const StudiesHub = () => {
           );
           const pct = taskCount > 0 ? Math.round((doneCount / taskCount) * 100) : 0;
 
-          // Find current week (rough estimate)
-          const totalWeeks = course.weeks || 14;
+          // Find current week (rough estimate). Use the course's real week count
+          // (weeksCount); fall back to legacy `weeks`, then 14.
+          const totalWeeks = course.weeksCount || course.weeks || 14;
           const currentWeek = Math.min(
             totalWeeks,
             Math.max(1, Math.ceil((doneCount / Math.max(taskCount, 1)) * totalWeeks))
