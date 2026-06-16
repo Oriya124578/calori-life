@@ -2,14 +2,15 @@ import React, { useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 import { useStore } from '../../store/useStore';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Clock, Calendar as CalendarIcon, CheckCircle } from 'lucide-react';
+import { Clock, Calendar as CalendarIcon, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { differenceInDays } from 'date-fns';
 import { useTranslation } from '../../hooks/useTranslation';
+import { Button } from '../ui/button';
 
 // Academic stats that used to live on the home dashboard. Moved to the Studies
 // tab in Phase 4 so the home screen can be a clean "command center".
 export const StudiesStats = () => {
-  const { data } = useStore();
+  const { data, setActiveCategory } = useStore();
   const { t, language } = useTranslation();
 
   // Overall semester progress
@@ -32,6 +33,7 @@ export const StudiesStats = () => {
   const upcomingExams = useMemo(() => {
     const exams = [];
     (data?.courses || []).forEach((course) => {
+      // 1. Standard moeds
       ['moedA', 'moedB', 'moedC'].forEach((moed) => {
         const examDate = course[moed] || course.exams?.[moed];
         if (examDate) {
@@ -39,7 +41,35 @@ export const StudiesStats = () => {
             const date = new Date(examDate);
             if (Number.isNaN(date.getTime())) return;
             const daysLeft = differenceInDays(date, new Date());
-            if (daysLeft >= 0) exams.push({ course, moed, date, daysLeft });
+            if (daysLeft >= 0) {
+              exams.push({ 
+                course, 
+                moed, 
+                date, 
+                daysLeft,
+                hasTime: typeof examDate === 'string' && examDate.includes('T')
+              });
+            }
+          } catch { /* skip */ }
+        }
+      });
+
+      // 2. Custom exams
+      course.customExams?.forEach((exam) => {
+        if (exam.date) {
+          try {
+            const date = new Date(exam.date);
+            if (Number.isNaN(date.getTime())) return;
+            const daysLeft = differenceInDays(date, new Date());
+            if (daysLeft >= 0) {
+              exams.push({ 
+                course, 
+                moed: exam.name, 
+                date, 
+                daysLeft,
+                hasTime: typeof exam.date === 'string' && exam.date.includes('T')
+              });
+            }
           } catch { /* skip */ }
         }
       });
@@ -93,11 +123,20 @@ export const StudiesStats = () => {
 
       {/* Exam board */}
       <Card className="shadow-sm border-border bg-card flex flex-col">
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-base flex items-center gap-2">
             <CalendarIcon className="w-5 h-5 text-primary" />
             {t('fullExamBoard')}
           </CardTitle>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => setActiveCategory('exams')}
+            className="text-xs text-primary hover:text-primary-hover font-semibold gap-1 px-2 h-8"
+          >
+            {language === 'he' ? 'נהל מועדים' : 'Manage Exams'}
+            {language === 'he' ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+          </Button>
         </CardHeader>
         <CardContent className="flex-1 overflow-y-auto overscroll-contain max-h-[320px] pe-2 custom-scrollbar" dir={language === 'he' ? 'rtl' : 'ltr'}>
           {upcomingExams.length > 0 ? (
@@ -110,7 +149,10 @@ export const StudiesStats = () => {
                   <div className="min-w-0">
                     <h4 className="font-bold text-foreground truncate">{exam.course?.name || t('unknownCourse')}</h4>
                     <p className="text-sm text-muted-foreground">
-                      {t('moed')} {exam.moed.replace('moed', '')} • {exam.date.toLocaleDateString(language === 'he' ? 'he-IL' : 'en-US')}
+                      {['moedA', 'moedB', 'moedC'].includes(exam.moed) 
+                        ? `${t('moed')} ${exam.moed.replace('moed', '')}` 
+                        : exam.moed} • {exam.date.toLocaleDateString(language === 'he' ? 'he-IL' : 'en-US')}
+                      {exam.hasTime && ` בשעה ${exam.date.toLocaleTimeString(language === 'he' ? 'he-IL' : 'en-US', { hour: '2-digit', minute: '2-digit' })}`}
                     </p>
                   </div>
                   <div className={`text-center shrink-0 px-4 py-2 rounded-lg ${

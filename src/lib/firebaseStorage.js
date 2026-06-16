@@ -104,9 +104,13 @@ export const uploadFile = async ({ userId, courseId, folder, file }) => {
   const storedName = `${Date.now()}_${stringToHex(file.name)}`;
   const path = buildPath(userId, courseId, folder, storedName);
   const objectRef = ref(storage, path);
+  
+  // Encode filename safely for HTTP Content-Disposition (supports Hebrew and spaces)
+  const utf8Filename = encodeURIComponent(file.name);
   await uploadBytes(objectRef, file, {
     contentType: file.type || 'application/octet-stream',
     cacheControl: 'public, max-age=3600',
+    contentDisposition: `attachment; filename*=UTF-8''${utf8Filename}`,
   });
   return { name: file.name, path };
 };

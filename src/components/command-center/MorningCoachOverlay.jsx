@@ -127,6 +127,7 @@ export const MorningCoachOverlay = ({
     let nearestDays = Infinity;
     const now = new Date();
     (data?.courses || []).forEach((course) => {
+      // 1. Standard Moeds
       ['moedA', 'moedB', 'moedC'].forEach((moed) => {
         const examDate = course[moed] || course.exams?.[moed];
         if (!examDate) return;
@@ -136,6 +137,18 @@ export const MorningCoachOverlay = ({
         if (days < nearestDays) {
           nearestDays = days;
           nearestExam = { name: course.name, days };
+        }
+      });
+
+      // 2. Custom Exams
+      course.customExams?.forEach((exam) => {
+        if (!exam.date) return;
+        const dt = parseISO(exam.date);
+        if (!isValid(dt) || dt < now) return;
+        const days = differenceInCalendarDays(dt, now);
+        if (days < nearestDays) {
+          nearestDays = days;
+          nearestExam = { name: `${course.name} (${exam.name})`, days };
         }
       });
     });

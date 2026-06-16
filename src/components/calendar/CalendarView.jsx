@@ -77,17 +77,41 @@ export const CalendarView = () => {
   const allItems = useMemo(() => {
     const items = [];
 
+    const moedLabels = {
+      moedA: 'מועד א׳',
+      moedB: 'מועד ב׳',
+      moedC: 'מועד ג׳'
+    };
+
     data?.courses?.forEach((course) => {
+      // 1. Standard Moeds
       ['moedA', 'moedB', 'moedC'].forEach((moed) => {
         const raw = course[moed] || course.exams?.[moed];
         const dt = safeParse(raw);
         if (!dt) return;
+        const hasTime = typeof raw === 'string' && raw.includes('T');
         items.push({
           id: `exam-${course.id}-${moed}`,
           kind: 'exam',
-          title: `${course.name} — ${moed}`,
+          title: `${course.name} — ${moedLabels[moed] || moed}`,
           date: dt,
-          allDay: true,
+          allDay: !hasTime,
+          endDate: hasTime ? new Date(dt.getTime() + 120 * 60 * 1000) : null,
+        });
+      });
+
+      // 2. Custom Exams
+      course.customExams?.forEach((exam) => {
+        const dt = safeParse(exam.date);
+        if (!dt) return;
+        const hasTime = typeof exam.date === 'string' && exam.date.includes('T');
+        items.push({
+          id: `exam-${course.id}-${exam.id}`,
+          kind: 'exam',
+          title: `${course.name} — ${exam.name}`,
+          date: dt,
+          allDay: !hasTime,
+          endDate: hasTime ? new Date(dt.getTime() + 120 * 60 * 1000) : null,
         });
       });
     });

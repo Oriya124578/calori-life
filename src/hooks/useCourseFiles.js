@@ -110,21 +110,39 @@ export const useCourseFiles = (courseId, { browse = false } = {}) => {
   const openSigned = useCallback(
     async (file) => {
       const path = typeof file === 'string' ? file : file?.path;
+      const fileName = typeof file === 'string' 
+        ? decodeStoredName(file.substring(file.lastIndexOf('/') + 1)) 
+        : file?.name || file?.displayName || 'file.pdf';
+
       if (path) {
-        // Open synchronously to bypass popup blocker
-        const newWindow = window.open('about:blank', '_blank', 'noopener');
-        const url = await getSignedUrl(path);
-        if (url) {
-          if (newWindow) newWindow.location.href = url;
-          else window.location.href = url; // fallback if popup blocked entirely
-        } else {
-          if (newWindow) newWindow.close();
+        setLoading(true);
+        try {
+          const url = await getSignedUrl(path);
+          if (url) {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('Network response was not ok');
+            const blob = await response.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(blobUrl);
+          }
+        } catch (err) {
+          console.error('Download failed', err);
+          toast.error(t('fileOpenError', 'הורדת הקובץ נכשלה'));
+        } finally {
+          setLoading(false);
         }
         return;
       }
       if (file?.url) window.open(file.url, '_blank', 'noopener');
     },
-    [getSignedUrl]
+    [getSignedUrl, t]
   );
 
   return {

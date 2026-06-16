@@ -144,6 +144,7 @@ export const CoachChatDrawer = ({ isOpen, onClose, dateStr, shabbatTimes, onRepl
       todayStart.setHours(0, 0, 0, 0);
 
       (data?.courses || []).filter(c => !c.isArchived).forEach((course) => {
+        // 1. Standard Moeds
         ['moedA', 'moedB', 'moedC'].forEach((moed) => {
           const examDate = course[moed] || course.exams?.[moed];
           if (examDate) {
@@ -153,6 +154,20 @@ export const CoachChatDrawer = ({ isOpen, onClose, dateStr, shabbatTimes, onRepl
                 courseName: course.name,
                 moed: moed.replace('moed', ''),
                 date: examDate.substring(0, 10),
+              });
+            }
+          }
+        });
+
+        // 2. Custom Exams
+        course.customExams?.forEach((exam) => {
+          if (exam.date) {
+            const dt = new Date(exam.date);
+            if (dt >= todayStart) {
+              upcomingExams.push({
+                courseName: course.name,
+                moed: exam.name,
+                date: exam.date.substring(0, 10),
               });
             }
           }

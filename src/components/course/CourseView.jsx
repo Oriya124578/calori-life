@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useStore } from '../../store/useStore';
 import { WeeklyTasks } from './WeeklyTasks';
 import { AllTasksByType } from './AllTasksByType';
 import { CategorySection } from './GlobalTasks';
 import { cn } from '../../lib/utils';
 import { Button } from '../ui/button';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, GraduationCap } from 'lucide-react';
 import { Settings, FileText, ListTodo, Book, Sparkles } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog';
 import { Input } from '../ui/input';
@@ -23,6 +23,53 @@ export const CourseView = () => {
   // Local state for the settings modal
   const [editData, setEditData] = useState({});
 
+  const isRTL = language === 'he';
+
+  const nextExam = useMemo(() => {
+    if (!activeCourse) return null;
+    const exams = [];
+    
+    // 1. Standard Moeds
+    ['moedA', 'moedB', 'moedC'].forEach((moedKey) => {
+      const rawDate = activeCourse[moedKey] || activeCourse.exams?.[moedKey];
+      const dt = rawDate ? new Date(rawDate) : null;
+      if (dt && !Number.isNaN(dt.getTime())) {
+        const diff = dt.getTime() - new Date().getTime();
+        const daysLeft = Math.ceil(diff / (1000 * 60 * 60 * 24));
+        if (daysLeft >= 0) {
+          exams.push({
+            name: moedKey === 'moedA' ? 'מועד א׳' : moedKey === 'moedB' ? 'מועד ב׳' : 'מועד ג׳',
+            date: dt,
+            daysLeft,
+            hasTime: typeof rawDate === 'string' && rawDate.includes('T')
+          });
+        }
+      }
+    });
+
+    // 2. Custom Exams
+    activeCourse.customExams?.forEach((exam) => {
+      const dt = exam.date ? new Date(exam.date) : null;
+      if (dt && !Number.isNaN(dt.getTime())) {
+        const diff = dt.getTime() - new Date().getTime();
+        const daysLeft = Math.ceil(diff / (1000 * 60 * 60 * 24));
+        if (daysLeft >= 0) {
+          exams.push({
+            name: exam.name,
+            date: dt,
+            daysLeft,
+            hasTime: typeof exam.date === 'string' && exam.date.includes('T')
+          });
+        }
+      }
+    });
+
+    if (exams.length === 0) return null;
+    exams.sort((a, b) => a.date.getTime() - b.date.getTime());
+    return exams[0];
+  }, [activeCourse]);
+
+  // Hooks above run unconditionally; the early bail-out goes after them.
   if (!activeCourse) return null;
 
   const handleOpenSettings = () => {
@@ -117,6 +164,23 @@ export const CourseView = () => {
                 </div>
               )}
             </div>
+
+            {nextExam && (
+              <div 
+                className="flex items-center gap-1.5 px-3 py-1 rounded-full border border-emerald-200/80 bg-emerald-50/50 text-emerald-800 text-xs font-semibold shadow-sm select-none animate-in fade-in zoom-in duration-300"
+                style={{ direction: isRTL ? 'rtl' : 'ltr' }}
+              >
+                <GraduationCap className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <span>
+                  {isRTL ? 'מבחן קרוב: ' : 'Next Exam: '}
+                  {nextExam.name}
+                  {isRTL ? ' בעוד ' : ' in '}
+                  {nextExam.daysLeft}
+                  {isRTL ? ' ימים' : ' days'}
+                  {nextExam.hasTime && ` (${String(nextExam.date.getHours()).padStart(2, '0')}:${String(nextExam.date.getMinutes()).padStart(2, '0')})`}
+                </span>
+              </div>
+            )}
 
             <div className="flex items-center gap-2">
               {data.links?.[activeCourse.id]?.gemini ? (

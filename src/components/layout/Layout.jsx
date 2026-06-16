@@ -23,6 +23,7 @@ const CourseView = lazy(() => import('../course/CourseView').then((m) => ({ defa
 const CalendarView = lazy(() => import('../calendar/CalendarView').then((m) => ({ default: m.CalendarView })));
 const SettingsView = lazy(() => import('../settings/SettingsView').then((m) => ({ default: m.SettingsView })));
 const StudiesHub = lazy(() => import('../studies/StudiesHub').then((m) => ({ default: m.StudiesHub })));
+const ExamsBoardView = lazy(() => import('../studies/ExamsBoardView').then((m) => ({ default: m.ExamsBoardView })));
 const TasksView = lazy(() => import('../tasks/TasksView').then((m) => ({ default: m.TasksView })));
 const NotesView = lazy(() => import('../notes/NotesView').then((m) => ({ default: m.NotesView })));
 
@@ -69,6 +70,8 @@ export const Layout = () => {
         return <CourseView />;
       case 'courses':
         return <StudiesHub />;
+      case 'exams':
+        return <ExamsBoardView />;
       case 'tasks':
         return <TasksView />;
       case 'notes':
@@ -95,6 +98,8 @@ export const Layout = () => {
       ? t('navSettings')
       : activeCategory === 'courses'
       ? t('navStudies')
+      : activeCategory === 'exams'
+      ? (isRTL ? 'לוח מבחנים' : 'Exams Board')
       : activeCategory === 'tasks'
       ? t('myTasks')
       : activeCategory === 'notes'
