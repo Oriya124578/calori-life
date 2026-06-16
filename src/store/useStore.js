@@ -1411,6 +1411,9 @@ export const useStore = create((set, get) => ({
       doneAt: null,
       priority: input.priority || 'med',
       list: input.list || 'personal',
+      // Estimated minutes the task needs. null = a quick task → the AI schedules
+      // it as a point reminder; a number → a time block of that length.
+      duration: input.duration ?? null,
       starred: !!input.starred,
       notes: input.notes || '',
       courseId: input.courseId || null,

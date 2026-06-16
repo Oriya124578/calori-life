@@ -94,6 +94,7 @@ export const AddItemSheet = () => {
   const [categoryIds, setCategoryIds] = useState([]);
   const [categoryId, setCategoryId] = useState('general');
   const [taskListId, setTaskListId] = useState('personal');
+  const [duration, setDuration] = useState(null); // estimated minutes; null = quick (reminder)
   const [submitting, setSubmitting] = useState(false);
   const [notes, setNotes] = useState('');
   const titleRef = useRef(null);
@@ -118,6 +119,7 @@ export const AddItemSheet = () => {
       setCategoryIds(addSheetPrefill?.categoryIds || []);
       setCategoryId(addSheetPrefill?.categoryId || 'general');
       setTaskListId(addSheetPrefill?.list || 'personal');
+      setDuration(addSheetPrefill?.duration ?? null);
       setNotes('');
       setSubmitting(false);
       setTimeout(() => titleRef.current?.focus(), 350);
@@ -159,6 +161,7 @@ export const AddItemSheet = () => {
           dueDate: dueDate || null,
           priority,
           list: taskListId,
+          duration,
           categoryIds,
           starred,
           courseId: courseId || null,
@@ -735,6 +738,23 @@ export const AddItemSheet = () => {
                         className="absolute inset-0 opacity-0 cursor-pointer"
                       />
                     </div>
+                  </div>
+
+                  {/* Estimated duration — drives how the AI schedules it:
+                      "reminder" (no duration) = a point reminder; a number = a
+                      time block of that length (e.g. mowing the lawn). */}
+                  <SectionLabel>
+                    {t('taskDuration', 'משך משוער')} <span style={{ fontFamily: 'inherit', fontStyle: 'normal', fontSize: 10, letterSpacing: '.16em' }}> &middot; {t('optional', 'optional')}</span>
+                  </SectionLabel>
+                  <div className="flex gap-1.5 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+                    <DueChip active={duration == null} onClick={() => setDuration(null)}>
+                      {t('asReminder', 'תזכורת')}
+                    </DueChip>
+                    {[15, 30, 45, 60, 90, 120].map((m) => (
+                      <DueChip key={m} active={duration === m} onClick={() => setDuration(m)}>
+                        {m} {t('minShort', 'דק׳')}
+                      </DueChip>
+                    ))}
                   </div>
 
                   {/* Optional course */}

@@ -441,6 +441,9 @@ export const CommandCenterView = () => {
             priority: t.priority || 'medium',
             dueToday: due === dateStr || t.list === 'today',
             overdue: !!due && due < dateStr,
+            // User's time estimate (minutes). When set → schedule as a time block
+            // of this length; when null → a point reminder.
+            duration: t.duration ?? null,
           };
         });
 
@@ -454,6 +457,12 @@ export const CommandCenterView = () => {
         }
       }
 
+      // Shabbat is only relevant when the PLANNED day is Friday or Saturday.
+      // On any other weekday we must NOT send Shabbat context — otherwise the AI
+      // sees Shabbat times + "mode on" and wrongly fills e.g. a Tuesday with
+      // "Shabbat preparation" blocks.
+      const plannedDow = currentDate.getDay(); // 0=Sun … 5=Fri, 6=Sat
+      const shabbatRelevant = plannedDow === 5 || plannedDow === 6;
       const context = {
         todayDate: dateStr,
         dayOfWeek: format(currentDate, 'EEEE', { locale }),
@@ -462,10 +471,10 @@ export const CommandCenterView = () => {
           wakeTime: data?.profile?.wakeTime || '07:00',
           sleepTime: data?.profile?.sleepTime || '23:00',
           studyBlockDuration: data?.profile?.studyBlockDuration || 90,
-          shabbatMode: !!data?.profile?.shabbatMode,
+          shabbatMode: !!data?.profile?.shabbatMode && shabbatRelevant,
           studyPreferences: data?.profile?.studyPreferences || {},
         },
-        shabbatTimes: shabbatTimes ? {
+        shabbatTimes: (shabbatTimes && shabbatRelevant) ? {
           start: shabbatTimes.start.substring(11, 16),
           end: shabbatTimes.end.substring(11, 16)
         } : null,
