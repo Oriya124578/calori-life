@@ -5,6 +5,7 @@ import { AllTasksByType } from './AllTasksByType';
 import { CategorySection } from './GlobalTasks';
 import { cn } from '../../lib/utils';
 import { Button } from '../ui/button';
+import { ChevronDown } from 'lucide-react';
 import { Settings, FileText, ListTodo, Book, Sparkles } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog';
 import { Input } from '../ui/input';
@@ -12,11 +13,12 @@ import { useTranslation } from '../../hooks/useTranslation';
 import { toast } from '../../store/useToast';
 
 export const CourseView = () => {
-  const { activeCourse, data, updateCourse, saveLinks } = useStore();
+  const { activeCourse, data, updateCourse, saveLinks, setActiveCourse } = useStore();
   const { t, language } = useTranslation();
   const [activeTab, setActiveTab] = useState('weekly');
   const [selectedWeek, setSelectedWeek] = useState(1);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isCourseSelectOpen, setIsCourseSelectOpen] = useState(false);
   
   // Local state for the settings modal
   const [editData, setEditData] = useState({});
@@ -70,11 +72,52 @@ export const CourseView = () => {
 
   return (
     <div className="flex flex-col h-full animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-5xl mx-auto w-full pt-4 md:pt-8 px-4 md:px-8">
+      {/* Click-outside overlay for course selector */}
+      {isCourseSelectOpen && (
+        <div 
+          className="fixed inset-0 z-40" 
+          onClick={() => setIsCourseSelectOpen(false)} 
+        />
+      )}
+
       {/* Header */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b pb-4">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b pb-4 relative z-50">
         <div>
           <div className="flex flex-wrap items-center gap-4">
-            <h1 className="text-3xl font-bold text-foreground">{activeCourse.name}</h1>
+            <div className="relative">
+              <button 
+                onClick={() => setIsCourseSelectOpen(!isCourseSelectOpen)}
+                className="flex items-center gap-2 group hover:opacity-80 transition-opacity"
+              >
+                <h1 className="text-3xl font-bold text-foreground">{activeCourse.name}</h1>
+                <ChevronDown className={cn(
+                  "w-6 h-6 text-muted-foreground transition-transform duration-200",
+                  isCourseSelectOpen ? "rotate-180" : ""
+                )} />
+              </button>
+
+              {/* Course Selector Dropdown */}
+              {isCourseSelectOpen && (
+                <div className="absolute top-full right-0 mt-2 w-64 bg-card border border-border rounded-xl shadow-lg overflow-hidden py-1 z-50 animate-in fade-in slide-in-from-top-2">
+                  {data.courses.map((course) => (
+                    <button
+                      key={course.id}
+                      onClick={() => {
+                        setActiveCourse(course);
+                        setIsCourseSelectOpen(false);
+                      }}
+                      className={cn(
+                        "w-full text-right px-4 py-3 text-sm transition-colors hover:bg-secondary/50",
+                        course.id === activeCourse.id ? "bg-primary/5 text-primary font-medium" : "text-foreground"
+                      )}
+                    >
+                      {course.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div className="flex items-center gap-2">
               {data.links?.[activeCourse.id]?.gemini ? (
                 <a href={data.links[activeCourse.id].gemini} target="_blank" rel="noopener noreferrer" 
@@ -148,7 +191,8 @@ export const CourseView = () => {
             <div className="flex flex-wrap gap-2 mb-6">
               {Array.from({ length: activeCourse.weeksCount || 14 }, (_, i) => i + 1).map((week) => {
                 const weekTasks = data.tasks[activeCourse.id]?.[week];
-                const isCompleted = weekTasks && weekTasks.length > 0 && weekTasks.every(t => t.checked);
+                const relevantTasks = weekTasks ? weekTasks.filter(t => t.type !== 'homework') : [];
+                const isCompleted = relevantTasks.length > 0 && relevantTasks.every(t => t.checked);
                 
                 return (
                   <button

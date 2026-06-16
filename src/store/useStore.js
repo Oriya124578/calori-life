@@ -1009,7 +1009,7 @@ export const useStore = create((set, get) => ({
 
   // ---------- Courses ----------------------------------------------------
 
-  addCourse: async (course) => {
+  addCourse: async (course, seeds = null) => {
     const { uid, language } = get();
     if (!uid) return;
     const lang = language || 'he';
@@ -1036,7 +1036,7 @@ export const useStore = create((set, get) => ({
     };
     await fsSetCourse(uid, courseId, courseDoc).catch(console.error);
 
-    const tasksMap = buildInitialWeeklyTasksMap({ ...course, id: courseId }, lang);
+    const tasksMap = buildInitialWeeklyTasksMap({ ...course, id: courseId }, lang, seeds);
     await batchSetCourseTasks(uid, tasksMap).catch(console.error);
   },
 

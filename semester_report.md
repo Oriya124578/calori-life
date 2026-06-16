@@ -12,16 +12,16 @@ Max Weeks: 12
 | 5 | ✅ | ✅ | ✅ |
 | 6 | ✅ | ✅ | ✅ |
 | 7 | ✅ | ✅ | ✅ |
-| 8 | ✅ | ✅ | ❌ |
-| 9 | ✅ | ✅ | ❌ |
-| 10 | ❌ | ❌ | ❌ |
-| 11 | ❌ | ❌ | ❌ |
+| 8 | ✅ | ✅ | ✅ |
+| 9 | ✅ | ✅ | ✅ |
+| 10 | ✅ | ✅ | ✅ |
+| 11 | ✅ | ✅ | ❌ |
 | 12 | ❌ | ❌ | ❌ |
 
 **Missing Overview:**
-- **Lectures Missing:** Weeks 10, 11, 12
-- **Tutorials Missing:** Weeks 10, 11, 12
-- **Homework Missing:** Weeks 8, 9, 10, 11, 12
+- **Lectures Missing:** Week 12
+- **Tutorials Missing:** Week 12
+- **Homework Missing:** Weeks 11, 12
 
 ---
 
@@ -36,17 +36,17 @@ Max Weeks: 12
 | 4 | ✅ | ✅ | ✅ |
 | 5 | ✅ | ✅ | ✅ |
 | 6 | ✅ | ✅ | ✅ |
-| 7 | ✅ | ✅ | ❌ |
-| 8 | ✅ | ✅ | ❌ |
-| 9 | ✅ | ✅ | ❌ |
-| 10 | ❌ | ❌ | ❌ |
-| 11 | ❌ | ❌ | ❌ |
+| 7 | ✅ | ✅ | ✅ |
+| 8 | ✅ | ✅ | ✅ |
+| 9 | ✅ | ✅ | ✅ |
+| 10 | ✅ | ✅ | ❌ |
+| 11 | ✅ | ✅ | ❌ |
 | 12 | ❌ | ❌ | ❌ |
 
 **Missing Overview:**
-- **Lectures Missing:** Weeks 10, 11, 12
-- **Tutorials Missing:** Weeks 10, 11, 12
-- **Homework Missing:** Weeks 7, 8, 9, 10, 11, 12
+- **Lectures Missing:** Week 12
+- **Tutorials Missing:** Week 12
+- **Homework Missing:** Weeks 10, 11, 12
 
 ---
 
@@ -64,12 +64,12 @@ Max Weeks: 12
 | 7 | ✅ | ✅ | ❌ |
 | 8 | ✅ | ✅ | ❌ |
 | 9 | ✅ | ✅ | ❌ |
-| 10 | ❌ | ✅ | ❌ |
-| 11 | ❌ | ✅ | ❌ |
+| 10 | ✅ | ✅ | ❌ |
+| 11 | ✅ | ✅ | ❌ |
 | 12 | ❌ | ❌ | ❌ |
 
 **Missing Overview:**
-- **Lectures Missing:** Weeks 10, 11, 12
+- **Lectures Missing:** Week 12
 - **Tutorials Missing:** Weeks 1, 12
 - **Homework Missing:** Weeks 4, 5, 6, 7, 8, 9, 10, 11, 12
 
@@ -88,15 +88,14 @@ Max Weeks: 12
 | 6 | ✅ | ✅ | ❌ |
 | 7 | ✅ | ✅ | ❌ |
 | 8 | ✅ | ✅ | ❌ |
-| 9 | ❌ | ❌ | ❌ |
-| 10 | ❌ | ❌ | ❌ |
-| 11 | ❌ | ❌ | ❌ |
-| 12 | ❌ | ❌ | ❌ |
+| 9 | ✅ | ✅ | ❌ |
+| 10 | ✅ | ✅ | ❌ |
+| 11 | ✅ | ❌ | ❌ |
 
 **Missing Overview:**
-- **Lectures Missing:** Weeks 9, 10, 11, 12
-- **Tutorials Missing:** Weeks 9, 10, 11, 12
-- **Homework Missing:** Weeks 2, 4, 5, 6, 7, 8, 9, 10, 11, 12
+- **Lectures Missing:** None
+- **Tutorials Missing:** Week 11
+- **Homework Missing:** Weeks 2, 4, 5, 6, 7, 8, 9, 10, 11
 
 ---
 
@@ -111,17 +110,16 @@ Max Weeks: 12
 | 4 | ✅ | ✅ | ✅ |
 | 5 | ✅ | ✅ | ✅ |
 | 6 | ✅ | ✅ | ✅ |
-| 7 | ✅ | ✅ | ❌ |
+| 7 | ✅ | ✅ | ✅ |
 | 8 | ✅ | ✅ | ❌ |
-| 9 | ✅ | ❌ | ❌ |
-| 10 | ❌ | ❌ | ❌ |
-| 11 | ❌ | ❌ | ❌ |
-| 12 | ❌ | ❌ | ❌ |
+| 9 | ✅ | ✅ | ❌ |
+| 10 | ✅ | ✅ | ❌ |
+| 11 | ✅ | ❌ | ❌ |
 
 **Missing Overview:**
-- **Lectures Missing:** Weeks 10, 11, 12
-- **Tutorials Missing:** Weeks 9, 10, 11, 12
-- **Homework Missing:** Weeks 7, 8, 9, 10, 11, 12
+- **Lectures Missing:** None
+- **Tutorials Missing:** Week 11
+- **Homework Missing:** Weeks 8, 9, 10, 11
 
 ---
 

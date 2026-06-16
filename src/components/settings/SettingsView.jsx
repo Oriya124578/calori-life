@@ -83,7 +83,7 @@ const BackButton = ({ onClick, language }) => (
 );
 
 export const SettingsView = () => {
-  const { data, resetSemester, addCourse, updateCourse, archiveCourse, language, setLanguage, theme, setTheme, setProfile, pomoSettings, setPomoSettings, setCategory, deleteCategory } = useStore();
+  const { data, resetSemester, addCourse, updateCourse, archiveCourse, deleteCourseFully, language, setLanguage, theme, setTheme, setProfile, pomoSettings, setPomoSettings, setCategory, deleteCategory } = useStore();
   const { t } = useTranslation();
   // Local section navigation (the app navigates via Zustand activeCategory, NOT
   // react-router — so settings sub-screens are plain local state). null = index.
@@ -98,6 +98,10 @@ export const SettingsView = () => {
   const [editingCourse, setEditingCourse] = useState(null); // The course object being edited/added
   const [isAddMode, setIsAddMode] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+
+  const [generateLecture, setGenerateLecture] = useState(true);
+  const [generateTutorial, setGenerateTutorial] = useState(true);
+  const [generateHomework, setGenerateHomework] = useState(true);
 
   const [editingCategory, setEditingCategory] = useState(null);
   const [isCategoryAddMode, setIsCategoryAddMode] = useState(false);
@@ -199,48 +203,76 @@ export const SettingsView = () => {
 
   const openAddModal = () => {
     setIsAddMode(true);
+    setGenerateLecture(true);
+    setGenerateTutorial(true);
+    setGenerateHomework(true);
     setEditingCourse({
-      id: `course-${Date.now()}`,
-      name: "",
-      weeksCount: 14,
-      moedA: "",
-      moedB: "",
-      moedC: "",
-      notebookLm: "",
-      gemini: "",
-      isArchived: false
+      name: '',
+      weeksCount: 13,
+      moedA: '',
+      moedB: '',
+      moedC: '',
+      notebookLm: '',
+      gemini: ''
     });
   };
 
-  const saveCourse = () => {
-    if (!editingCourse.name) return toast.error(t('courseNameRequired'));
-    
-    if (isAddMode) {
-      addCourse({
-        id: editingCourse.id,
-        name: editingCourse.name,
-        weeksCount: editingCourse.weeksCount,
-        moedA: editingCourse.moedA,
-        moedB: editingCourse.moedB,
-        moedC: editingCourse.moedC,
-        defaultNotebookLmLink: editingCourse.notebookLm,
-        defaultGeminiLink: editingCourse.gemini
-      });
-    } else {
-      updateCourse(editingCourse.id, {
-        name: editingCourse.name,
-        weeksCount: editingCourse.weeksCount,
-        moedA: editingCourse.moedA,
-        moedB: editingCourse.moedB,
-        moedC: editingCourse.moedC
-      });
-      useStore.getState().saveLinks(editingCourse.id, {
-        ...data.links[editingCourse.id],
-        notebookLm: editingCourse.notebookLm,
-        gemini: editingCourse.gemini
-      });
+  const saveCourse = async () => {
+    if (!editingCourse.name || !editingCourse.name.trim()) {
+      toast.error(t('courseNameRequired', 'שם הקורס הוא שדה חובה'));
+      return;
     }
-    setEditingCourse(null);
+
+    try {
+      if (isAddMode) {
+        const seeds = [];
+        if (generateLecture) seeds.push({ type: 'lecture', label: language === 'he' ? 'הרצאה' : 'Lecture' });
+        if (generateTutorial) seeds.push({ type: 'tutorial', label: language === 'he' ? 'תרגול' : 'Tutorial' });
+        if (generateHomework) seeds.push({ type: 'homework', label: language === 'he' ? 'שיעורי בית' : 'Homework' });
+
+        await addCourse({
+          name: editingCourse.name,
+          weeksCount: parseInt(editingCourse.weeksCount) || 13,
+          moedA: editingCourse.moedA || null,
+          moedB: editingCourse.moedB || null,
+          moedC: editingCourse.moedC || null,
+          defaultNotebookLmLink: editingCourse.notebookLm || '',
+          defaultGeminiLink: editingCourse.gemini || '',
+        }, seeds);
+        toast.success(t('courseAdded', 'הקורס נוסף בהצלחה'));
+      } else {
+        await updateCourse(editingCourse.id, {
+          name: editingCourse.name,
+          weeksCount: parseInt(editingCourse.weeksCount) || 13,
+          exams: {
+            moedA: editingCourse.moedA || null,
+            moedB: editingCourse.moedB || null,
+            moedC: editingCourse.moedC || null,
+          },
+          links: {
+            notebookLm: editingCourse.notebookLm || '',
+            gemini: editingCourse.gemini || '',
+          }
+        });
+        toast.success(t('courseUpdated', 'הקורס עודכן בהצלחה'));
+      }
+      setEditingCourse(null);
+    } catch (e) {
+      console.error(e);
+      toast.error(t('courseSaveFailed', 'שמירת הקורס נכשלה'));
+    }
+  };
+
+  const handleDeleteCourse = async (courseId) => {
+    if (window.confirm(t('confirmDeleteCourse', 'האם אתה בטוח שברצונך למחוק קורס זה לצמיתות? פעולה זו תמחק את כל המטלות, הקבצים וההיסטוריה שלו.'))) {
+      try {
+        await deleteCourseFully(courseId);
+        toast.success(t('courseDeleted', 'הקורס נמחק בהצלחה'));
+      } catch (e) {
+        console.error(e);
+        toast.error(t('courseDeleteFailed', 'מחיקת הקורס נכשלה'));
+      }
+    }
   };
 
   const handleArchiveToggle = (courseId, currentStatus) => {
@@ -327,7 +359,7 @@ export const SettingsView = () => {
         title: t('data', 'נתונים'),
         items: [
           { id: 'data', iconEl: <Database className="w-4 h-4" />, ic: 'gr', title: t('exportData', 'ייצוא וגיבוי'), sub: 'קובץ JSON, איפוס סמסטר' },
-          { id: 'about', iconEl: <Info className="w-4 h-4" />, ic: 'gr', title: t('aboutTitle', 'אודות'), sub: 'גרסה, רישיון, פרטיות', val: 'v6.14.3' },
+          { id: 'about', iconEl: <Info className="w-4 h-4" />, ic: 'gr', title: t('aboutTitle', 'אודות'), sub: 'גרסה, רישיון, פרטיות', val: 'v6.15.0' },
         ]
       }
     ];
@@ -417,7 +449,7 @@ export const SettingsView = () => {
           textAlign: 'center', fontFamily: "'Instrument Serif', serif",
           fontStyle: 'italic', fontSize: 13, color: 'rgba(138,122,106,.5)', padding: '14px 0 4px',
         }}>
-          Calori Life &middot; <em style={{ color: '#059669' }}>v6.14.3</em>
+          Calori Life &middot; <em style={{ color: '#059669' }}>v6.15.0</em>
         </div>
       </div>
     );
@@ -505,6 +537,10 @@ export const SettingsView = () => {
                   <p className="text-sm text-muted-foreground">{t('moedA')}: {(course.moedA || course.exams?.moedA) ? new Date(course.moedA || course.exams.moedA).toLocaleDateString('he-IL') : t('notSet')}</p>
                 </div>
                 <div className="flex gap-2 justify-end">
+                  <Button variant="ghost" size="sm" onClick={() => handleDeleteCourse(course.id)} className="text-muted-foreground hover:text-red-500">
+                    <Trash2 className="w-4 h-4 ml-1" />
+                    {t('delete', 'מחק')}
+                  </Button>
                   <Button variant="ghost" size="sm" onClick={() => handleArchiveToggle(course.id, course.isArchived)} className="text-muted-foreground hover:text-amber-500">
                     <Archive className="w-4 h-4 ml-1" />
                     {t('archive', 'ארכיון')}
@@ -537,6 +573,10 @@ export const SettingsView = () => {
                         <h3 className="font-bold text-foreground">{course.name}</h3>
                       </div>
                       <div className="flex gap-2 justify-end">
+                        <Button variant="ghost" size="sm" onClick={() => handleDeleteCourse(course.id)} className="text-muted-foreground hover:text-red-500">
+                          <Trash2 className="w-4 h-4 ml-1" />
+                          {t('delete', 'מחק')}
+                        </Button>
                         <Button variant="outline" size="sm" onClick={() => handleArchiveToggle(course.id, course.isArchived)} className="text-primary hover:text-primary">
                           <ArchiveRestore className="w-4 h-4 ml-1" />
                           {t('restore', 'שחזר')}
@@ -967,7 +1007,7 @@ export const SettingsView = () => {
       <CardContent className="space-y-3">
         <div className="flex items-center justify-between p-4 rounded-xl border bg-card">
           <span className="font-semibold text-foreground">Calori Life</span>
-          <span className="text-sm font-mono text-primary">v6.14.3</span>
+          <span className="text-sm font-mono text-primary">v6.15.0</span>
         </div>
         <a href="/privacy" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-4 rounded-xl border bg-card hover:bg-muted/40 transition-colors">
           <span className="font-semibold text-foreground flex items-center gap-2"><Lock className="w-4 h-4" /> מדיניות פרטיות</span>
@@ -1103,6 +1143,42 @@ export const SettingsView = () => {
                 <label className="text-sm font-medium">{t('geminiLink')}</label>
                 <Input value={editingCourse.gemini} onChange={e => setEditingCourse({...editingCourse, gemini: e.target.value})} placeholder="https://gemini.google.com/..." dir="ltr" />
               </div>
+              {isAddMode && (
+                <div className="space-y-2 border-t pt-3">
+                  <label className="text-sm font-bold block mb-1">
+                    {language === 'he' ? 'מטלות שבועיות לייצור ראשוני:' : 'Weekly tasks to generate:'}
+                  </label>
+                  <div className="flex flex-col gap-2">
+                    <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={generateLecture}
+                        onChange={(e) => setGenerateLecture(e.target.checked)}
+                        className="rounded border-input text-primary focus:ring-primary w-4 h-4"
+                      />
+                      {language === 'he' ? 'הרצאות' : 'Lectures'}
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={generateTutorial}
+                        onChange={(e) => setGenerateTutorial(e.target.checked)}
+                        className="rounded border-input text-primary focus:ring-primary w-4 h-4"
+                      />
+                      {language === 'he' ? 'תרגולים' : 'Tutorials'}
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={generateHomework}
+                        onChange={(e) => setGenerateHomework(e.target.checked)}
+                        className="rounded border-input text-primary focus:ring-primary w-4 h-4"
+                      />
+                      {language === 'he' ? 'שיעורי בית' : 'Homework'}
+                    </label>
+                  </div>
+                </div>
+              )}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditingCourse(null)}>{t('cancel')}</Button>

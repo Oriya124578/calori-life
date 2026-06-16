@@ -49,8 +49,10 @@ export const StudiesHub = () => {
     (data?.courses || []).forEach((course) => {
       Object.values(data?.tasks?.[course.id] || {}).forEach((weekTasks) => {
         (weekTasks || []).forEach((task) => {
-          totalTasks++;
-          if (task.checked) completedTasks++;
+          if (task.type !== 'homework') {
+            totalTasks++;
+            if (task.checked) completedTasks++;
+          }
         });
       });
     });
@@ -208,11 +210,11 @@ export const StudiesHub = () => {
         {courses.map((course, idx) => {
           const color = COURSE_COLORS[idx % COURSE_COLORS.length];
           const taskCount = Object.values(data.tasks[course.id] || {}).reduce(
-            (sum, week) => sum + week.length,
+            (sum, week) => sum + week.filter(t => t.type !== 'homework').length,
             0,
           );
           const doneCount = Object.values(data.tasks[course.id] || {}).reduce(
-            (sum, week) => sum + week.filter((t) => t.checked).length,
+            (sum, week) => sum + week.filter((t) => t.type !== 'homework' && t.checked).length,
             0,
           );
           const pct = taskCount > 0 ? Math.round((doneCount / taskCount) * 100) : 0;
