@@ -1403,16 +1403,13 @@ export const useStore = create((set, get) => ({
   // ---------- Notes & links (embedded in course doc) ---------------------
 
   saveNote: (courseId, week, note) => {
-    const { uid } = get();
-    set((state) => {
-      const newData = { ...state.data };
-      const courseNotes = { ...(newData.notes[courseId] || {}) };
-      courseNotes[week] = note;
-      newData.notes = { ...newData.notes, [courseId]: courseNotes };
-      return { data: newData };
-    });
+    const { uid, data } = get();
+    const courseNotes = { ...(data.notes[courseId] || {}), [week]: note };
+    set((state) => ({
+      data: { ...state.data, notes: { ...state.data.notes, [courseId]: courseNotes } }
+    }));
     if (uid)
-      fsSetCourse(uid, courseId, { [`notes.${week}`]: note }).catch(console.error);
+      fsSetCourse(uid, courseId, { notes: courseNotes }).catch(console.error);
   },
 
   saveLinks: (courseId, links) => {

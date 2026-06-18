@@ -318,6 +318,7 @@ export const CourseView = () => {
           { id: 'past_exams', label: t('pastExams') },
           { id: 'quizzes', label: t('quizzes') },
           { id: 'summaries', label: t('summaries') },
+          { id: 'all_notes', label: isRTL ? 'כל ההערות' : 'All Notes' },
           { id: 'settings', label: t('courseSettings') }
         ].map(tab => (
           <button
@@ -393,6 +394,33 @@ export const CourseView = () => {
             />
           </div>
         )}
+
+        {activeTab === 'all_notes' && (() => {
+          const weeksWithNotes = Array.from(
+            { length: activeCourse.weeksCount || 14 }, (_, i) => i + 1
+          ).filter(w => (data.notes[activeCourse.id]?.[w] || '').trim());
+          return (
+            <div className="space-y-4 max-w-2xl mx-auto">
+              {weeksWithNotes.length === 0 ? (
+                <div className="text-center py-16 text-muted-foreground text-sm">
+                  {isRTL ? 'אין הערות שבועיות עדיין' : 'No weekly notes yet'}
+                </div>
+              ) : weeksWithNotes.map(week => (
+                <div key={week} className="bg-card border border-border rounded-2xl p-5 shadow-sm space-y-2">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-primary shrink-0" />
+                    <span className="text-sm font-semibold text-primary">
+                      {t('week')} {week}
+                    </span>
+                  </div>
+                  <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed ps-6">
+                    {data.notes[activeCourse.id][week]}
+                  </p>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
 
         {activeTab === 'settings' && (
           <div className="max-w-2xl mx-auto bg-card border border-border rounded-2xl p-6 shadow-sm space-y-6 text-start">
