@@ -164,6 +164,73 @@ export const ExamsBoardView = () => {
     setIsDialogOpen(true);
   };
 
+  // Sync form inputs when course or exam type is changed in the dialog
+  React.useEffect(() => {
+    if (!isDialogOpen) return;
+    
+    // Custom type is always added as new unless we are specifically editing an existing custom exam
+    if (formType === 'custom') {
+      if (editingExam && editingExam.type === 'custom') {
+        // Keep editing the current custom exam
+        return;
+      }
+      setFormCustomName('');
+      setFormDate('');
+      setFormTime('');
+      setEditingExam(null);
+      return;
+    }
+
+    // Standard Moed lookup
+    const targetCourse = courses.find(c => c.id === formCourseId);
+    if (!targetCourse) return;
+
+    const rawDate = targetCourse[formType] || targetCourse.exams?.[formType];
+    
+    if (rawDate) {
+      const dt = safeParse(rawDate);
+      if (dt) {
+        // Only set if we aren't already editing this exact exam to avoid loop
+        if (editingExam && editingExam.courseId === formCourseId && editingExam.type === formType && editingExam.rawDate === rawDate) {
+          return;
+        }
+
+        const year = dt.getFullYear();
+        const month = String(dt.getMonth() + 1).padStart(2, '0');
+        const day = String(dt.getDate()).padStart(2, '0');
+        setFormDate(`${year}-${month}-${day}`);
+        
+        const hasTime = typeof rawDate === 'string' && rawDate.includes('T');
+        if (hasTime) {
+          const hours = String(dt.getHours()).padStart(2, '0');
+          const minutes = String(dt.getMinutes()).padStart(2, '0');
+          setFormTime(`${hours}:${minutes}`);
+        } else {
+          setFormTime('');
+        }
+
+        setEditingExam({
+          id: `${targetCourse.id}-${formType}`,
+          courseId: targetCourse.id,
+          courseName: targetCourse.name,
+          type: formType,
+          name: formType === 'moedA' ? 'מועד א׳' : formType === 'moedB' ? 'מועד ב׳' : 'מועד ג׳',
+          date: dt,
+          hasTime,
+          rawDate
+        });
+        return;
+      }
+    }
+
+    // If no raw date exists for the standard moed, clear inputs if we were editing
+    if (editingExam) {
+      setFormDate('');
+      setFormTime('');
+      setEditingExam(null);
+    }
+  }, [formCourseId, formType, isDialogOpen]);
+
   // Save changes (create/update)
   const handleSaveExam = () => {
     if (!formCourseId) {

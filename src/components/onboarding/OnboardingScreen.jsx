@@ -51,6 +51,9 @@ export const OnboardingScreen = () => {
   const [enabledTypes, setEnabledTypes] = useState({
     lecture: true, tutorial: true, homework: true,
   });
+  const [progressTypes, setProgressTypes] = useState({
+    lecture: true, tutorial: true, homework: false,
+  });
   const [customTypes,        setCustomTypes]        = useState([]);
   const [newTypeLabel,       setNewTypeLabel]       = useState('');
 
@@ -149,6 +152,12 @@ export const OnboardingScreen = () => {
           { displayName: (displayName || '').trim(), academicYear, semester },
           selectedCourses,
           seeds.length > 0 ? seeds : null,
+          {
+            lecture: !!progressTypes.lecture,
+            tutorial: !!progressTypes.tutorial,
+            homework: !!progressTypes.homework,
+            custom: true
+          }
         ),
       ).catch((err) => {
         console.error('Onboarding failed', err);
@@ -415,33 +424,45 @@ export const OnboardingScreen = () => {
 
                 {/* Default task type toggles */}
                 <div className="w-full space-y-2.5 max-w-sm mx-auto">
-                  {DEFAULT_TASK_KEYS.map((key) => (
-                    <label
-                      key={key}
-                      className={cn(
-                        'flex items-center gap-3 p-3.5 rounded-2xl border-2 cursor-pointer transition-all',
-                        enabledTypes[key]
-                          ? 'border-primary bg-primary/5'
-                          : 'border-border bg-card',
-                      )}
-                    >
-                      <div className={cn(
-                        'w-5 h-5 rounded border-2 flex items-center justify-center transition-colors shrink-0',
-                        enabledTypes[key] ? 'border-primary bg-primary' : 'border-muted-foreground/40',
-                      )}>
-                        {enabledTypes[key] && <Check className="w-3 h-3 text-white" />}
+                  {DEFAULT_TASK_KEYS.map((key) => {
+                    const isGenerated = enabledTypes[key];
+                    return (
+                      <div 
+                        key={key} 
+                        className={cn(
+                          'flex flex-col gap-2 p-3.5 rounded-2xl border-2 transition-all text-start',
+                          isGenerated ? 'border-primary bg-primary/5' : 'border-border bg-card',
+                        )}
+                        style={{ direction: isRtl ? 'rtl' : 'ltr' }}
+                      >
+                        <label className="flex items-center gap-3 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            className="rounded border-input text-primary focus:ring-primary w-5 h-5"
+                            checked={isGenerated}
+                            onChange={() =>
+                              setEnabledTypes((prev) => ({ ...prev, [key]: !prev[key] }))
+                            }
+                          />
+                          <span className="font-bold text-sm">{t(`taskType_${key}`)}</span>
+                        </label>
+                        
+                        {isGenerated && (
+                          <label className="flex items-center gap-2.5 ps-8 text-xs text-muted-foreground cursor-pointer select-none animate-in fade-in duration-200">
+                            <input
+                              type="checkbox"
+                              className="rounded border-input text-primary focus:ring-primary w-4 h-4"
+                              checked={progressTypes[key]}
+                              onChange={() =>
+                                setProgressTypes((prev) => ({ ...prev, [key]: !prev[key] }))
+                              }
+                            />
+                            {language === 'he' ? 'כלול בחישוב ההתקדמות של הקורס' : 'Include in course progress calculation'}
+                          </label>
+                        )}
                       </div>
-                      <span className="font-medium text-sm">{t(`taskType_${key}`)}</span>
-                      <input
-                        type="checkbox"
-                        className="sr-only"
-                        checked={enabledTypes[key]}
-                        onChange={() =>
-                          setEnabledTypes((prev) => ({ ...prev, [key]: !prev[key] }))
-                        }
-                      />
-                    </label>
-                  ))}
+                    );
+                  })}
 
                   {/* Custom task types */}
                   {customTypes.map((ct) => (

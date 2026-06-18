@@ -1,21 +1,29 @@
 import React, { useState, useRef } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
-import { Check, GripVertical, FileText, Paperclip, Trash2 } from 'lucide-react';
-import { useStore } from '../../store/useStore';
+import { Check, GripVertical, FileText, Paperclip, Trash2, Plus } from 'lucide-react';
+import { useStore, isTaskIncludedInProgress } from '../../store/useStore';
 import { useCourseFiles } from '../../hooks/useCourseFiles';
 import { useTranslation } from '../../hooks/useTranslation';
 import { toast } from '../../store/useToast';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog';
+import { Input } from '../ui/input';
+import { Button } from '../ui/button';
 
 export const WeeklyTasks = ({ courseId, selectedWeek }) => {
-  const { data, toggleTask, reorderTasks, moveTaskBetweenWeeks, saveNote, attachFileToTask, removeFileFromTask, setIsUploading } = useStore();
+  const { data, toggleTask, reorderTasks, moveTaskBetweenWeeks, saveNote, attachFileToTask, removeFileFromTask, setIsUploading, addWeeklyTask, deleteWeeklyTask, language } = useStore();
   const { t } = useTranslation();
   const { upload, remove, openSigned } = useCourseFiles(courseId);
   const [uploadingTask, setUploadingTask] = useState(null);
+  
+  const [isAddTaskOpen, setIsAddTaskOpen] = useState(false);
+  const [newTaskName, setNewTaskName] = useState('');
+  const [newTaskIncludeProgress, setNewTaskIncludeProgress] = useState(true);
   
   const fileInputRef = useRef(null);
   const tasks = data.tasks[courseId] || {};
   const currentTasks = tasks[selectedWeek] || [];
   const note = (data.notes[courseId] && data.notes[courseId][selectedWeek]) || "";
+  const currentCourse = data.courses.find(c => c.id === courseId);
 
   const onDragEnd = (result) => {
     if (!result.destination) return;
@@ -71,6 +79,19 @@ export const WeeklyTasks = ({ courseId, selectedWeek }) => {
     if (fileInputRef.current) fileInputRef.current.click();
   };
 
+  const handleAddTask = () => {
+    const label = newTaskName.trim();
+    if (!label) {
+      toast.error(t('taskNameRequired', 'שם המשימה הוא שדה חובה'));
+      return;
+    }
+    addWeeklyTask(courseId, selectedWeek, label, newTaskIncludeProgress);
+    setNewTaskName('');
+    setNewTaskIncludeProgress(true);
+    setIsAddTaskOpen(false);
+    toast.success(t('taskAdded', 'המשימה נוספה בהצלחה'));
+  };
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in duration-300">
       
@@ -84,10 +105,21 @@ export const WeeklyTasks = ({ courseId, selectedWeek }) => {
       />
 
       <div className="lg:col-span-2 space-y-4">
-        <h3 className="font-bold text-lg flex items-center gap-2 text-foreground">
-          <Check className="w-5 h-5 text-primary" />
-          {t('weeklyTasksTab')}
-        </h3>
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-lg flex items-center gap-2 text-foreground">
+            <Check className="w-5 h-5 text-primary" />
+            {t('weeklyTasksTab')}
+          </h3>
+          <Button 
+            size="sm" 
+            variant="outline" 
+            onClick={() => setIsAddTaskOpen(true)}
+            className="h-8 gap-1 rounded-xl"
+          >
+            <Plus className="w-4 h-4" />
+            {t('newTask')}
+          </Button>
+        </div>
         
         <DragDropContext onDragEnd={onDragEnd}>
           <Droppable droppableId={`week-${selectedWeek}`}>
@@ -132,9 +164,27 @@ export const WeeklyTasks = ({ courseId, selectedWeek }) => {
                             </div>
                           </button>
                           
-                          <span className={`font-medium flex-1 ${task.checked ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+                          <span className={`font-medium flex-1 flex flex-wrap items-center gap-2 ${task.checked ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
                             {task.label}
+                            {!isTaskIncludedInProgress(task, currentCourse) && (
+                              <span className="text-[10px] bg-secondary/80 text-muted-foreground px-2 py-0.5 rounded-full select-none font-medium normal-case">
+                                {t('notIncludedInProgress')}
+                              </span>
+                            )}
                           </span>
+                          
+                          <button
+                            onClick={() => {
+                              if (window.confirm(t('confirmDeleteTask'))) {
+                                deleteWeeklyTask(courseId, selectedWeek, task.id);
+                                toast.success(t('taskDeleted', 'המשימה נמחקה'));
+                              }
+                            }}
+                            className="p-1.5 text-muted-foreground hover:text-destructive transition-colors shrink-0"
+                            title={t('delete')}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </div>
 
                         {/* Task Files */}
@@ -203,6 +253,42 @@ export const WeeklyTasks = ({ courseId, selectedWeek }) => {
           {t('notesAutoSaved')}
         </p>
       </div>
+
+      {/* Add Task Dialog */}
+      <Dialog open={isAddTaskOpen} onOpenChange={setIsAddTaskOpen}>
+        <DialogContent dir={language === 'he' ? 'rtl' : 'ltr'} className={language === 'he' ? 'text-right' : 'text-left'}>
+          <DialogHeader>
+            <DialogTitle>{t('newTask')}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4 text-start">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">{t('taskName')}</label>
+              <Input 
+                value={newTaskName} 
+                onChange={(e) => setNewTaskName(e.target.value)} 
+                placeholder={t('taskNamePlaceholder')}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleAddTask(); }}
+                className="text-start"
+              />
+            </div>
+            
+            <label className="flex items-center gap-2.5 text-sm text-foreground cursor-pointer select-none py-1">
+              <input
+                type="checkbox"
+                checked={newTaskIncludeProgress}
+                onChange={(e) => setNewTaskIncludeProgress(e.target.checked)}
+                className="rounded border-input text-primary focus:ring-primary w-4 h-4"
+              />
+              {t('calculateInProgress')}
+            </label>
+          </div>
+          <DialogFooter className="gap-2 sm:justify-start">
+            <Button variant="outline" onClick={() => setIsAddTaskOpen(false)}>{language === 'he' ? 'ביטול' : 'Cancel'}</Button>
+            <Button onClick={handleAddTask}>{t('addTask')}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
+

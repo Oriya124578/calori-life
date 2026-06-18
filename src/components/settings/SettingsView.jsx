@@ -12,7 +12,7 @@ import { toast } from '../../store/useToast';
 import { cn } from '../../lib/utils';
 import { NotificationSettings } from './NotificationSettings';
 import { CITIES_LIST } from '../../lib/shabbatService';
-import { Bell, Shield, Database, Info, ChevronLeft, ChevronRight, Tags } from 'lucide-react';
+import { Bell, Shield, Database, Info, ChevronLeft, ChevronRight, Tags, X } from 'lucide-react';
 
 /* ── cream v3 shared inline styles ── */
 const creamCard = {
@@ -102,6 +102,9 @@ export const SettingsView = () => {
   const [generateLecture, setGenerateLecture] = useState(true);
   const [generateTutorial, setGenerateTutorial] = useState(true);
   const [generateHomework, setGenerateHomework] = useState(true);
+  const [progressLecture, setProgressLecture] = useState(true);
+  const [progressTutorial, setProgressTutorial] = useState(true);
+  const [progressHomework, setProgressHomework] = useState(false);
 
   const [editingCategory, setEditingCategory] = useState(null);
   const [isCategoryAddMode, setIsCategoryAddMode] = useState(false);
@@ -206,6 +209,9 @@ export const SettingsView = () => {
     setGenerateLecture(true);
     setGenerateTutorial(true);
     setGenerateHomework(true);
+    setProgressLecture(true);
+    setProgressTutorial(true);
+    setProgressHomework(false);
     setEditingCourse({
       name: '',
       weeksCount: 13,
@@ -238,6 +244,12 @@ export const SettingsView = () => {
           moedC: editingCourse.moedC || null,
           defaultNotebookLmLink: editingCourse.notebookLm || '',
           defaultGeminiLink: editingCourse.gemini || '',
+          progressSettings: {
+            lecture: progressLecture,
+            tutorial: progressTutorial,
+            homework: progressHomework,
+            custom: true
+          }
         }, seeds);
         toast.success(t('courseAdded', 'הקורס נוסף בהצלחה'));
       } else {
@@ -359,7 +371,7 @@ export const SettingsView = () => {
         title: t('data', 'נתונים'),
         items: [
           { id: 'data', iconEl: <Database className="w-4 h-4" />, ic: 'gr', title: t('exportData', 'ייצוא וגיבוי'), sub: 'קובץ JSON, איפוס סמסטר' },
-          { id: 'about', iconEl: <Info className="w-4 h-4" />, ic: 'gr', title: t('aboutTitle', 'אודות'), sub: 'גרסה, רישיון, פרטיות', val: 'v6.16.2' },
+          { id: 'about', iconEl: <Info className="w-4 h-4" />, ic: 'gr', title: t('aboutTitle', 'אודות'), sub: 'גרסה, רישיון, פרטיות', val: 'v6.18.0' },
         ]
       }
     ];
@@ -449,7 +461,7 @@ export const SettingsView = () => {
           textAlign: 'center', fontFamily: "'Instrument Serif', serif",
           fontStyle: 'italic', fontSize: 13, color: 'rgba(138,122,106,.5)', padding: '14px 0 4px',
         }}>
-          Calori Life &middot; <em style={{ color: '#059669' }}>v6.16.2</em>
+          Calori Life &middot; <em style={{ color: '#059669' }}>v6.18.0</em>
         </div>
       </div>
     );
@@ -1007,7 +1019,7 @@ export const SettingsView = () => {
       <CardContent className="space-y-3">
         <div className="flex items-center justify-between p-4 rounded-xl border bg-card">
           <span className="font-semibold text-foreground">Calori Life</span>
-          <span className="text-sm font-mono text-primary">v6.16.2</span>
+          <span className="text-sm font-mono text-primary">v6.18.0</span>
         </div>
         <a href="/privacy" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-4 rounded-xl border bg-card hover:bg-muted/40 transition-colors">
           <span className="font-semibold text-foreground flex items-center gap-2"><Lock className="w-4 h-4" /> מדיניות פרטיות</span>
@@ -1125,14 +1137,39 @@ export const SettingsView = () => {
                 <label className="text-sm font-medium">{t('weeksCountLabel')}</label>
                 <Input type="number" min="1" max="20" value={editingCourse.weeksCount} onChange={e => setEditingCourse({...editingCourse, weeksCount: parseInt(e.target.value)})} />
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">{t('examDateA')}</label>
-                  <Input type="date" value={editingCourse.moedA} onChange={e => setEditingCourse({...editingCourse, moedA: e.target.value})} />
+                  <div className="flex gap-2">
+                    <Input type="date" value={editingCourse.moedA} onChange={e => setEditingCourse({...editingCourse, moedA: e.target.value})} className="text-start" />
+                    {editingCourse.moedA && (
+                      <Button variant="outline" size="icon" onClick={() => setEditingCourse({...editingCourse, moedA: ''})} className="shrink-0 rounded-xl" title={language === 'he' ? 'נקה מועד' : 'Clear date'}>
+                        <X className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">{t('examDateB')}</label>
-                  <Input type="date" value={editingCourse.moedB} onChange={e => setEditingCourse({...editingCourse, moedB: e.target.value})} />
+                  <div className="flex gap-2">
+                    <Input type="date" value={editingCourse.moedB} onChange={e => setEditingCourse({...editingCourse, moedB: e.target.value})} className="text-start" />
+                    {editingCourse.moedB && (
+                      <Button variant="outline" size="icon" onClick={() => setEditingCourse({...editingCourse, moedB: ''})} className="shrink-0 rounded-xl" title={language === 'he' ? 'נקה מועד' : 'Clear date'}>
+                        <X className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">{language === 'he' ? 'מועד ג׳' : 'Moed C'}</label>
+                  <div className="flex gap-2">
+                    <Input type="date" value={editingCourse.moedC || ''} onChange={e => setEditingCourse({...editingCourse, moedC: e.target.value})} className="text-start" />
+                    {editingCourse.moedC && (
+                      <Button variant="outline" size="icon" onClick={() => setEditingCourse({...editingCourse, moedC: ''})} className="shrink-0 rounded-xl" title={language === 'he' ? 'נקה מועד' : 'Clear date'}>
+                        <X className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="space-y-2">
@@ -1175,6 +1212,39 @@ export const SettingsView = () => {
                         className="rounded border-input text-primary focus:ring-primary w-4 h-4"
                       />
                       {language === 'he' ? 'שיעורי בית' : 'Homework'}
+                    </label>
+                  </div>
+                  
+                  <div className="flex flex-col gap-2.5 bg-secondary/10 p-3 rounded-xl border mt-2.5">
+                    <label className="text-xs font-bold text-muted-foreground block">
+                      {language === 'he' ? 'הגדרות התקדמות (אילו מטלות ייספרו):' : 'Progress Settings (which tasks will count):'}
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={progressLecture}
+                        onChange={(e) => setProgressLecture(e.target.checked)}
+                        className="rounded border-input text-primary focus:ring-primary w-4 h-4"
+                      />
+                      {language === 'he' ? 'הרצאות נכללות בהתקדמות' : 'Lectures count in progress'}
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={progressTutorial}
+                        onChange={(e) => setProgressTutorial(e.target.checked)}
+                        className="rounded border-input text-primary focus:ring-primary w-4 h-4"
+                      />
+                      {language === 'he' ? 'תרגולים נכללים בהתקדמות' : 'Tutorials count in progress'}
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={progressHomework}
+                        onChange={(e) => setProgressHomework(e.target.checked)}
+                        className="rounded border-input text-primary focus:ring-primary w-4 h-4"
+                      />
+                      {language === 'he' ? 'שיעורי בית נכללים בהתקדמות' : 'Homework counts in progress'}
                     </label>
                   </div>
                 </div>

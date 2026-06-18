@@ -112,6 +112,8 @@ Input data:
   ${JSON.stringify(context.upcomingExams)}
 - Unscheduled tasks (place them in slots or link to study blocks):
   ${JSON.stringify(context.tasks)}
+- Course academic progress & pending tasks (only tasks included in progress calculation):
+  ${JSON.stringify(context.courseProgress || [])}
 - Today's Calori workouts (if planned, recommend a slot for it):
   ${JSON.stringify(context.workouts)}
 - Today's logged meals (already eaten, lock them):

@@ -6,7 +6,7 @@ import {
   Lock, Unlock, Moon, Sun, MoreVertical, Bell, ListTodo
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useStore } from '../../store/useStore';
+import { useStore, getCourseProgressSummary } from '../../store/useStore';
 import { useTranslation } from '../../hooks/useTranslation';
 import { cn } from '../../lib/utils';
 import { swrFetch } from '../../lib/cacheService';
@@ -463,6 +463,7 @@ export const CommandCenterView = () => {
       // "Shabbat preparation" blocks.
       const plannedDow = currentDate.getDay(); // 0=Sun … 5=Fri, 6=Sat
       const shabbatRelevant = plannedDow === 5 || plannedDow === 6;
+      const courseProgress = getCourseProgressSummary(data?.courses || [], data?.tasks || {});
       const context = {
         todayDate: dateStr,
         dayOfWeek: format(currentDate, 'EEEE', { locale }),
@@ -481,6 +482,7 @@ export const CommandCenterView = () => {
         fixedEvents,
         upcomingExams,
         tasks: unscheduledTasks,
+        courseProgress,
         workouts: plannedWorkouts,
         meals,
         dailyAnalytics: data?.recentDailyAnalytics || [],

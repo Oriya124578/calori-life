@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
-import { useStore } from '../../store/useStore';
+import { useStore, isTaskIncludedInProgress } from '../../store/useStore';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { Clock, Calendar as CalendarIcon, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { differenceInDays } from 'date-fns';
@@ -20,8 +20,10 @@ export const StudiesStats = () => {
     (data?.courses || []).forEach((course) => {
       Object.values(data?.tasks?.[course.id] || {}).forEach((weekTasks) => {
         (weekTasks || []).forEach((task) => {
-          totalTasks++;
-          if (task.checked) completedTasks++;
+          if (isTaskIncludedInProgress(task, course)) {
+            totalTasks++;
+            if (task.checked) completedTasks++;
+          }
         });
       });
     });

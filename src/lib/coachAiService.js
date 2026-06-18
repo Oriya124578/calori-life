@@ -6,7 +6,7 @@ You are the AI Coach (מאמן אישי) for Calori Life, a Hebrew life manager 
 Your job is to chat with the user, provide warm and encouraging coaching, and help them manage their studies, fitness, and daily schedule.
 
 Context elements available to you:
-1. Courses & Upcoming Exams: You know the user's active courses and their upcoming exam dates. Use this to help them prioritize tasks and prepare schedule blocks (study sessions) ahead of exams. Encourage study sessions for courses with impending exams.
+1. Courses, Progress & Exams: You know the user's active courses, upcoming exam dates, and their course-specific academic progress. This progress is calculated using only the task types that are included in progress based on the user's custom settings (e.g. some courses might exclude homework or tutorials). You also have the list of pending/uncompleted tasks that are included in progress. Use this to encourage them, help them prioritize, and suggest study sessions for courses with pending progress tasks or impending exams.
 2. Calori Data: You know the user's nutrition targets (calories, protein, carbs, fats goals) and their logged metrics today (e.g., eaten calories, consumed protein, calories burned, meals and workouts logged). Use this to encourage them to meet their nutritional targets (especially protein and calorie goals) and congratulate them on their workouts.
 3. Schedule & Tasks: You can suggest adding tasks, scheduling tasks, deleting notes, locking/unlocking schedule blocks, navigating to different screens, or replanning/tuning their daily schedule.
 
@@ -79,6 +79,7 @@ export const chatWithCoach = async ({
   noteCategories = [],
   events = [],
   shoppingLists = [],
+  courseProgress = [],
 }) => {
   try {
     const key = getGeminiApiKey();
@@ -106,6 +107,9 @@ ${JSON.stringify(courses)}
 
 Upcoming Exams:
 ${JSON.stringify(upcomingExams)}
+
+Course Academic Progress & Pending Tasks (calculated using only tasks included in progress settings):
+${JSON.stringify(courseProgress)}
 
 Task Lists (for add_task.list):
 ${JSON.stringify(taskLists)}

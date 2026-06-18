@@ -124,6 +124,60 @@ const loadNotificationSettings = () => {
 
 // ---------- Helpers --------------------------------------------------------
 
+export const isTaskIncludedInProgress = (task, course) => {
+  if (!task) return false;
+  if (task.includeInProgress !== undefined) {
+    return !!task.includeInProgress;
+  }
+  const type = task.type || 'custom';
+  let progressSettings = course?.progressSettings;
+  if (!progressSettings) {
+    progressSettings = {
+      lecture: true,
+      tutorial: true,
+      homework: false,
+      custom: true
+    };
+  }
+  if (type === 'lecture') return !!progressSettings.lecture;
+  if (type === 'tutorial') return !!progressSettings.tutorial;
+  if (type === 'homework') return !!progressSettings.homework;
+  return !!progressSettings.custom;
+};
+
+export const getCourseProgressSummary = (courses, tasks) => {
+  if (!courses || !tasks) return [];
+  return courses.filter(c => !c.isArchived).map(course => {
+    const courseWeeks = tasks[course.id] || {};
+    let totalIncluded = 0;
+    let completedIncluded = 0;
+    const pendingIncluded = [];
+
+    Object.entries(courseWeeks).forEach(([weekNum, weekTasks]) => {
+      (weekTasks || []).forEach(t => {
+        if (isTaskIncludedInProgress(t, course)) {
+          totalIncluded++;
+          if (t.checked) {
+            completedIncluded++;
+          } else {
+            pendingIncluded.push({
+              week: Number(weekNum),
+              label: t.label,
+              type: t.type
+            });
+          }
+        }
+      });
+    });
+
+    return {
+      courseName: course.name,
+      progress: `${completedIncluded}/${totalIncluded} (${totalIncluded > 0 ? Math.round((completedIncluded / totalIncluded) * 100) : 0}%)`,
+      pendingTasks: pendingIncluded
+    };
+  });
+};
+
 // Build a stable id for a weekly seeded task (lecture/tutorial/homework).
 const weeklyTaskId = (courseId, week, type, idx = 0) =>
   `${courseId}-w${week}-${type}-${idx}`;
@@ -157,6 +211,7 @@ const rebuildTaskBuckets = (courseTaskDocs) => {
       checked: !!t.checked,
       files: Array.isArray(t.files) ? t.files : [],
       ...(t.order != null ? { order: t.order } : {}),
+      includeInProgress: t.includeInProgress !== undefined ? t.includeInProgress : true,
     };
     if (scope === 'weekly') {
       if (week == null) continue;
@@ -707,7 +762,7 @@ export const useStore = create((set, get) => ({
   // ---------- Onboarding -------------------------------------------------
 
   // seeds = optional [{ type, label }] array — applies to every selected course.
-  completeOnboarding: async (profileData, selectedCourses, seeds = null) => {
+  completeOnboarding: async (profileData, selectedCourses, seeds = null, progressSettings = null) => {
     const { uid, language } = get();
     if (!uid) return;
     const lang = language || 'he';
@@ -730,6 +785,12 @@ export const useStore = create((set, get) => ({
           localFolder: course.defaultLocalFolder || '',
         },
         notes: {},
+        progressSettings: progressSettings || {
+          lecture: true,
+          tutorial: true,
+          homework: false,
+          custom: true
+        }
       };
       await fsSetCourse(uid, course.id, courseDoc);
       const tasksMap = buildInitialWeeklyTasksMap(course, lang, seeds);
@@ -1033,6 +1094,12 @@ export const useStore = create((set, get) => ({
         localFolder: course.defaultLocalFolder || '',
       },
       notes: {},
+      progressSettings: course.progressSettings || {
+        lecture: true,
+        tutorial: true,
+        homework: false,
+        custom: true
+      },
     };
     await fsSetCourse(uid, courseId, courseDoc).catch(console.error);
 
@@ -1063,6 +1130,55 @@ export const useStore = create((set, get) => ({
   },
 
   // ---------- Weekly tasks ------------------------------------------------
+
+  addWeeklyTask: (courseId, week, label, includeInProgress = true) => {
+    const { uid } = get();
+    const id = weeklyTaskId(courseId, week, 'custom', Date.now());
+    const newTask = {
+      id,
+      type: 'custom',
+      label,
+      checked: false,
+      files: [],
+      includeInProgress,
+      order: Date.now(),
+    };
+
+    set((state) => {
+      const newData = { ...state.data };
+      const courseTasks = { ...(newData.tasks[courseId] || {}) };
+      const weekTasks = [...(courseTasks[week] || []), newTask];
+      courseTasks[week] = weekTasks;
+      newData.tasks = { ...newData.tasks, [courseId]: courseTasks };
+      return { data: newData };
+    });
+
+    if (uid) {
+      fsSetCourseTask(uid, id, {
+        courseId,
+        scope: 'weekly',
+        week,
+        type: 'custom',
+        label,
+        checked: false,
+        files: [],
+        includeInProgress,
+        order: Date.now(),
+      }).catch(console.error);
+    }
+  },
+
+  deleteWeeklyTask: (courseId, week, taskId) => {
+    const { uid } = get();
+    set((state) => {
+      const newData = { ...state.data };
+      const courseTasks = { ...(newData.tasks[courseId] || {}) };
+      courseTasks[week] = (courseTasks[week] || []).filter((t) => t.id !== taskId);
+      newData.tasks = { ...newData.tasks, [courseId]: courseTasks };
+      return { data: newData };
+    });
+    if (uid) fsDeleteCourseTask(uid, taskId).catch(console.error);
+  },
 
   toggleTask: (courseId, week, taskId) => {
     const { uid } = get();
@@ -1896,6 +2012,8 @@ export const useStore = create((set, get) => ({
 
         const plannedWorkouts = data?.calori?.coachSessions || [];
 
+        const courseProgress = getCourseProgressSummary(data?.courses || [], data?.tasks || {});
+
         const context = {
           todayDate: dateStr,
           dayOfWeek: format(new Date(), 'EEEE'),
@@ -1913,6 +2031,7 @@ export const useStore = create((set, get) => ({
           fixedEvents,
           upcomingExams,
           tasks: unscheduledTasks,
+          courseProgress,
           workouts: plannedWorkouts,
           meals,
         };

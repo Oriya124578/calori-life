@@ -35,11 +35,17 @@ function App() {
   // Route->State must run ONLY when the URL itself changed — otherwise, right
   // after goBack() (state changed, URL not yet), it re-asserts the OLD route's
   // state and traps the user on the page (the "stuck on Calori" bug).
+  // We also run it on the very first render to correctly capture deep links.
+  const isFirstRenderRef = useRef(true);
   const prevPathRef = useRef(location.pathname);
   useEffect(() => {
     const pathChanged = prevPathRef.current !== location.pathname;
     prevPathRef.current = location.pathname;
-    if (!pathChanged) return;
+    
+    const shouldRun = isFirstRenderRef.current || pathChanged;
+    isFirstRenderRef.current = false;
+    
+    if (!shouldRun) return;
     // Route -> State
     if (location.pathname.startsWith('/settings')) {
       const activeCat = location.pathname.slice(1);

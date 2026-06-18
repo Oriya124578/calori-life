@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { BookOpen, Clock } from 'lucide-react';
-import { useStore } from '../../store/useStore';
+import { useStore, isTaskIncludedInProgress } from '../../store/useStore';
 import { useTranslation } from '../../hooks/useTranslation';
 import { cn } from '../../lib/utils';
 import { differenceInDays, parseISO } from 'date-fns';
@@ -49,7 +49,7 @@ export const StudiesHub = () => {
     (data?.courses || []).forEach((course) => {
       Object.values(data?.tasks?.[course.id] || {}).forEach((weekTasks) => {
         (weekTasks || []).forEach((task) => {
-          if (task.type !== 'homework') {
+          if (isTaskIncludedInProgress(task, course)) {
             totalTasks++;
             if (task.checked) completedTasks++;
           }
@@ -210,11 +210,11 @@ export const StudiesHub = () => {
         {courses.map((course, idx) => {
           const color = COURSE_COLORS[idx % COURSE_COLORS.length];
           const taskCount = Object.values(data.tasks[course.id] || {}).reduce(
-            (sum, week) => sum + week.filter(t => t.type !== 'homework').length,
+            (sum, week) => sum + week.filter(t => isTaskIncludedInProgress(t, course)).length,
             0,
           );
           const doneCount = Object.values(data.tasks[course.id] || {}).reduce(
-            (sum, week) => sum + week.filter((t) => t.type !== 'homework' && t.checked).length,
+            (sum, week) => sum + week.filter((t) => isTaskIncludedInProgress(t, course) && t.checked).length,
             0,
           );
           const pct = taskCount > 0 ? Math.round((doneCount / taskCount) * 100) : 0;

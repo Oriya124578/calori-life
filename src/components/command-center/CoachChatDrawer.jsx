@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Send, Bot, Check, ArrowLeft, ArrowRight, Sparkles } from 'lucide-react';
-import { useStore } from '../../store/useStore';
+import { useStore, isTaskIncludedInProgress, getCourseProgressSummary } from '../../store/useStore';
 import { useTranslation } from '../../hooks/useTranslation';
 import { chatWithCoach } from '../../lib/coachAiService';
 import { cn } from '../../lib/utils';
@@ -136,6 +136,7 @@ export const CoachChatDrawer = ({ isOpen, onClose, dateStr, shabbatTimes, onRepl
       const coursesContext = (data?.courses || []).filter(c => !c.isArchived).map(c => ({
         id: c.id,
         name: c.name,
+        progressSettings: c.progressSettings || { lecture: true, tutorial: true, homework: false, custom: true }
       }));
 
       // Upcoming exams sorted by date
@@ -175,6 +176,8 @@ export const CoachChatDrawer = ({ isOpen, onClose, dateStr, shabbatTimes, onRepl
       });
       upcomingExams.sort((a, b) => a.date.localeCompare(b.date));
 
+      const courseProgress = getCourseProgressSummary(data?.courses || [], data?.tasks || {});
+
       const res = await chatWithCoach({
         history: contextHistory,
         message: query,
@@ -194,6 +197,7 @@ export const CoachChatDrawer = ({ isOpen, onClose, dateStr, shabbatTimes, onRepl
         noteCategories,
         events: data?.events || [],
         shoppingLists: data?.shoppingLists || [],
+        courseProgress,
       });
 
       // Append bot response

@@ -1,11 +1,11 @@
-import React, { useState, useMemo } from 'react';
-import { useStore } from '../../store/useStore';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useStore, isTaskIncludedInProgress } from '../../store/useStore';
 import { WeeklyTasks } from './WeeklyTasks';
 import { AllTasksByType } from './AllTasksByType';
 import { CategorySection } from './GlobalTasks';
 import { cn } from '../../lib/utils';
 import { Button } from '../ui/button';
-import { ChevronDown, GraduationCap } from 'lucide-react';
+import { ChevronDown, GraduationCap, Check, Pencil, Trash2 } from 'lucide-react';
 import { Settings, FileText, ListTodo, Book, Sparkles } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog';
 import { Input } from '../ui/input';
@@ -19,9 +19,32 @@ export const CourseView = () => {
   const [selectedWeek, setSelectedWeek] = useState(1);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isCourseSelectOpen, setIsCourseSelectOpen] = useState(false);
-  
+  const [isExamDialogOpen, setIsExamDialogOpen] = useState(false);
+  const [editingMoedKey, setEditingMoedKey] = useState(null);
+  const [examFormDate, setExamFormDate] = useState('');
+  const [examFormTime, setExamFormTime] = useState('');
+
   // Local state for the settings modal
   const [editData, setEditData] = useState({});
+
+  useEffect(() => {
+    if (activeCourse) {
+      setEditData({
+        name: activeCourse.name || "",
+        weeksCount: activeCourse.weeksCount || 14,
+        credits: activeCourse.credits || 0,
+        semester: activeCourse.semester || "א'",
+        geminiLink: data.links?.[activeCourse.id]?.gemini || "",
+        notebookLmLink: data.links?.[activeCourse.id]?.notebookLm || "",
+        progressSettings: activeCourse.progressSettings || {
+          lecture: true,
+          tutorial: true,
+          homework: false,
+          custom: true
+        }
+      });
+    }
+  }, [activeCourse, activeTab, data.links]);
 
   const isRTL = language === 'he';
 
@@ -80,8 +103,66 @@ export const CourseView = () => {
       semester: activeCourse.semester || "א'",
       geminiLink: data.links?.[activeCourse.id]?.gemini || "",
       notebookLmLink: data.links?.[activeCourse.id]?.notebookLm || "",
+      progressSettings: activeCourse.progressSettings || {
+        lecture: true,
+        tutorial: true,
+        homework: false,
+        custom: true
+      }
     });
     setIsSettingsOpen(true);
+  };
+
+  const handleOpenExamDialog = (moedKey) => {
+    setEditingMoedKey(moedKey);
+    const rawDate = activeCourse[moedKey] || activeCourse.exams?.[moedKey];
+    if (rawDate) {
+      const dt = new Date(rawDate);
+      if (!Number.isNaN(dt.getTime())) {
+        setExamFormDate(`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`);
+        const hasTime = typeof rawDate === 'string' && rawDate.includes('T');
+        setExamFormTime(hasTime ? `${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}` : '');
+        setIsExamDialogOpen(true);
+        return;
+      }
+    }
+    setExamFormDate('');
+    setExamFormTime('');
+    setIsExamDialogOpen(true);
+  };
+
+  const handleSaveExamMoed = () => {
+    if (!examFormDate) {
+      toast.error(isRTL ? 'אנא בחר תאריך' : 'Please select a date');
+      return;
+    }
+    const dateStr = examFormTime ? `${examFormDate}T${examFormTime}:00` : examFormDate;
+    const currentExams = {
+      moedA: activeCourse.exams?.moedA || activeCourse.moedA || null,
+      moedB: activeCourse.exams?.moedB || activeCourse.moedB || null,
+      moedC: activeCourse.exams?.moedC || activeCourse.moedC || null,
+    };
+    updateCourse(activeCourse.id, {
+      exams: { ...currentExams, [editingMoedKey]: dateStr },
+      [editingMoedKey]: dateStr,
+    });
+    setIsExamDialogOpen(false);
+    toast.success(isRTL ? 'תאריך המועד עודכן' : 'Exam date updated');
+  };
+
+  const handleDeleteExamMoed = (moedKey) => {
+    const label = moedKey === 'moedA' ? 'מועד א׳' : moedKey === 'moedB' ? 'מועד ב׳' : 'מועד ג׳';
+    if (!window.confirm(isRTL ? `למחוק את ${label}?` : `Delete ${label}?`)) return;
+    const currentExams = {
+      moedA: activeCourse.exams?.moedA || activeCourse.moedA || null,
+      moedB: activeCourse.exams?.moedB || activeCourse.moedB || null,
+      moedC: activeCourse.exams?.moedC || activeCourse.moedC || null,
+    };
+    updateCourse(activeCourse.id, {
+      exams: { ...currentExams, [moedKey]: null },
+      [moedKey]: null,
+    });
+    toast.success(isRTL ? 'המועד נמחק' : 'Exam date deleted');
   };
 
   const handleSaveSettings = () => {
@@ -104,6 +185,12 @@ export const CourseView = () => {
         weeksCount,
         credits,
         semester: editData.semester,
+        progressSettings: editData.progressSettings || {
+          lecture: true,
+          tutorial: true,
+          homework: false,
+          custom: true
+        }
       });
       saveLinks(activeCourse.id, {
         ...data.links?.[activeCourse.id],
@@ -111,6 +198,7 @@ export const CourseView = () => {
         notebookLm: (editData.notebookLmLink || '').trim(),
       });
       setIsSettingsOpen(false);
+      toast.success(t('courseUpdated', 'הקורס עודכן בהצלחה'));
     } catch (err) {
       console.error('Failed to save course settings', err);
       toast.error(t('saveError'));
@@ -229,7 +317,8 @@ export const CourseView = () => {
           { id: 'general_tasks', label: t('generalTasksTab') },
           { id: 'past_exams', label: t('pastExams') },
           { id: 'quizzes', label: t('quizzes') },
-          { id: 'summaries', label: t('summaries') }
+          { id: 'summaries', label: t('summaries') },
+          { id: 'settings', label: t('courseSettings') }
         ].map(tab => (
           <button
             key={tab.id}
@@ -255,7 +344,7 @@ export const CourseView = () => {
             <div className="flex flex-wrap gap-2 mb-6">
               {Array.from({ length: activeCourse.weeksCount || 14 }, (_, i) => i + 1).map((week) => {
                 const weekTasks = data.tasks[activeCourse.id]?.[week];
-                const relevantTasks = weekTasks ? weekTasks.filter(t => t.type !== 'homework') : [];
+                const relevantTasks = weekTasks ? weekTasks.filter(t => isTaskIncludedInProgress(t, activeCourse)) : [];
                 const isCompleted = relevantTasks.length > 0 && relevantTasks.every(t => t.checked);
                 
                 return (
@@ -304,7 +393,241 @@ export const CourseView = () => {
             />
           </div>
         )}
+
+        {activeTab === 'settings' && (
+          <div className="max-w-2xl mx-auto bg-card border border-border rounded-2xl p-6 shadow-sm space-y-6 text-start">
+            <h3 className="text-xl font-bold text-foreground border-b border-border pb-3 flex items-center gap-2">
+              <Settings className="w-5 h-5 text-primary" />
+              {t('courseSettings')}: {activeCourse.name}
+            </h3>
+            
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-foreground">{t('courseName')}</label>
+                <Input 
+                  value={editData.name || ''} 
+                  onChange={(e) => setEditData({...editData, name: e.target.value})} 
+                  className="text-start"
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-foreground">{t('learningWeeks')}</label>
+                  <Input 
+                    type="number" 
+                    min="1" 
+                    max="20" 
+                    value={editData.weeksCount || 14} 
+                    onChange={(e) => setEditData({...editData, weeksCount: e.target.value})} 
+                    className="text-start"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-foreground">{t('credits')}</label>
+                  <Input 
+                    type="number" 
+                    step="0.5" 
+                    min="0"
+                    value={editData.credits || 0} 
+                    onChange={(e) => setEditData({...editData, credits: e.target.value})} 
+                    className="text-start"
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-foreground">{t('semester')}</label>
+                <Input 
+                  placeholder={t('semesterPlaceholder')}
+                  value={editData.semester || ''} 
+                  onChange={(e) => setEditData({...editData, semester: e.target.value})} 
+                  className="text-start"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-foreground">{t('geminiLink')}</label>
+                <Input 
+                  placeholder="https://gemini.google.com/..."
+                  value={editData.geminiLink || ''} 
+                  onChange={(e) => setEditData({...editData, geminiLink: e.target.value})} 
+                  className="text-start"
+                  dir="ltr"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-foreground">{t('notebookLmLink')}</label>
+                <Input 
+                  placeholder="https://notebooklm.google.com/..."
+                  value={editData.notebookLmLink || ''} 
+                  onChange={(e) => setEditData({...editData, notebookLmLink: e.target.value})} 
+                  className="text-start"
+                  dir="ltr"
+                />
+              </div>
+
+              <div className="space-y-3 pt-4 border-t border-border">
+                <h4 className="text-sm font-bold text-foreground flex items-center gap-1.5">
+                  <Check className="w-4 h-4 text-primary" />
+                  {t('progressCalculationSettings')}
+                </h4>
+                
+                <div className="flex flex-col gap-2.5 bg-secondary/20 p-4 rounded-xl border">
+                  <label className="flex items-center gap-2.5 text-sm text-foreground cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={!!editData.progressSettings?.lecture}
+                      onChange={(e) => setEditData({
+                        ...editData,
+                        progressSettings: {
+                          ...editData.progressSettings,
+                          lecture: e.target.checked
+                        }
+                      })}
+                      className="rounded border-input text-primary focus:ring-primary w-4 h-4"
+                    />
+                    {language === 'he' ? 'הרצאות נכללות בהתקדמות' : 'Lectures count in progress'}
+                  </label>
+                  
+                  <label className="flex items-center gap-2.5 text-sm text-foreground cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={!!editData.progressSettings?.tutorial}
+                      onChange={(e) => setEditData({
+                        ...editData,
+                        progressSettings: {
+                          ...editData.progressSettings,
+                          tutorial: e.target.checked
+                        }
+                      })}
+                      className="rounded border-input text-primary focus:ring-primary w-4 h-4"
+                    />
+                    {language === 'he' ? 'תרגולים נכללים בהתקדמות' : 'Tutorials count in progress'}
+                  </label>
+                  
+                  <label className="flex items-center gap-2.5 text-sm text-foreground cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={!!editData.progressSettings?.homework}
+                      onChange={(e) => setEditData({
+                        ...editData,
+                        progressSettings: {
+                          ...editData.progressSettings,
+                          homework: e.target.checked
+                        }
+                      })}
+                      className="rounded border-input text-primary focus:ring-primary w-4 h-4"
+                    />
+                    {language === 'he' ? 'שיעורי בית נכללים בהתקדמות' : 'Homework counts in progress'}
+                  </label>
+                </div>
+              </div>
+
+              {/* Exam Dates Section */}
+              <div className="space-y-3 pt-4 border-t border-border">
+                <h4 className="text-sm font-bold text-foreground flex items-center gap-1.5">
+                  <GraduationCap className="w-4 h-4 text-primary" />
+                  {isRTL ? 'מועדי בחינות' : 'Exam Dates'}
+                </h4>
+                <div className="flex flex-col gap-2 bg-secondary/20 p-4 rounded-xl border">
+                  {['moedA', 'moedB', 'moedC'].map((moedKey) => {
+                    const rawDate = activeCourse[moedKey] || activeCourse.exams?.[moedKey];
+                    const dt = rawDate ? new Date(rawDate) : null;
+                    const valid = dt && !Number.isNaN(dt.getTime());
+                    const hasTime = typeof rawDate === 'string' && rawDate.includes('T');
+                    const moedLabel = moedKey === 'moedA' ? 'מועד א׳' : moedKey === 'moedB' ? 'מועד ב׳' : 'מועד ג׳';
+                    return (
+                      <div key={moedKey} className="flex items-center gap-2 text-sm">
+                        <span className="font-medium text-foreground w-16 shrink-0">{moedLabel}</span>
+                        {valid ? (
+                          <span className="flex-1 text-muted-foreground text-xs">
+                            {dt.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                            {hasTime && ` ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`}
+                          </span>
+                        ) : (
+                          <span className="flex-1 text-xs italic text-muted-foreground/60">{isRTL ? 'לא נקבע' : 'Not set'}</span>
+                        )}
+                        <div className="flex gap-1 shrink-0">
+                          <button
+                            onClick={() => handleOpenExamDialog(moedKey)}
+                            className="p-1.5 text-muted-foreground hover:text-primary transition-colors rounded-md hover:bg-primary/10"
+                            title={isRTL ? 'ערוך תאריך' : 'Edit date'}
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          {valid && (
+                            <button
+                              onClick={() => handleDeleteExamMoed(moedKey)}
+                              className="p-1.5 text-muted-foreground hover:text-destructive transition-colors rounded-md hover:bg-destructive/10"
+                              title={isRTL ? 'מחק מועד' : 'Delete exam'}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-3 border-t border-border">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setEditData({
+                    name: activeCourse.name,
+                    weeksCount: activeCourse.weeksCount || 14,
+                    credits: activeCourse.credits || 0,
+                    semester: activeCourse.semester || "א'",
+                    geminiLink: data.links?.[activeCourse.id]?.gemini || "",
+                    notebookLmLink: data.links?.[activeCourse.id]?.notebookLm || "",
+                    progressSettings: activeCourse.progressSettings || {
+                      lecture: true,
+                      tutorial: true,
+                      homework: false,
+                      custom: true
+                    }
+                  });
+                  toast.success(isRTL ? 'השינויים בוטלו' : 'Changes reverted');
+                }}
+              >
+                {language === 'he' ? 'בטל שינויים' : 'Cancel'}
+              </Button>
+              <Button onClick={handleSaveSettings}>
+                {t('saveChanges')}
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Exam Moed Edit Dialog */}
+      <Dialog open={isExamDialogOpen} onOpenChange={setIsExamDialogOpen}>
+        <DialogContent dir={language === 'he' ? 'rtl' : 'ltr'} className={language === 'he' ? 'text-right' : 'text-left'}>
+          <DialogHeader>
+            <DialogTitle>
+              {editingMoedKey === 'moedA' ? 'מועד א׳' : editingMoedKey === 'moedB' ? 'מועד ב׳' : 'מועד ג׳'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4 text-start">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">{isRTL ? 'תאריך' : 'Date'}</label>
+              <Input type="date" value={examFormDate} onChange={(e) => setExamFormDate(e.target.value)} className="text-start" dir="ltr" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">{isRTL ? 'שעה (אופציונלי)' : 'Time (optional)'}</label>
+              <Input type="time" value={examFormTime} onChange={(e) => setExamFormTime(e.target.value)} className="text-start" dir="ltr" />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:justify-start">
+            <Button variant="outline" onClick={() => setIsExamDialogOpen(false)}>{t('cancel')}</Button>
+            <Button onClick={handleSaveExamMoed}>{t('saveChanges')}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Course Settings Modal */}
       <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>

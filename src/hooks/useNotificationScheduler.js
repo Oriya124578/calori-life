@@ -11,7 +11,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useRef } from 'react';
-import { useStore } from '../store/useStore';
+import { useStore, isTaskIncludedInProgress } from '../store/useStore';
 import { useTranslation } from './useTranslation';
 import { showLocalNotification, getNotificationPermission } from '../lib/notifications';
 
@@ -168,11 +168,18 @@ export const useNotificationScheduler = () => {
           });
         });
         if (settings.weeklyTasks) {
-          // Rough count of unchecked weekly tasks across all courses.
-          Object.values(data?.tasks || {}).forEach((weeks) => {
-            Object.values(weeks || {}).forEach((arr) => {
-              (arr || []).forEach((wt) => { if (!wt.checked) weekly++; });
-            });
+          // Count only unchecked weekly tasks that are included in progress.
+          (data?.courses || []).forEach((course) => {
+            const courseTasks = data?.tasks?.[course.id];
+            if (courseTasks) {
+              Object.values(courseTasks).forEach((weeks) => {
+                (weeks || []).forEach((wt) => {
+                  if (!wt.checked && isTaskIncludedInProgress(wt, course)) {
+                    weekly++;
+                  }
+                });
+              });
+            }
           });
         }
 
