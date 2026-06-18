@@ -211,7 +211,7 @@ const rebuildTaskBuckets = (courseTaskDocs) => {
       checked: !!t.checked,
       files: Array.isArray(t.files) ? t.files : [],
       ...(t.order != null ? { order: t.order } : {}),
-      includeInProgress: t.includeInProgress !== undefined ? t.includeInProgress : true,
+      ...(t.includeInProgress !== undefined ? { includeInProgress: t.includeInProgress } : {}),
     };
     if (scope === 'weekly') {
       if (week == null) continue;
