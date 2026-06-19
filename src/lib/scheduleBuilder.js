@@ -73,7 +73,7 @@ const normalizeBlock = (b) => {
  * @param {object|null} params.scheduleDoc  cl_schedule doc for this date, if any.
  * @param {Array}        params.events       cl_events array (full).
  * @param {Array}        params.personalTasks cl_personalTasks array (full).
- * @param {object|null}  params.calori       { meals, workouts } from store.
+ * @param {object|null}  params.calori       { meals, workouts, coachSessions } from store.
  * @param {string}       params.dateStr      'yyyy-MM-dd'.
  * @param {string}       params.todayStr     'yyyy-MM-dd' of LOCAL today.
  * @param {object}       [params.options]
@@ -223,6 +223,30 @@ export const buildTimeline = ({
         isLocked: true,
         isProposed: false,
         notes: `+${w.caloriesBurned ?? 0} kcal | ${duration} min`,
+      });
+    }
+    // Planned Calori workouts (coach_sessions). These are FUTURE sessions with a
+    // scheduled time — surface them as locked workout blocks so the day shows
+    // "אימון רגליים 17:00" before it's logged. Skip rest days, already-handled
+    // statuses, and sessions without a real time-of-day.
+    for (const cs of calori.coachSessions || []) {
+      if (!cs.scheduledDate || cs.type === 'rest') continue;
+      if (cs.status === 'completed' || cs.status === 'skipped') continue;
+      const time = parseToLocalTime(cs.scheduledDate);
+      if (time === '00:00') continue; // date-only → no concrete slot to place
+      const duration = cs.estimatedDurationMinutes || 60;
+      blocks.push({
+        id: `coach-${cs.id}`,
+        source: 'calori_coach',
+        refId: cs.id,
+        type: 'workout',
+        title: cs.title || 'אימון מתוכנן',
+        startTime: time,
+        endTime: addMinutes(time, duration),
+        duration,
+        isLocked: true,
+        isProposed: false,
+        notes: `${duration} min`,
       });
     }
   }

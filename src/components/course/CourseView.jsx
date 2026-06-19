@@ -11,6 +11,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '../ui/input';
 import { useTranslation } from '../../hooks/useTranslation';
 import { toast } from '../../store/useToast';
+import { differenceInCalendarDays, startOfDay, parseISO, isValid } from 'date-fns';
+import { formatExamDays } from '../../lib/examDaysFormat';
 
 export const CourseView = () => {
   const { activeCourse, data, updateCourse, saveLinks, setActiveCourse, saveNote } = useStore();
@@ -67,14 +69,20 @@ export const CourseView = () => {
   const nextExam = useMemo(() => {
     if (!activeCourse) return null;
     const exams = [];
+    const today = startOfDay(new Date());
+
+    const safeParseDt = (raw) => {
+      if (!raw) return null;
+      const dt = typeof raw === 'string' ? parseISO(raw) : new Date(raw);
+      return isValid(dt) ? dt : null;
+    };
     
     // 1. Standard Moeds
     ['moedA', 'moedB', 'moedC'].forEach((moedKey) => {
       const rawDate = activeCourse[moedKey] || activeCourse.exams?.[moedKey];
-      const dt = rawDate ? new Date(rawDate) : null;
-      if (dt && !Number.isNaN(dt.getTime())) {
-        const diff = dt.getTime() - new Date().getTime();
-        const daysLeft = Math.ceil(diff / (1000 * 60 * 60 * 24));
+      const dt = safeParseDt(rawDate);
+      if (dt) {
+        const daysLeft = differenceInCalendarDays(startOfDay(dt), today);
         if (daysLeft >= 0) {
           exams.push({
             name: moedKey === 'moedA' ? 'מועד א׳' : moedKey === 'moedB' ? 'מועד ב׳' : 'מועד ג׳',
@@ -88,10 +96,9 @@ export const CourseView = () => {
 
     // 2. Custom Exams
     activeCourse.customExams?.forEach((exam) => {
-      const dt = exam.date ? new Date(exam.date) : null;
-      if (dt && !Number.isNaN(dt.getTime())) {
-        const diff = dt.getTime() - new Date().getTime();
-        const daysLeft = Math.ceil(diff / (1000 * 60 * 60 * 24));
+      const dt = safeParseDt(exam.date);
+      if (dt) {
+        const daysLeft = differenceInCalendarDays(startOfDay(dt), today);
         if (daysLeft >= 0) {
           exams.push({
             name: exam.name,
@@ -264,9 +271,8 @@ export const CourseView = () => {
                 <span>
                   {isRTL ? 'מבחן קרוב: ' : 'Next Exam: '}
                   {nextExam.name}
-                  {isRTL ? ' בעוד ' : ' in '}
-                  {nextExam.daysLeft}
-                  {isRTL ? ' ימים' : ' days'}
+                  {' — '}
+                  {formatExamDays(nextExam.daysLeft, isRTL)}
                   {nextExam.hasTime && ` (${String(nextExam.date.getHours()).padStart(2, '0')}:${String(nextExam.date.getMinutes()).padStart(2, '0')})`}
                 </span>
               </div>

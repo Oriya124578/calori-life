@@ -145,14 +145,17 @@ export const FocusHub = () => {
     };
   }, [todayBlocks]);
 
-  // If tracking, override current block selection with the tracked block
+  // If tracking, override current block selection with the tracked block.
+  // A quick-focus on an arbitrary task carries a syntheticBlock that isn't on
+  // today's timeline — fall back to it so the live timer still renders.
   const activeBlockToDisplay = useMemo(() => {
     if (focusTracking.isTracking && focusTracking.activeBlockId) {
       const trackedBlock = todayBlocks.find((b) => b.id === focusTracking.activeBlockId);
       if (trackedBlock) return trackedBlock;
+      if (focusTracking.syntheticBlock) return focusTracking.syntheticBlock;
     }
     return currentBlock;
-  }, [focusTracking.isTracking, focusTracking.activeBlockId, todayBlocks, currentBlock]);
+  }, [focusTracking.isTracking, focusTracking.activeBlockId, focusTracking.syntheticBlock, todayBlocks, currentBlock]);
 
   // Clock format for greeting
   const greetingText = useMemo(() => {

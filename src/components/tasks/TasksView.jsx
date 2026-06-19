@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Plus, ChevronDown, Trash2, X, Star, Edit3, Repeat,
+  Plus, ChevronDown, Trash2, X, Star, Edit3, Repeat, Play,
 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { generateFutureInstances } from '../../lib/recurrence';
@@ -174,7 +174,7 @@ const SubtaskRow = ({ taskId, sub }) => {
 // ── Task row ─────────────────────────────────────────────────────────────────
 
 const TaskRow = ({ task }) => {
-  const { togglePersonalTask, deletePersonalTask, addSubtask, toggleStarPersonalTask, updatePersonalTask, data } = useStore();
+  const { togglePersonalTask, deletePersonalTask, addSubtask, toggleStarPersonalTask, updatePersonalTask, startFocusOnTask, data } = useStore();
   const { t, language } = useTranslation();
   const isRTL = language === 'he';
   const [expanded, setExpanded] = useState(false);
@@ -400,14 +400,24 @@ const TaskRow = ({ task }) => {
                   })}
                 </div>
 
-                <button
-                  onClick={() => deletePersonalTask(task.id)}
-                  className="flex items-center gap-1 text-xs transition-colors"
-                  style={{ color: '#8A7A6A' }}
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  {t('deleteTask')}
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => startFocusOnTask(task)}
+                    className="flex items-center gap-1 text-xs font-bold transition-colors"
+                    style={{ color: '#7C3AED' }}
+                  >
+                    <Play className="w-3.5 h-3.5 fill-current" />
+                    {t('focusNow', 'התחל פוקוס')}
+                  </button>
+                  <button
+                    onClick={() => deletePersonalTask(task.id)}
+                    className="flex items-center gap-1 text-xs transition-colors"
+                    style={{ color: '#8A7A6A' }}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    {t('deleteTask')}
+                  </button>
+                </div>
               </div>
             </div>
           </motion.div>

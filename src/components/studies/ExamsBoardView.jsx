@@ -14,7 +14,9 @@ import {
   addDays, 
   getDay, 
   parseISO, 
-  isValid 
+  isValid,
+  differenceInCalendarDays,
+  startOfDay
 } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
@@ -34,6 +36,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { toast } from '../../store/useToast';
+import { formatExamDaysBadge } from '../../lib/examDaysFormat';
 
 const creamCard = {
   background: '#fff',
@@ -554,13 +557,9 @@ export const ExamsBoardView = () => {
             <div className="grid gap-3 sm:grid-cols-2">
               {allExams.map((exam) => {
                 // Determine days left
-                const today = new Date();
-                const d = new Date(exam.date);
-                d.setHours(0,0,0,0);
-                const tToday = new Date(today);
-                tToday.setHours(0,0,0,0);
-                const diffTime = d.getTime() - tToday.getTime();
-                const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                const today = startOfDay(new Date());
+                const daysLeft = differenceInCalendarDays(startOfDay(exam.date), today);
+                const badge = formatExamDaysBadge(daysLeft, isRTL);
 
                 return (
                   <div 
@@ -594,8 +593,8 @@ export const ExamsBoardView = () => {
                         daysLeft <= 14 ? 'bg-destructive/10 text-destructive font-bold' :
                         daysLeft <= 30 ? 'bg-primary/10 text-primary font-semibold' : 'bg-secondary text-secondary-foreground'
                       }`}>
-                        <div className="text-base leading-none">{daysLeft >= 0 ? daysLeft : 0}</div>
-                        <div className="text-[9px] mt-0.5">{isRTL ? 'ימים' : 'days'}</div>
+                        <div className="text-base leading-none">{badge.number}</div>
+                        <div className="text-[9px] mt-0.5">{badge.label}</div>
                       </div>
 
                       {/* Edit Button */}

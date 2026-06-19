@@ -10,10 +10,11 @@ import { cn } from '../../lib/utils';
 import { dateKey } from '../../lib/caloriRepo';
 import { buildTimeline } from '../../lib/scheduleBuilder';
 import {
-  format, parseISO, isValid, isSameDay, differenceInDays,
+  format, parseISO, isValid, isSameDay, differenceInCalendarDays,
   startOfDay, addDays
 } from 'date-fns';
 import { he } from 'date-fns/locale';
+import { formatExamDays, formatExamDaysBadge } from '../../lib/examDaysFormat';
 
 const safeParse = (d) => {
   if (!d) return null;
@@ -41,13 +42,24 @@ export const SmartDashboard = () => {
   // ── Nearest Exam ──
   const nearestExam = useMemo(() => {
     let nearest = null;
+    const today = startOfDay(new Date());
     (data?.courses || []).forEach((course) => {
+      // 1. Standard Moeds
       ['moedA', 'moedB', 'moedC'].forEach((moed) => {
         const dt = safeParse(course[moed] || course.exams?.[moed]);
         if (!dt) return;
-        const days = differenceInDays(startOfDay(dt), startOfDay(new Date()));
+        const days = differenceInCalendarDays(startOfDay(dt), today);
         if (days >= 0 && (!nearest || days < nearest.days)) {
           nearest = { name: course.name, days, moed: moed.replace('moed', '') };
+        }
+      });
+      // 2. Custom Exams
+      course.customExams?.forEach((exam) => {
+        const dt = safeParse(exam.date);
+        if (!dt) return;
+        const days = differenceInCalendarDays(startOfDay(dt), today);
+        if (days >= 0 && (!nearest || days < nearest.days)) {
+          nearest = { name: course.name, days, moed: exam.name };
         }
       });
     });
@@ -67,10 +79,16 @@ export const SmartDashboard = () => {
     if (todayTasksCount > 0) return t('summaryTasksToday').replace('{n}', todayTasksCount);
     if (nearestExam) {
       if (nearestExam.days === 0) return t('summaryExamToday').replace('{course}', nearestExam.name);
+      if (nearestExam.days === 1) return isRTL
+        ? `מבחן ב${nearestExam.name} מחר`
+        : `${nearestExam.name} exam tomorrow`;
+      if (nearestExam.days === 2) return isRTL
+        ? `מבחן ב${nearestExam.name} מחרתיים`
+        : `${nearestExam.name} exam day after tomorrow`;
       return t('summaryNextExam').replace('{course}', nearestExam.name).replace('{n}', nearestExam.days);
     }
     return t('summaryAllClear');
-  }, [todayTasksCount, nearestExam, t]);
+  }, [todayTasksCount, nearestExam, t, isRTL]);
 
   // ── Calori data ──
   const { meals = [], workouts = [], dayHistory, dailyGoal: dbDailyGoal } = data?.calori || {};
@@ -209,10 +227,13 @@ export const SmartDashboard = () => {
           {nearestExam && (
             <div className="text-center shrink-0 rounded-[14px] px-3 py-2.5" style={{ background: '#F0FDF4', border: '1px solid rgba(5,150,105,.2)' }}>
               <div style={{ fontFamily: "'Fraunces', serif", fontSize: '26px', fontWeight: 600, fontStyle: 'italic', color: '#065F46', lineHeight: 1, letterSpacing: '-.04em' }}>
-                {nearestExam.days}
+                {formatExamDaysBadge(nearestExam.days, isRTL).number}
               </div>
               <div className="text-[9px] mt-0.5" style={{ color: 'rgba(6,95,70,.5)' }}>
-                {t('daysTo', 'ימים ל')}{nearestExam.name.length > 8 ? nearestExam.name.slice(0, 8) + '…' : nearestExam.name}
+                {nearestExam.days <= 2
+                  ? formatExamDaysBadge(nearestExam.days, isRTL).label
+                  : `${t('daysTo', 'ימים ל')}${nearestExam.name.length > 8 ? nearestExam.name.slice(0, 8) + '…' : nearestExam.name}`
+                }
               </div>
             </div>
           )}
@@ -366,11 +387,19 @@ export const SmartDashboard = () => {
             })}
           </div>
         ) : (
-          <div className="rounded-[14px] px-3.5 py-4 text-center text-[12px]"
-            style={{ background: 'rgba(180,140,80,.05)', border: '1.5px dashed rgba(180,140,80,.2)', color: '#8A7A6A' }}
+          <button
+            onClick={() => setActiveCategory('commandCenter')}
+            className="w-full rounded-[16px] px-4 py-5 flex flex-col items-center gap-2 active:scale-[0.98] transition-transform"
+            style={{ background: 'rgba(5,150,105,.05)', border: '1.5px dashed rgba(5,150,105,.28)' }}
           >
-            {t('noScheduledItemsToday', 'ריק · לחץ + להוסיף')}
-          </div>
+            <Sparkles className="w-5 h-5" style={{ color: '#059669' }} />
+            <span style={{ fontFamily: "'Instrument Serif', serif", fontSize: '16px', color: '#2A1A0A' }}>
+              {t('emptyDayTitle', 'היום עוד פנוי')}
+            </span>
+            <span className="text-[12px] font-semibold" style={{ color: '#059669' }}>
+              {t('emptyDayCta', 'בנה לי את היום ›')}
+            </span>
+          </button>
         )}
       </div>
 
@@ -378,9 +407,14 @@ export const SmartDashboard = () => {
       <div className="flex gap-2">
         <div className="flex-1 rounded-2xl px-3 py-3" style={{ background: '#fff', border: '1px solid rgba(180,140,80,.12)', boxShadow: '0 2px 10px rgba(40,20,0,.05)' }}>
           <div style={{ fontFamily: "'Fraunces', serif", fontSize: '24px', fontWeight: 600, fontStyle: 'italic', color: '#059669', letterSpacing: '-.04em', lineHeight: 1 }}>
-            {nearestExam?.days ?? '—'}
+            {nearestExam ? formatExamDaysBadge(nearestExam.days, isRTL).number : '—'}
           </div>
-          <div className="text-[10px] font-semibold mt-1" style={{ color: '#8A7A6A' }}>{t('daysToExam', 'ימים לבחינה')}</div>
+          <div className="text-[10px] font-semibold mt-1" style={{ color: '#8A7A6A' }}>
+            {nearestExam && nearestExam.days <= 2
+              ? formatExamDaysBadge(nearestExam.days, isRTL).label
+              : t('daysToExam', 'ימים לבחינה')
+            }
+          </div>
         </div>
         <div className="flex-1 rounded-2xl px-3 py-3" style={{ background: '#fff', border: '1px solid rgba(180,140,80,.12)', boxShadow: '0 2px 10px rgba(40,20,0,.05)' }}>
           <div style={{ fontFamily: "'Fraunces', serif", fontSize: '24px', fontWeight: 600, fontStyle: 'italic', color: '#7C3AED', letterSpacing: '-.04em', lineHeight: 1 }}>

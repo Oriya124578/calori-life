@@ -7,7 +7,8 @@ import {
 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { useTranslation } from '../../hooks/useTranslation';
-import { parseISO, isValid, differenceInCalendarDays } from 'date-fns';
+import { parseISO, isValid, differenceInCalendarDays, startOfDay } from 'date-fns';
+import { formatExamDays } from '../../lib/examDaysFormat';
 
 /* ── cream v3 tokens ─────────────────────────────────────────── */
 const C = {
@@ -125,16 +126,19 @@ export const MorningCoachOverlay = ({
     ).length;
     let nearestExam = null;
     let nearestDays = Infinity;
-    const now = new Date();
+    const today = startOfDay(new Date());
+    const safeParseDt = (raw) => {
+      if (!raw) return null;
+      const dt = typeof raw === 'string' ? parseISO(raw) : new Date(raw);
+      return isValid(dt) ? dt : null;
+    };
     (data?.courses || []).forEach((course) => {
       // 1. Standard Moeds
       ['moedA', 'moedB', 'moedC'].forEach((moed) => {
-        const examDate = course[moed] || course.exams?.[moed];
-        if (!examDate) return;
-        const dt = parseISO(examDate);
-        if (!isValid(dt) || dt < now) return;
-        const days = differenceInCalendarDays(dt, now);
-        if (days < nearestDays) {
+        const dt = safeParseDt(course[moed] || course.exams?.[moed]);
+        if (!dt) return;
+        const days = differenceInCalendarDays(startOfDay(dt), today);
+        if (days >= 0 && days < nearestDays) {
           nearestDays = days;
           nearestExam = { name: course.name, days };
         }
@@ -142,11 +146,10 @@ export const MorningCoachOverlay = ({
 
       // 2. Custom Exams
       course.customExams?.forEach((exam) => {
-        if (!exam.date) return;
-        const dt = parseISO(exam.date);
-        if (!isValid(dt) || dt < now) return;
-        const days = differenceInCalendarDays(dt, now);
-        if (days < nearestDays) {
+        const dt = safeParseDt(exam.date);
+        if (!dt) return;
+        const days = differenceInCalendarDays(startOfDay(dt), today);
+        if (days >= 0 && days < nearestDays) {
           nearestDays = days;
           nearestExam = { name: `${course.name} (${exam.name})`, days };
         }
@@ -177,7 +180,7 @@ export const MorningCoachOverlay = ({
   const back = () => goTo(stepIdx - 1);
 
   const examDirective = context.nearestExam
-    ? `יום מבחן — מקד את כל בלוקי הלמידה בקורס "${context.nearestExam.name}" (המבחן ${context.nearestExam.days === 0 ? 'היום' : context.nearestExam.days === 1 ? 'מחר' : `בעוד ${context.nearestExam.days} ימים`}). מותר עד 5 בלוקים עם הפסקות אמיתיות ביניהם.`
+    ? `יום מבחן — מקד את כל בלוקי הלמידה בקורס "${context.nearestExam.name}" (המבחן ${formatExamDays(context.nearestExam.days, true)}). מותר עד 5 בלוקים עם הפסקות אמיתיות ביניהם.`
     : 'יום מבחן — מקד את כל בלוקי הלמידה בקורס עם המבחן הקרוב ביותר.';
 
   const composeDirective = () => {
@@ -331,7 +334,7 @@ export const MorningCoachOverlay = ({
                             <span className="text-[13px] font-semibold" style={{ color: C.ink }}>
                               {context.nearestExam.days === 0
                                 ? `מבחן ב${context.nearestExam.name} היום!`
-                                : `המבחן הקרוב: ${context.nearestExam.name} בעוד ${context.nearestExam.days} ימים`}
+                                : `המבחן הקרוב: ${context.nearestExam.name} — ${formatExamDays(context.nearestExam.days, true)}`}
                             </span>
                           </div>
                         )}

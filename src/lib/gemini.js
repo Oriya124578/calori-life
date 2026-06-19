@@ -44,7 +44,7 @@ Scheduling Rules:
 3. Fixed events (events, university lectures, tutorials, exams, doctor appointments): These are pre-existing and MUST NOT be moved. Mark them with isLocked = true, isProposed = false.
 4. Travel blocks: For fixed events with location, check the travelTimeMinutes (provided in context) and insert a 'travel' block (e.g. "נסיעה") before and after the event.
 5. Shabbat: Shabbat is RELEVANT ONLY when "Shabbat times" are provided in the context (the app sends them only on Friday/Saturday). It is a RESTRICTION, never a task: NEVER create "הכנות לשבת" / "Shabbat preparation" or any Shabbat-themed block. If Shabbat times are provided and start today, schedule NO blocks from 1 hour before it starts to end of day; if they end today, schedule NO blocks from start of day until 1 hour after it ends. If NO Shabbat times are provided, ignore Shabbat entirely and plan a normal day — do not mention or prepare for Shabbat.
-6. Calori Workouts: If there is a planned Calori workout for today (provided in context), schedule a 'workout' block (isProposed = true, type = 'workout') at an optimal time (e.g. late afternoon/evening, avoiding study hours/fixed events).
+6. Calori Workouts: For each planned Calori workout in context (type = 'workout'): if it has a "scheduledTime", it is a fixed commitment — place it EXACTLY there with isLocked = true, isProposed = false, and arrange study/tasks around it (never overlap it). If "scheduledTime" is null, propose a 'workout' block (isProposed = true) at an optimal time (late afternoon/evening, avoiding study hours and fixed events). Use the workout's "durationMinutes" for its length.
 7. Study Blocks: Schedule study blocks ('study') ONLY when the user asked to study (via the day directive) OR a task clearly needs a study session. Each study block's length = the user's preferred study block duration (provided as "Preferred study block duration") — use that as the default, don't exceed it without a clear reason. Do NOT pick a course on your own from exam dates. If the user named a specific course/exam to study → focus there and title it "למידה: [Course Name]". If the user asked to study but did NOT name a course → use a GENERIC block titled "לימודים" with NO course name and NO refId.
 8. Tasks: the context lists open tasks, each flagged "dueToday"/"overdue" and with an optional "duration" (minutes). You MUST place EVERY task flagged dueToday or overdue in the day. The form is decided STRICTLY by the duration field — do NOT use your own judgement about how "big" a task sounds:
    - duration is a number → a 'task' block (type: "task") of EXACTLY that many minutes (set endTime = startTime + duration), refId = the task id, isProposed = true.
@@ -114,7 +114,7 @@ Input data:
   ${JSON.stringify(context.tasks)}
 - Course academic progress & pending tasks (only tasks included in progress calculation):
   ${JSON.stringify(context.courseProgress || [])}
-- Today's Calori workouts (if planned, recommend a slot for it):
+- Today's planned Calori workouts ({title, durationMinutes, scheduledTime|null}; lock those with a scheduledTime, propose a slot for null ones — see rule 6):
   ${JSON.stringify(context.workouts)}
 - Today's logged meals (already eaten, lock them):
   ${JSON.stringify(context.meals)}

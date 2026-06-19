@@ -3,8 +3,9 @@ import { BookOpen, Clock } from 'lucide-react';
 import { useStore, isTaskIncludedInProgress } from '../../store/useStore';
 import { useTranslation } from '../../hooks/useTranslation';
 import { cn } from '../../lib/utils';
-import { differenceInDays, parseISO } from 'date-fns';
+import { differenceInCalendarDays, startOfDay, parseISO, isValid } from 'date-fns';
 import { StudiesStats } from './StudiesStats';
+import { formatExamDaysBadge } from '../../lib/examDaysFormat';
 
 const COURSE_COLORS = ['#059669', '#2563EB', '#D97706', '#7C3AED', '#DC2626'];
 
@@ -60,17 +61,31 @@ export const StudiesHub = () => {
 
     // Find nearest exam
     let nearestExamDays = null;
-    const now = new Date();
+    const today = startOfDay(new Date());
+    const safeParseDt = (raw) => {
+      if (!raw) return null;
+      const dt = typeof raw === 'string' ? parseISO(raw) : new Date(raw);
+      return isValid(dt) ? dt : null;
+    };
     (data?.courses || []).forEach((c) => {
-      if (c.examDate) {
-        try {
-          const d = parseISO(c.examDate);
-          const diff = differenceInDays(d, now);
-          if (diff >= 0 && (nearestExamDays === null || diff < nearestExamDays)) {
-            nearestExamDays = diff;
-          }
-        } catch { /* skip unparseable exam date */ }
-      }
+      // 1. Standard Moeds
+      ['moedA', 'moedB', 'moedC'].forEach((moedKey) => {
+        const dt = safeParseDt(c[moedKey] || c.exams?.[moedKey]);
+        if (!dt) return;
+        const diff = differenceInCalendarDays(startOfDay(dt), today);
+        if (diff >= 0 && (nearestExamDays === null || diff < nearestExamDays)) {
+          nearestExamDays = diff;
+        }
+      });
+      // 2. Custom Exams
+      c.customExams?.forEach((exam) => {
+        const dt = safeParseDt(exam.date);
+        if (!dt) return;
+        const diff = differenceInCalendarDays(startOfDay(dt), today);
+        if (diff >= 0 && (nearestExamDays === null || diff < nearestExamDays)) {
+          nearestExamDays = diff;
+        }
+      });
     });
 
     return { pct, totalTasks, nearestExamDays };
@@ -127,10 +142,10 @@ export const StudiesHub = () => {
                 lineHeight: 1,
                 letterSpacing: '-.04em',
               }}>
-                {stats.nearestExamDays}
+                {formatExamDaysBadge(stats.nearestExamDays, isRTL).number}
               </div>
               <div style={{ fontSize: 9, color: 'rgba(6,95,70,.55)', marginTop: 1 }}>
-                {isRTL ? 'ימים למבחן' : 'days to exam'}
+                {formatExamDaysBadge(stats.nearestExamDays, isRTL).label}
               </div>
             </div>
           )}

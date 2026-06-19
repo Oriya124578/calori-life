@@ -321,6 +321,7 @@ export const useStore = create((set, get) => ({
   // Focus Tracking state
   focusTracking: {
     activeBlockId: null,
+    syntheticBlock: null,
     isTracking: false,
     startTime: null,
     elapsed: 0,
@@ -1833,11 +1834,45 @@ export const useStore = create((set, get) => ({
       focusTracking: {
         ...state.focusTracking,
         activeBlockId: blockId,
+        syntheticBlock: null,
         isTracking: true,
         startTime: new Date().toISOString(),
         elapsed: 0,
         wasInterrupted: false,
       }
+    }));
+  },
+
+  // Quick-focus on an arbitrary task (not necessarily on today's timeline).
+  // Builds a synthetic 'task-{id}' block so FocusHub can render the live timer;
+  // finishFocusTracking resolves the same id back to the task. Navigates to Focus.
+  startFocusOnTask: (task) => {
+    if (!task?.id) return;
+    const now = new Date();
+    const startTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    set((state) => ({
+      activeCategory: 'focus',
+      focusTracking: {
+        ...state.focusTracking,
+        activeBlockId: `task-${task.id}`,
+        syntheticBlock: {
+          id: `task-${task.id}`,
+          source: 'task',
+          refId: task.id,
+          type: 'study',
+          title: task.title || '',
+          startTime,
+          endTime: startTime,
+          isLocked: false,
+          isProposed: false,
+          isCompleted: false,
+          notes: task.notes || '',
+        },
+        isTracking: true,
+        startTime: now.toISOString(),
+        elapsed: 0,
+        wasInterrupted: false,
+      },
     }));
   },
 
@@ -1854,6 +1889,7 @@ export const useStore = create((set, get) => ({
     set({
       focusTracking: {
         activeBlockId: null,
+        syntheticBlock: null,
         isTracking: false,
         startTime: null,
         elapsed: 0,

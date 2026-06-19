@@ -33,6 +33,22 @@ const parseToLocalTime = (timestamp) => {
   return isValid(parsed) ? format(parsed, 'HH:mm') : timestamp.substring(11, 16);
 };
 
+// One-tap day templates — each becomes the AI planner directive (dayProfile).
+const DAY_TEMPLATES = [
+  { key: 'study', labelHe: 'יום לימודים מלא', labelEn: 'Full study day',
+    he: 'תכנן לי יום לימודים מלא — בלוקי לימוד לאורך כל היום עם הפסקות קצרות ביניהם, וכל המשימות הפתוחות שלי להיום.',
+    en: 'Plan a full study day — study blocks across the day with short breaks, plus all my open tasks for today.' },
+  { key: 'half', labelHe: 'חצי יום לימודים', labelEn: 'Half study day',
+    he: 'תכנן חצי יום לימודים בבוקר ועד הצהריים, ושאר היום השאר פנוי.',
+    en: 'Plan a half study day from morning until noon, leave the rest of the day open.' },
+  { key: 'tasks', labelHe: 'יום משימות', labelEn: 'Tasks day',
+    he: 'שבץ את כל המשימות הפתוחות שלי להיום בלי בלוקי לימוד גנריים.',
+    en: 'Schedule all my open tasks for today, without generic study blocks.' },
+  { key: 'rest', labelHe: 'יום מנוחה', labelEn: 'Rest day',
+    he: 'יום מנוחה — אל תשבץ לימודים, רק את האירועים הקבועים שלי ותזכורות למשימות דחופות.',
+    en: 'Rest day — no study blocks, only my fixed events and reminders for urgent tasks.' },
+];
+
 export const CommandCenterView = () => {
   const {
     data,
@@ -408,8 +424,21 @@ export const CommandCenterView = () => {
         });
       }
 
-      // Collect planned coach workouts
-      const plannedWorkouts = data?.calori?.coachSessions || [];
+      // Collect planned coach workouts (Calori coach_sessions). Map to a clean
+      // shape the AI can act on: a scheduledTime means LOCK it there and build
+      // study around it; null means the AI may propose a slot. Only sessions for
+      // the planned day are sent (the subscription follows the viewed calori day).
+      const plannedWorkouts = (data?.calori?.coachSessions || [])
+        .filter((cs) => cs.type !== 'rest' && cs.status !== 'completed' && cs.status !== 'skipped')
+        .filter((cs) => !cs.scheduledDate || cs.scheduledDate.slice(0, 10) === dateStr)
+        .map((cs) => {
+          const tm = cs.scheduledDate ? parseToLocalTime(cs.scheduledDate) : null;
+          return {
+            title: cs.title || 'אימון',
+            durationMinutes: cs.estimatedDurationMinutes || 60,
+            scheduledTime: tm && tm !== '00:00' ? tm : null,
+          };
+        });
 
       // Upcoming exams sorted by date
       const upcomingExams = [];
@@ -1040,6 +1069,21 @@ export const CommandCenterView = () => {
                     <p style={{ fontSize: 11, color: '#8A7A6A', marginTop: 2 }}>
                       {isRTL ? 'לחץ על "סדר עם AI" או גרור משימות לשעות' : 'Tap "Organize with AI" or drag tasks onto the hours'}
                     </p>
+                    {/* Day templates — one-tap directives for the AI planner */}
+                    {!loading && (
+                      <div className="flex flex-wrap gap-1.5 justify-center mt-3">
+                        {DAY_TEMPLATES.map((tpl) => (
+                          <button
+                            key={tpl.key}
+                            onClick={() => handleAutoPlan(isRTL ? tpl.he : tpl.en, false)}
+                            className="px-3 py-1.5 active:scale-95 transition-all cursor-pointer"
+                            style={{ borderRadius: 999, background: '#fff', border: '1px solid rgba(124,58,237,.25)', color: '#7C3AED', fontSize: 11, fontWeight: 700 }}
+                          >
+                            {isRTL ? tpl.labelHe : tpl.labelEn}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
                 {hoursRange.map((hour, hourIdx) => {
