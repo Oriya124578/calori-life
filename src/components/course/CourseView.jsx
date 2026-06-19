@@ -13,16 +13,32 @@ import { useTranslation } from '../../hooks/useTranslation';
 import { toast } from '../../store/useToast';
 
 export const CourseView = () => {
-  const { activeCourse, data, updateCourse, saveLinks, setActiveCourse } = useStore();
+  const { activeCourse, data, updateCourse, saveLinks, setActiveCourse, saveNote } = useStore();
   const { t, language } = useTranslation();
   const [activeTab, setActiveTab] = useState('weekly');
   const [selectedWeek, setSelectedWeek] = useState(1);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isCourseSelectOpen, setIsCourseSelectOpen] = useState(false);
   const [isExamDialogOpen, setIsExamDialogOpen] = useState(false);
   const [editingMoedKey, setEditingMoedKey] = useState(null);
   const [examFormDate, setExamFormDate] = useState('');
   const [examFormTime, setExamFormTime] = useState('');
+  
+  // Expand/collapse state for general notes (remembered in localStorage)
+  const [isNotesExpanded, setIsNotesExpanded] = useState(() => {
+    return localStorage.getItem(`course_notes_expanded_${activeCourse?.id}`) === 'true';
+  });
+
+  useEffect(() => {
+    if (activeCourse?.id) {
+      setIsNotesExpanded(localStorage.getItem(`course_notes_expanded_${activeCourse.id}`) === 'true');
+    }
+  }, [activeCourse?.id]);
+
+  const toggleNotesExpanded = () => {
+    const nextVal = !isNotesExpanded;
+    setIsNotesExpanded(nextVal);
+    localStorage.setItem(`course_notes_expanded_${activeCourse.id}`, String(nextVal));
+  };
 
   // Local state for the settings modal
   const [editData, setEditData] = useState({});
@@ -96,21 +112,7 @@ export const CourseView = () => {
   if (!activeCourse) return null;
 
   const handleOpenSettings = () => {
-    setEditData({
-      name: activeCourse.name,
-      weeksCount: activeCourse.weeksCount || 14,
-      credits: activeCourse.credits || 0,
-      semester: activeCourse.semester || "א'",
-      geminiLink: data.links?.[activeCourse.id]?.gemini || "",
-      notebookLmLink: data.links?.[activeCourse.id]?.notebookLm || "",
-      progressSettings: activeCourse.progressSettings || {
-        lecture: true,
-        tutorial: true,
-        homework: false,
-        custom: true
-      }
-    });
-    setIsSettingsOpen(true);
+    setActiveTab('settings');
   };
 
   const handleOpenExamDialog = (moedKey) => {
@@ -197,7 +199,7 @@ export const CourseView = () => {
         gemini: (editData.geminiLink || '').trim(),
         notebookLm: (editData.notebookLmLink || '').trim(),
       });
-      setIsSettingsOpen(false);
+      setActiveTab('weekly');
       toast.success(t('courseUpdated', 'הקורס עודכן בהצלחה'));
     } catch (err) {
       console.error('Failed to save course settings', err);
@@ -308,6 +310,50 @@ export const CourseView = () => {
         </Button>
       </div>
 
+      {/* General Course Notes Box */}
+      <div className="mb-6 bg-card border border-border rounded-2xl shadow-sm overflow-hidden transition-all duration-300">
+        <button
+          onClick={toggleNotesExpanded}
+          className="w-full flex items-center justify-between p-4 hover:bg-secondary/20 transition-colors text-right cursor-pointer"
+          dir={isRTL ? 'rtl' : 'ltr'}
+        >
+          <div className="flex items-center gap-2">
+            <FileText className="w-5 h-5 text-primary shrink-0" />
+            <span className="font-semibold text-sm text-foreground">
+              {t('generalNotesTitle')}
+            </span>
+            {/* Indicator badge if note has content and is collapsed */}
+            {!isNotesExpanded && (data.notes[activeCourse.id]?.general || '').trim() && (
+              <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+            )}
+          </div>
+          <ChevronDown
+            className={cn(
+              "w-4 h-4 text-muted-foreground transition-transform duration-200",
+              isNotesExpanded ? "rotate-180" : ""
+            )}
+          />
+        </button>
+
+        {isNotesExpanded && (
+          <div className="px-4 pb-4 border-t border-border/50 pt-3 space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
+            <textarea
+              value={data.notes[activeCourse.id]?.general || ''}
+              onChange={(e) => saveNote(activeCourse.id, 'general', e.target.value)}
+              placeholder={t('generalNotesPlaceholder')}
+              className="w-full h-32 p-3 rounded-xl border border-border bg-background text-foreground focus:ring-2 focus:ring-primary focus:outline-none resize-none text-start text-sm shadow-inner"
+              dir="auto"
+            />
+            <div className="flex justify-between items-center text-[10px] text-muted-foreground px-1">
+              <span>{t('generalNotesAutoSaved')}</span>
+              <span>
+                {((data.notes[activeCourse.id]?.general || '').length)} {isRTL ? 'תווים' : 'chars'}
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Tabs */}
       <div className="flex flex-wrap border-b border-border mb-6 gap-2 pb-1 w-full">
         {[
@@ -318,8 +364,7 @@ export const CourseView = () => {
           { id: 'past_exams', label: t('pastExams') },
           { id: 'quizzes', label: t('quizzes') },
           { id: 'summaries', label: t('summaries') },
-          { id: 'all_notes', label: isRTL ? 'כל ההערות' : 'All Notes' },
-          { id: 'settings', label: t('courseSettings') }
+          { id: 'all_notes', label: isRTL ? 'כל ההערות' : 'All Notes' }
         ].map(tab => (
           <button
             key={tab.id}
@@ -657,81 +702,7 @@ export const CourseView = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Course Settings Modal */}
-      <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
-        <DialogContent dir={language === 'he' ? 'rtl' : 'ltr'} className={language === 'he' ? 'text-right' : 'text-left'}>
-          <DialogHeader>
-            <DialogTitle>{t('courseSettings')}: {activeCourse.name}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4 text-start">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">{t('courseName')}</label>
-              <Input 
-                value={editData.name} 
-                onChange={(e) => setEditData({...editData, name: e.target.value})} 
-                className="text-start"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">{t('learningWeeks')}</label>
-                <Input 
-                  type="number" 
-                  min="1" 
-                  max="20" 
-                  value={editData.weeksCount} 
-                  onChange={(e) => setEditData({...editData, weeksCount: e.target.value})} 
-                  className="text-start"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">{t('credits')}</label>
-                <Input 
-                  type="number" 
-                  step="0.5" 
-                  min="0"
-                  value={editData.credits} 
-                  onChange={(e) => setEditData({...editData, credits: e.target.value})} 
-                  className="text-start"
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">{t('semester')}</label>
-              <Input 
-                placeholder={t('semesterPlaceholder')}
-                value={editData.semester} 
-                onChange={(e) => setEditData({...editData, semester: e.target.value})} 
-                className="text-start"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">{t('geminiLink')}</label>
-              <Input 
-                placeholder="https://gemini.google.com/..."
-                value={editData.geminiLink} 
-                onChange={(e) => setEditData({...editData, geminiLink: e.target.value})} 
-                className="text-start"
-                dir="ltr"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">{t('notebookLmLink')}</label>
-              <Input 
-                placeholder="https://notebooklm.google.com/..."
-                value={editData.notebookLmLink} 
-                onChange={(e) => setEditData({...editData, notebookLmLink: e.target.value})} 
-                className="text-start"
-                dir="ltr"
-              />
-            </div>
-          </div>
-          <DialogFooter className="gap-2 sm:justify-start">
-            <Button variant="outline" onClick={() => setIsSettingsOpen(false)}>{t('cancel')}</Button>
-            <Button onClick={handleSaveSettings}>{t('saveChanges')}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+
 
     </div>
   );

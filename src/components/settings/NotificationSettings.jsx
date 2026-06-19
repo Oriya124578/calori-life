@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '../ui/card';
 import { Button } from '../ui/button';
 import { Bell, BellOff, BellRing } from 'lucide-react';
@@ -12,6 +12,7 @@ import {
   requestNotificationPermission,
   showLocalNotification,
 } from '../../lib/notifications';
+import { enablePush, disablePush } from '../../lib/push';
 
 // A single toggle row.
 const ToggleRow = ({ label, desc, checked, onChange, disabled }) => {
@@ -44,9 +45,10 @@ const ToggleRow = ({ label, desc, checked, onChange, disabled }) => {
 };
 
 export const NotificationSettings = () => {
-  const { notificationSettings: s, setNotificationSettings } = useStore();
+  const { notificationSettings: s, setNotificationSettings, uid } = useStore();
   const { t } = useTranslation();
   const [permission, setPermission] = useState(getNotificationPermission());
+  const [pushReady, setPushReady] = useState(false);
   const supported = isNotificationSupported();
 
   const enableMaster = async (val) => {
@@ -59,9 +61,14 @@ export const NotificationSettings = () => {
         return;
       }
       setNotificationSettings({ enabled: true });
+      // Register an FCM token so reminders arrive even when the app is closed.
+      const token = await enablePush(uid);
+      setPushReady(!!token);
       toast.success(t('notifEnabled'));
     } else {
       setNotificationSettings({ enabled: false });
+      await disablePush(uid);
+      setPushReady(false);
     }
   };
 
@@ -78,6 +85,14 @@ export const NotificationSettings = () => {
   };
 
   const active = s.enabled && permission === 'granted';
+
+  // Refresh the FCM token on mount when notifications are already active (tokens
+  // rotate; this keeps Firestore current so background pushes keep working).
+  useEffect(() => {
+    if (active && uid) {
+      enablePush(uid).then((tok) => setPushReady(!!tok));
+    }
+  }, [active, uid]);
 
   const LEAD_OPTIONS = [
     { v: 0, label: t('notifLeadAtTime') },
@@ -121,6 +136,14 @@ export const NotificationSettings = () => {
             onChange={enableMaster}
             disabled={!supported || permission === 'denied'}
           />
+          {active && (
+            <div className="flex items-center gap-2 mt-1 text-xs">
+              <span className={cn('w-1.5 h-1.5 rounded-full', pushReady ? 'bg-emerald-500' : 'bg-amber-500')} />
+              <span className="text-muted-foreground">
+                {pushReady ? t('notifPushActive') : t('notifPushPending')}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Category toggles — only meaningful when active */}

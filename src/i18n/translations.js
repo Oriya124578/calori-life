@@ -101,6 +101,9 @@ export const translations = {
     notesForWeek: "הערות לשבוע",
     notesPlaceholder: "הוסף הערות, שאלות או נקודות חשובות לזכור מהשבוע הזה...",
     notesAutoSaved: "הערות נשמרות אוטומטית. (לעיצוב טקסט בעתיד ניתן להשתמש ב-*מודגש* או _נטוי_)",
+    generalNotesTitle: 'הערות כלליות לקורס',
+    generalNotesPlaceholder: 'כתוב כאן הערות כלליות, קישורים חשובים, סיסמאות לזום או כל מידע אחר לקורס...',
+    generalNotesAutoSaved: 'הערות כלליות נשמרות אוטומטית.',
     noTasksInCategory: "אין משימות בקטגוריה זו. הוסף אחת למטה!",
     taskNamePlaceholder: "שם המשימה או הקובץ...",
     pastExams: "מבחנים משנים קודמות",
@@ -172,7 +175,6 @@ export const translations = {
     saveCourse: 'שמור קורס',
     loadingEnv: 'טוען את סביבת הלמידה שלך...',
     addItem: 'הוסף',
-    addTask: 'הוסף משימה',
     uploadFileOption: 'העלה קובץ',
 
     // New Settings UI
@@ -395,6 +397,8 @@ export const translations = {
     notifTestTitle: 'Calori Life',
     notifTestBody: 'מעולה! ההתראות עובדות 🎉',
     notifEnabled: 'ההתראות הופעלו',
+    notifPushActive: 'תזכורות יגיעו גם כשהאפליקציה סגורה',
+    notifPushPending: 'מפעיל משלוח ברקע…',
     notifPermissionDenied: 'לא ניתנה הרשאה להתראות',
     notifBlocked: 'התראות חסומות בדפדפן. אפשר אותן בהגדרות האתר.',
     notifUnsupported: 'הדפדפן הזה לא תומך בהתראות',
@@ -720,6 +724,9 @@ export const translations = {
     notesForWeek: "Notes for Week",
     notesPlaceholder: "Add notes, questions, or important points to remember this week...",
     notesAutoSaved: "Notes are saved automatically. (For future text formatting you can use *bold* or _italic_)",
+    generalNotesTitle: 'General Course Notes',
+    generalNotesPlaceholder: 'Add general notes, important links, Zoom credentials or any other information for the course...',
+    generalNotesAutoSaved: 'General notes are saved automatically.',
     noTasksInCategory: "No tasks in this category. Add one below!",
     taskNamePlaceholder: "Task or file name...",
     pastExams: "Past Exams",
@@ -791,7 +798,6 @@ export const translations = {
     saveCourse: 'Save Course',
     loadingEnv: 'Loading your study environment...',
     addItem: 'Add',
-    addTask: 'Add Task',
     uploadFileOption: 'Upload File',
 
     // New Settings UI
@@ -1014,6 +1020,8 @@ export const translations = {
     notifTestTitle: 'Calori Life',
     notifTestBody: 'Nice! Notifications are working 🎉',
     notifEnabled: 'Notifications enabled',
+    notifPushActive: 'Reminders will arrive even when the app is closed',
+    notifPushPending: 'Enabling background delivery…',
     notifPermissionDenied: 'Notification permission not granted',
     notifBlocked: 'Notifications are blocked. Enable them in your site settings.',
     notifUnsupported: 'This browser does not support notifications',

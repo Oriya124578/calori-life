@@ -117,6 +117,27 @@ export const setProfile = async (uid, profileObj) => {
   await setDoc(profileDoc(uid), profileObj, { merge: true });
 };
 
+// --- FCM push tokens (Phase 5b) -------------------------------------------
+// One doc per device token under users/{uid}/cl_fcmTokens. Doc id is the
+// URL-encoded token so re-registration of the same token is idempotent.
+
+const fcmTokenDoc = (uid, token) =>
+  doc(db, 'users', uid, 'cl_fcmTokens', encodeURIComponent(token));
+
+/** Register/refresh an FCM token for this device. */
+export const setFcmToken = async (uid, token) => {
+  await setDoc(
+    fcmTokenDoc(uid, token),
+    { token, platform: 'web', lastSeen: Date.now() },
+    { merge: true },
+  );
+};
+
+/** Remove an FCM token (on opt-out). */
+export const deleteFcmToken = async (uid, token) => {
+  await deleteDoc(fcmTokenDoc(uid, token));
+};
+
 // --- Courses --------------------------------------------------------------
 
 /**

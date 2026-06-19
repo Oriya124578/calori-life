@@ -194,3 +194,230 @@ exports.aiManager = onSchedule({ schedule: "0 7,21 * * *", timeZone: "Asia/Jerus
   await batch.commit();
   console.log(`Generated AI suggestions for ${usersSnapshot.size} users.`);
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 5b: closed-app push reminders.
+//
+// Runs every 15 minutes. For each user with FCM tokens and push enabled,
+// computes reminders (exams, tasks, events, daily digest) whose fire time falls
+// in the recent window, dedupes via cl_pushLog, and delivers via FCM. Mirrors
+// the client-side useNotificationScheduler logic but works when the app is shut.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const TZ = "Asia/Jerusalem";
+const WINDOW_MS = 20 * 60 * 1000; // fire if target is within the last 20 min
+
+// Offset (ms) of a timeZone at a given instant.
+const tzOffsetMs = (date, timeZone) => {
+  const local = new Date(date.toLocaleString("en-US", { timeZone }));
+  const utc = new Date(date.toLocaleString("en-US", { timeZone: "UTC" }));
+  return local.getTime() - utc.getTime();
+};
+
+// Build a UTC Date for a Jerusalem wall-clock time.
+const jerusalemToUtc = (y, mo, d, h, mi) => {
+  const naive = Date.UTC(y, mo - 1, d, h, mi, 0);
+  const offset = tzOffsetMs(new Date(naive), TZ);
+  return new Date(naive - offset);
+};
+
+// Parse a stored date/datetime string as a Jerusalem wall-clock instant.
+const parseJ = (v) => {
+  if (!v) return null;
+  const s = String(v);
+  if (s.includes("Z") || /[+-]\d{2}:\d{2}$/.test(s)) {
+    const d = new Date(s);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/);
+  if (!m) {
+    const d = new Date(s);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  return jerusalemToUtc(+m[1], +m[2], +m[3], m[4] ? +m[4] : 0, m[5] ? +m[5] : 0);
+};
+
+// Jerusalem Y-M-D key for an instant.
+const dayKeyJ = (date) => {
+  const p = new Intl.DateTimeFormat("en-CA", {
+    timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(date);
+  return p; // en-CA → YYYY-MM-DD
+};
+
+// Fire a Jerusalem wall-clock target derived from a base instant + H:M.
+const atJerusalemTime = (baseInstant, h, mi) => {
+  const k = dayKeyJ(baseInstant).split("-");
+  return jerusalemToUtc(+k[0], +k[1], +k[2], h, mi);
+};
+
+const MOED_LABEL = { moedA: "מועד א׳", moedB: "מועד ב׳", moedC: "מועד ג׳" };
+
+exports.pushReminders = onSchedule(
+  { schedule: "*/15 * * * *", timeZone: TZ },
+  async () => {
+    const db = admin.firestore();
+    const now = Date.now();
+    const usersSnapshot = await db.collection("users").get();
+    let sentTotal = 0;
+
+    for (const userDoc of usersSnapshot.docs) {
+      const uid = userDoc.id;
+
+      // 1. Tokens — skip user entirely if none registered.
+      const tokensSnap = await db.collection("users").doc(uid).collection("cl_fcmTokens").get();
+      if (tokensSnap.empty) continue;
+      const tokens = tokensSnap.docs.map((d) => d.data().token).filter(Boolean);
+      if (!tokens.length) continue;
+
+      // 2. Settings.
+      const profileSnap = await db.collection("users").doc(uid).collection("cl_profile").doc("main").get();
+      const s = (profileSnap.exists && profileSnap.data().notificationSettings) || null;
+      if (!s || !s.enabled) continue;
+
+      // Build candidate reminders.
+      const due = [];
+      const consider = (key, fireDate, title, body, url = "/") => {
+        if (!fireDate) return;
+        const ft = fireDate.getTime();
+        if (now >= ft && now < ft + WINDOW_MS) due.push({ key, title, body, url });
+      };
+
+      // Load the data slices we need.
+      const [coursesSnap, tasksSnap, eventsSnap] = await Promise.all([
+        db.collection("users").doc(uid).collection("cl_courses").get(),
+        db.collection("users").doc(uid).collection("cl_personalTasks").get(),
+        db.collection("users").doc(uid).collection("cl_events").get(),
+      ]);
+      const courses = coursesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+      // ── Exams ──
+      if (s.exams !== false) {
+        courses.forEach((c) => {
+          ["moedA", "moedB", "moedC"].forEach((moed) => {
+            const exam = parseJ(c[moed] || (c.exams && c.exams[moed]));
+            if (!exam) return;
+            (s.examLeadDays || [7, 1]).forEach((d) => {
+              const base = new Date(exam.getTime() - d * 86400000);
+              consider(
+                `exam:${c.id}:${moed}:${d}`,
+                atJerusalemTime(base, 9, 0),
+                "תזכורת מבחן",
+                `${c.name} — ${MOED_LABEL[moed]} בעוד ${d} ימים`,
+              );
+            });
+            consider(
+              `exam:${c.id}:${moed}:0`,
+              atJerusalemTime(exam, 8, 0),
+              "מבחן היום",
+              `${c.name} — ${MOED_LABEL[moed]} היום. בהצלחה!`,
+            );
+          });
+        });
+      }
+
+      // ── Personal tasks ──
+      if (s.tasks !== false) {
+        tasksSnap.docs.forEach((doc) => {
+          const task = doc.data();
+          if (task.done || !task.dueDate) return;
+          if (task.reminderMinutes === -1) return;
+          let fire;
+          if (task.dueTime) {
+            const dt = parseJ(`${task.dueDate}T${task.dueTime}`);
+            if (!dt) return;
+            const lead = task.reminderMinutes != null && task.reminderMinutes >= 0 ? task.reminderMinutes : 0;
+            fire = new Date(dt.getTime() - lead * 60000);
+          } else {
+            fire = parseJ(`${task.dueDate}T08:00`);
+          }
+          consider(`task:${doc.id}`, fire, "תזכורת משימה", task.title || "משימה");
+        });
+      }
+
+      // ── Events ──
+      if (s.events !== false) {
+        eventsSnap.docs.forEach((doc) => {
+          const ev = doc.data();
+          const start = parseJ(ev.start);
+          if (!start) return;
+          if (ev.reminderMinutes === -1) return;
+          let fire;
+          if (ev.allDay) {
+            fire = parseJ(`${String(ev.start).slice(0, 10)}T08:00`);
+          } else {
+            const lead = ev.reminderMinutes != null && ev.reminderMinutes >= 0
+              ? ev.reminderMinutes : (s.eventLeadMinutes != null ? s.eventLeadMinutes : 30);
+            fire = new Date(start.getTime() - lead * 60000);
+          }
+          consider(`event:${doc.id}`, fire, "תזכורת אירוע", ev.title || "אירוע");
+        });
+      }
+
+      // ── Daily digest ──
+      if (s.dailyDigest !== false) {
+        const [h, mi] = (s.dailyDigestTime || "08:00").split(":").map(Number);
+        const fire = atJerusalemTime(new Date(now), h || 8, mi || 0);
+        const tk = dayKeyJ(new Date(now));
+        let events = 0, tasks = 0, exams = 0;
+        eventsSnap.docs.forEach((doc) => {
+          const d = parseJ(doc.data().start);
+          if (d && dayKeyJ(d) === tk) events++;
+        });
+        tasksSnap.docs.forEach((doc) => {
+          const tt = doc.data();
+          if (tt.done || !tt.dueDate) return;
+          const d = parseJ(tt.dueDate);
+          if (d && dayKeyJ(d) === tk) tasks++;
+        });
+        courses.forEach((c) => {
+          ["moedA", "moedB", "moedC"].forEach((moed) => {
+            const d = parseJ(c[moed] || (c.exams && c.exams[moed]));
+            if (d && dayKeyJ(d) === tk) exams++;
+          });
+        });
+        const total = events + tasks + exams;
+        const body = total === 0
+          ? "אין אירועים או משימות מתוזמנים להיום. יום פנוי!"
+          : `היום: ${events} אירועים · ${tasks} משימות · ${exams} מבחנים`;
+        consider(`digest:${tk}`, fire, "סיכום יומי", body);
+      }
+
+      if (!due.length) continue;
+
+      // Dedupe via cl_pushLog and send.
+      const logCol = db.collection("users").doc(uid).collection("cl_pushLog");
+      for (const n of due) {
+        const logRef = logCol.doc(encodeURIComponent(n.key));
+        const exists = await logRef.get();
+        if (exists.exists) continue;
+
+        const resp = await admin.messaging().sendEachForMulticast({
+          tokens,
+          data: { title: n.title, body: n.body, url: n.url, tag: n.key },
+        });
+
+        // Prune tokens that are no longer valid.
+        const stale = [];
+        resp.responses.forEach((r, i) => {
+          if (!r.success) {
+            const code = r.error && r.error.code;
+            if (code === "messaging/registration-token-not-registered" ||
+                code === "messaging/invalid-argument") {
+              stale.push(tokens[i]);
+            }
+          }
+        });
+        for (const tok of stale) {
+          await db.collection("users").doc(uid).collection("cl_fcmTokens")
+            .doc(encodeURIComponent(tok)).delete().catch(() => {});
+        }
+
+        await logRef.set({ sentAt: admin.firestore.FieldValue.serverTimestamp(), key: n.key });
+        sentTotal++;
+      }
+    }
+
+    console.log(`pushReminders: dispatched ${sentTotal} reminders.`);
+  },
+);

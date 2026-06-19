@@ -10,6 +10,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { initializeFirestore, persistentLocalCache } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
+import { getMessaging, isSupported as isMessagingSupported } from 'firebase/messaging';
 
 const requiredEnv = [
   'VITE_FIREBASE_API_KEY',
@@ -46,3 +47,15 @@ export const auth = getAuth(app);
 export const db = initializeFirestore(app, { localCache: persistentLocalCache() });
 export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
+
+// FCM messaging — only available in supported browsers (not Safari < 16.4 /
+// some in-app webviews). Resolve to a messaging instance or null.
+export const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
+export const getMessagingIfSupported = async () => {
+  try {
+    if (!(await isMessagingSupported())) return null;
+    return getMessaging(app);
+  } catch {
+    return null;
+  }
+};

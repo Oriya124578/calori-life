@@ -340,16 +340,26 @@ export const useStore = create((set, get) => ({
     get()._caloriDayUnsubs.forEach((u) => { try { u(); } catch { /* ignore */ } });
 
     const unsubProfile = subscribeProfile(uid, (profile) => {
-      set((state) => ({
-        data: {
-          ...state.data,
-          profile: profile || state.data.profile || {
-            displayName: '',
-            academicYear: "שנה א'",
-            semester: "סמסטר א'",
+      set((state) => {
+        const patch = {
+          data: {
+            ...state.data,
+            profile: profile || state.data.profile || {
+              displayName: '',
+              academicYear: "שנה א'",
+              semester: "סמסטר א'",
+            },
           },
-        },
-      }));
+        };
+        // Hydrate notification settings from Firestore on a fresh device so
+        // push preferences follow the user (localStorage may be empty here).
+        if (profile?.notificationSettings && !localStorage.getItem('notificationSettings')) {
+          const next = { ...DEFAULT_NOTIFICATION_SETTINGS, ...profile.notificationSettings };
+          try { localStorage.setItem('notificationSettings', JSON.stringify(next)); } catch { /* ignore */ }
+          patch.notificationSettings = next;
+        }
+        return patch;
+      });
     });
 
     const unsubCourses = subscribeCourses(uid, (courseDocs) => {
@@ -715,12 +725,18 @@ export const useStore = create((set, get) => ({
   setShowPomoSettings: (show) => set({ showPomoSettings: show }),
 
   // Phase 5: merge-update notification settings + persist to localStorage.
-  setNotificationSettings: (partial) =>
+  // Phase 5b: also mirror to Firestore (cl_profile/main.notificationSettings)
+  // so the scheduled Cloud Function can deliver pushes when the app is closed.
+  setNotificationSettings: (partial) => {
+    const { uid } = get();
+    let next = null;
     set((state) => {
-      const next = { ...state.notificationSettings, ...partial };
+      next = { ...state.notificationSettings, ...partial };
       try { localStorage.setItem('notificationSettings', JSON.stringify(next)); } catch { /* ignore */ }
       return { notificationSettings: next };
-    }),
+    });
+    if (uid && next) fsSetProfile(uid, { notificationSettings: next }).catch(console.error);
+  },
 
   // Open/close the unified Add-Item bottom sheet.
   openAddSheet: (tab = 'task', prefill = null) =>
