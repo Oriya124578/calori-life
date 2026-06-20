@@ -45,6 +45,82 @@ const sortForDisplay = (items, sinkChecked) =>
     ? [...items.filter((i) => !i.checked), ...items.filter((i) => i.checked)]
     : items;
 
+/* Aggregate every item the user ever added across ALL lists into a ranked
+   "memory": items actually bought (checked) rank first, then by total count,
+   then recency. Powers the "buy again" chips + quick-add autocomplete. Pure —
+   derived from existing lists, so no extra storage is needed. */
+const buildItemMemory = (lists) => {
+  const map = new Map();
+  (lists || []).forEach((l) => {
+    (l.items || []).forEach((it) => {
+      const name = (it.name || '').trim();
+      if (!name) return;
+      const key = name.toLowerCase();
+      const ts = it.addedAt ? new Date(it.addedAt).getTime() : 0;
+      const prev = map.get(key);
+      if (prev) {
+        prev.count += 1;
+        if (it.checked) prev.bought += 1;
+        if (ts >= prev.lastUsed) {
+          prev.lastUsed = ts;
+          prev.name = name;
+          prev.category = it.category || prev.category;
+          prev.qty = it.qty ?? prev.qty;
+          prev.unit = it.unit ?? prev.unit;
+        }
+      } else {
+        map.set(key, {
+          key, name,
+          category: it.category || 'other',
+          qty: it.qty ?? null,
+          unit: it.unit ?? null,
+          count: 1,
+          bought: it.checked ? 1 : 0,
+          lastUsed: ts,
+        });
+      }
+    });
+  });
+  return [...map.values()].sort(
+    (a, b) => (b.bought - a.bought) || (b.count - a.count) || (b.lastUsed - a.lastUsed),
+  );
+};
+
+/* ── "Buy again" strip — one-tap re-add of frequently bought items ───── */
+const BuyAgainStrip = ({ memory, existingNames, onAdd, t, language }) => {
+  const suggestions = memory
+    .filter((m) => m.count >= 2 && !existingNames.has(m.key))
+    .slice(0, 14);
+  if (suggestions.length === 0) return null;
+  return (
+    <div style={{ ...card, borderRadius: 16 }} className="px-3.5 py-3">
+      <div className="flex items-center gap-1.5 mb-2 px-0.5">
+        <RotateCcw className="w-3.5 h-3.5" style={{ color: CREAM.green }} />
+        <span className="text-[12px] font-bold" style={{ color: CREAM.sub }}>
+          {t('buyAgain', 'קניתי בעבר')}
+        </span>
+      </div>
+      <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+        {suggestions.map((m) => {
+          const meta = getCategoryMeta(m.category);
+          return (
+            <button
+              key={m.key}
+              onClick={() => onAdd(m)}
+              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-transform active:scale-95"
+              style={{ background: 'rgba(5,150,105,.07)', border: `1px solid ${CREAM.borderLight}` }}
+            >
+              <span className="text-sm">{meta.emoji}</span>
+              <span className="text-[13px] font-medium whitespace-nowrap" style={{ color: CREAM.ink }}>{m.name}</span>
+              <Plus className="w-3 h-3" strokeWidth={2.5} style={{ color: CREAM.green }} />
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 /* ── Checkbox ─────────────────────────────────────────────── */
 const Checkbox = ({ checked, onClick }) => (
   <motion.button
@@ -123,39 +199,73 @@ const ItemRow = ({ item, onToggle, onEdit, onDelete, onMoveCat, t, isRTL, highli
   );
 };
 
-/* ── Quick Add bar (auto-categorizes a single typed item) ─── */
-const QuickAddBar = ({ onAdd, t }) => {
+/* ── Quick Add bar (auto-categorizes a single typed item; autocompletes from
+      the user's purchase history) ─── */
+const QuickAddBar = ({ onAdd, onPick, memory = [], existingNames, t, language }) => {
   const [v, setV] = useState('');
+  const q = v.trim().toLowerCase();
+  const matches = q.length >= 1
+    ? memory.filter((m) => !existingNames.has(m.key) && m.name.toLowerCase().includes(q)).slice(0, 5)
+    : [];
   const submit = () => {
     const s = v.trim();
     if (!s) return;
     setV('');
     onAdd(s);
   };
+  const pick = (m) => { setV(''); onPick(m); };
   return (
-    <div className="flex items-center gap-2.5 px-3.5 py-2" style={{ ...card, borderRadius: 16 }}>
-      <span className="w-[26px] h-[26px] rounded-full flex items-center justify-center shrink-0" style={{ border: '2px dashed rgba(5,150,105,.35)', color: CREAM.green }}>
-        <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
-      </span>
-      <input
-        value={v}
-        onChange={(e) => setV(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
-        placeholder={t('quickAddPlaceholder', 'הוסף מוצר — הקטגוריה תזוהה לבד')}
-        className="flex-1 min-w-0 bg-transparent outline-none text-sm py-1.5"
-        style={{ color: CREAM.ink }}
-        enterKeyHint="done"
-      />
+    <div className="relative">
+      <div className="flex items-center gap-2.5 px-3.5 py-2" style={{ ...card, borderRadius: 16 }}>
+        <span className="w-[26px] h-[26px] rounded-full flex items-center justify-center shrink-0" style={{ border: '2px dashed rgba(5,150,105,.35)', color: CREAM.green }}>
+          <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
+        </span>
+        <input
+          value={v}
+          onChange={(e) => setV(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
+          placeholder={t('quickAddPlaceholder', 'הוסף מוצר — הקטגוריה תזוהה לבד')}
+          className="flex-1 min-w-0 bg-transparent outline-none text-sm py-1.5"
+          style={{ color: CREAM.ink }}
+          enterKeyHint="done"
+        />
+        <AnimatePresence>
+          {v.trim() && (
+            <motion.button
+              initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }}
+              onClick={submit}
+              className="text-xs font-bold px-3 py-1.5 rounded-lg shrink-0"
+              style={{ background: CREAM.green, color: '#fff' }}
+            >
+              {t('add')}
+            </motion.button>
+          )}
+        </AnimatePresence>
+      </div>
+      {/* History autocomplete — tap a past item to add it with its known category */}
       <AnimatePresence>
-        {v.trim() && (
-          <motion.button
-            initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }}
-            onClick={submit}
-            className="text-xs font-bold px-3 py-1.5 rounded-lg shrink-0"
-            style={{ background: CREAM.green, color: '#fff' }}
+        {matches.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
+            className="absolute left-0 right-0 z-30 mt-1.5 py-1 rounded-2xl overflow-hidden"
+            style={{ background: '#fff', border: `1px solid ${CREAM.border}`, boxShadow: '0 8px 30px rgba(40,20,0,.14)' }}
           >
-            {t('add')}
-          </motion.button>
+            {matches.map((m) => {
+              const meta = getCategoryMeta(m.category);
+              return (
+                <button
+                  key={m.key}
+                  onClick={() => pick(m)}
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-start transition-colors hover:bg-[rgba(180,140,80,.06)]"
+                >
+                  <span className="text-base shrink-0">{meta.emoji}</span>
+                  <span className="flex-1 min-w-0 text-sm truncate" style={{ color: CREAM.ink }}>{m.name}</span>
+                  <span className="text-[10px] font-medium shrink-0" style={{ color: CREAM.muted }}>{language === 'he' ? meta.he : meta.en}</span>
+                  <Plus className="w-3.5 h-3.5 shrink-0" style={{ color: CREAM.green }} />
+                </button>
+              );
+            })}
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
@@ -638,6 +748,14 @@ export const ShoppingListView = () => {
   const viewingList = useMemo(() => shoppingLists.find((l) => l.id === viewingListId), [shoppingLists, viewingListId]);
   const groups = useMemo(() => (viewingList ? groupByCategory(viewingList.items || []) : []), [viewingList]);
 
+  // Purchase memory across all lists + the set of names already in this list
+  // (so suggestions never duplicate what's already here).
+  const itemMemory = useMemo(() => buildItemMemory(shoppingLists), [shoppingLists]);
+  const existingNames = useMemo(
+    () => new Set((viewingList?.items || []).map((i) => (i.name || '').trim().toLowerCase())),
+    [viewingList],
+  );
+
   // Reorder mode shows ALL categories (even empty) as drop targets so an item
   // can move into any category. Categories with items come first.
   const reorderGroups = useMemo(() => {
@@ -702,6 +820,14 @@ export const ShoppingListView = () => {
         })
         .catch(() => { /* offline / no key — dictionary stays as-is */ });
     }
+  };
+
+  // Add a remembered item directly — category/qty are known, so no AI round-trip.
+  const handleAddKnown = (mem) => {
+    addShoppingItem(viewingList.id, { name: mem.name, category: mem.category, qty: mem.qty, unit: mem.unit });
+    setOpenOverrides((o) => ({ ...o, [mem.category]: true }));
+    const m = getCategoryMeta(mem.category);
+    toast.success(`${mem.name} ← ${m.emoji} ${language === 'he' ? m.he : m.en}`);
   };
 
   // One-tap move from the row's category badge.
@@ -796,8 +922,23 @@ export const ShoppingListView = () => {
           <div className="text-base font-semibold min-w-9 text-center" style={{ fontFamily: display, color: CREAM.green }}>{pct}%</div>
         </div>
 
-        {/* Quick add — type a product, category is auto-detected */}
-        {!reorderMode && <QuickAddBar onAdd={handleQuickAdd} t={t} />}
+        {/* Quick add — type a product, category is auto-detected; suggests
+            matches from your purchase history as you type */}
+        {!reorderMode && (
+          <QuickAddBar
+            onAdd={handleQuickAdd}
+            onPick={handleAddKnown}
+            memory={itemMemory}
+            existingNames={existingNames}
+            t={t}
+            language={language}
+          />
+        )}
+
+        {/* Buy again — frequently bought items not already on this list */}
+        {!reorderMode && (
+          <BuyAgainStrip memory={itemMemory} existingNames={existingNames} onAdd={handleAddKnown} t={t} language={language} />
+        )}
 
         {/* All bought — celebration */}
         <AnimatePresence>
