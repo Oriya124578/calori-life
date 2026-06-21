@@ -4,7 +4,7 @@ import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import {
   ShoppingCart, Plus, ClipboardPaste, Wand2, Check, Trash2, Edit3,
   ChevronDown, X, ArrowRight, Loader2, Sparkles, Share2, GripVertical,
-  ArrowUpDown, MoreVertical, Copy, Star, RotateCcw, ListChecks,
+  ArrowUpDown, MoreVertical, Copy, Star, RotateCcw, ListChecks, ChefHat,
 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -14,6 +14,7 @@ import {
   parseShoppingText, categorizeWithAI, groupByCategory, getCategoryMeta, parseQuantity,
   getAllCategories, learnCategory,
 } from '../../lib/groceryCategories';
+import { fetchSavedRecipes } from '../../lib/caloriRepo';
 import { format, parseISO, isValid } from 'date-fns';
 import { he as heLocale } from 'date-fns/locale';
 
@@ -770,6 +771,74 @@ const InlineRename = ({ value, onSave, onCancel, style }) => {
   );
 };
 
+/* ── Recipe picker — turn a saved Calori recipe into shopping items ──── */
+const RecipePickerSheet = ({ uid, onClose, onPick, busyId, t, isRTL }) => {
+  const [recipes, setRecipes] = useState(null); // null = loading
+
+  useEffect(() => {
+    let alive = true;
+    fetchSavedRecipes(uid).then((r) => { if (alive) setRecipes(r); });
+    return () => { alive = false; };
+  }, [uid]);
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end justify-center" role="dialog" aria-modal="true" aria-label={t('fromRecipe', 'ממתכון')}>
+      <motion.div className="fixed inset-0 bg-black/45 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} />
+      <motion.div
+        className="relative w-full max-w-xl z-10 p-5 pb-8"
+        style={{ background: '#fff', borderRadius: '24px 24px 0 0', border: `1px solid ${CREAM.border}`, boxShadow: '0 -8px 40px rgba(40,20,0,.18)', maxHeight: '78vh', overflowY: 'auto' }}
+        initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+        dir={isRTL ? 'rtl' : 'ltr'}
+      >
+        <div className="w-10 h-1 rounded-full mx-auto mb-4" style={{ background: 'rgba(180,140,80,.25)' }} />
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-lg flex items-center gap-2" style={{ fontFamily: serif, color: CREAM.ink }}>
+            <ChefHat className="w-5 h-5" style={{ color: CREAM.green }} />
+            {t('chooseRecipe', 'בחר מתכון')}
+          </h3>
+          <button onClick={onClose} aria-label={t('cancel')} className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 hover:bg-[rgba(180,140,80,.08)]">
+            <X className="w-4 h-4" style={{ color: CREAM.muted }} />
+          </button>
+        </div>
+        <p className="text-xs mb-4 px-0.5" style={{ color: CREAM.muted }}>{t('fromRecipeSub', 'הרכיבים יתווספו כרשימת קניות מסודרת לפי קטגוריות')}</p>
+
+        {recipes === null ? (
+          <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin" style={{ color: CREAM.green }} /></div>
+        ) : recipes.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-12 text-center">
+            <ChefHat className="w-12 h-12" style={{ color: 'rgba(180,140,80,.3)' }} strokeWidth={1.5} />
+            <p className="text-sm max-w-xs" style={{ color: CREAM.muted }}>{t('noSavedRecipes', 'אין מתכונים שמורים. שמור מתכונים באפליקציית Calori והם יופיעו כאן.')}</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {recipes.map((r) => {
+              const busy = busyId === r.id;
+              return (
+                <button
+                  key={r.id}
+                  disabled={!!busyId}
+                  onClick={() => onPick(r)}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-2xl text-start transition-colors hover:bg-[rgba(180,140,80,.05)] disabled:opacity-60"
+                  style={{ border: `1px solid ${CREAM.borderLight}` }}
+                >
+                  <div className="w-11 h-11 rounded-xl overflow-hidden shrink-0 flex items-center justify-center" style={{ background: CREAM.greenLight }}>
+                    {r.imageUrl ? <img src={r.imageUrl} alt="" className="w-full h-full object-cover" /> : <ChefHat className="w-5 h-5" style={{ color: CREAM.green }} />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold truncate" style={{ color: CREAM.ink }}>{r.title}</div>
+                    {r.portions ? <div className="text-[11px]" style={{ color: CREAM.muted }}>{r.portions} {t('portions', 'מנות')}</div> : null}
+                  </div>
+                  {busy ? <Loader2 className="w-4 h-4 animate-spin shrink-0" style={{ color: CREAM.green }} /> : <Plus className="w-4 h-4 shrink-0" style={{ color: CREAM.green }} />}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </motion.div>
+    </div>
+  );
+};
+
 /* ── Main View ────────────────────────────────────────────── */
 export const ShoppingListView = () => {
   const { t, language } = useTranslation();
@@ -793,8 +862,11 @@ export const ShoppingListView = () => {
   const addShoppingRegular = useStore((s) => s.addShoppingRegular);
   const removeShoppingRegular = useStore((s) => s.removeShoppingRegular);
   const regulars = useStore((s) => s.data.profile?.shoppingRegulars) || [];
+  const uid = useStore((s) => s.uid);
 
   const [mode, setMode] = useState('lists'); // 'lists' | 'paste'
+  const [recipePicker, setRecipePicker] = useState(false);
+  const [recipeBusyId, setRecipeBusyId] = useState(null);
   const [viewingListId, setViewingListId] = useState(null);
   const [editItem, setEditItem] = useState(null);
   const [moveItem, setMoveItem] = useState(null);
@@ -923,6 +995,37 @@ export const ShoppingListView = () => {
     setMode('lists');
     setOpenOverrides({});
     setViewingListId(id); // jump straight into the new list
+    toast.success(t('addedSuccessfully'));
+  };
+
+  // Recipe → shopping list: parse the recipe's ingredient lines through the same
+  // pipeline as paste (dictionary categories + AI for unknowns), then create a
+  // new list named after the recipe.
+  const handleRecipeToList = async (recipe) => {
+    const text = recipe.ingredientsText || '';
+    const { items, unresolved } = parseShoppingText(text);
+    if (items.length === 0) { toast.info(t('shoppingEmptyParse')); return; }
+    setRecipeBusyId(recipe.id);
+    let finalItems = items;
+    if (unresolved.length > 0) {
+      try {
+        const { learned } = await categorizeWithAI(unresolved);
+        if (learned && Object.keys(learned).length > 0) {
+          learnGroceryItems(learned);
+          const norm = (s) => (s || '').trim().toLowerCase();
+          finalItems = items.map((it) => {
+            const cat = learned[norm(it.name)];
+            return cat ? { ...it, category: cat } : it;
+          });
+        }
+      } catch { /* offline / no key — keep dictionary categories */ }
+    }
+    const id = await createShoppingList(recipe.title || t('shoppingTitle'), text, finalItems);
+    setRecipeBusyId(null);
+    setRecipePicker(false);
+    setMode('lists');
+    setOpenOverrides({});
+    setViewingListId(id);
     toast.success(t('addedSuccessfully'));
   };
 
@@ -1117,13 +1220,23 @@ export const ShoppingListView = () => {
           </div>
         )}
 
-        {/* Add new list shortcut */}
-        <button onClick={() => setMode('paste')} className="flex items-center justify-center gap-2 py-3 rounded-xl text-[13px] font-semibold transition-colors" style={{ background: CREAM.greenLight, color: CREAM.green }}>
-          <Plus className="w-4 h-4" strokeWidth={2.5} />{t('newShoppingList')}
-        </button>
+        {/* Add new list shortcuts */}
+        <div className="flex items-center gap-2">
+          <button onClick={() => setMode('paste')} className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[13px] font-semibold transition-colors" style={{ background: CREAM.greenLight, color: CREAM.green }}>
+            <Plus className="w-4 h-4" strokeWidth={2.5} />{t('newShoppingList')}
+          </button>
+          <button onClick={() => setRecipePicker(true)} className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[13px] font-semibold transition-colors" style={{ border: `1px solid ${CREAM.borderLight}`, color: CREAM.green }}>
+            <ChefHat className="w-4 h-4" />{t('fromRecipe', 'ממתכון')}
+          </button>
+        </div>
 
         <AnimatePresence>
           {menuList && <OptionsMenu items={buildMenu(menuList)} onClose={() => setMenuListId(null)} isRTL={isRTL} />}
+        </AnimatePresence>
+        <AnimatePresence>
+          {recipePicker && (
+            <RecipePickerSheet uid={uid} busyId={recipeBusyId} t={t} isRTL={isRTL} onClose={() => setRecipePicker(false)} onPick={handleRecipeToList} />
+          )}
         </AnimatePresence>
         <AnimatePresence>
           {editItem && (
@@ -1158,9 +1271,14 @@ export const ShoppingListView = () => {
     <div className="max-w-xl mx-auto px-4 py-4 flex flex-col gap-3.5" dir={isRTL ? 'rtl' : 'ltr'}>
       <div className="flex items-center justify-between -mt-1">
         <h2 className="text-xl" style={{ fontFamily: serif, color: CREAM.ink }}>{t('myLists')}</h2>
-        <button onClick={() => setMode('paste')} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[13px] font-semibold" style={{ background: CREAM.green, color: '#fff', boxShadow: '0 2px 10px rgba(5,150,105,.25)' }}>
-          <Plus className="w-4 h-4" strokeWidth={2.5} />{t('newList')}
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setRecipePicker(true)} aria-label={t('fromRecipe', 'ממתכון')} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[13px] font-semibold" style={{ background: CREAM.greenLight, color: CREAM.green }}>
+            <ChefHat className="w-4 h-4" />{t('fromRecipe', 'ממתכון')}
+          </button>
+          <button onClick={() => setMode('paste')} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[13px] font-semibold" style={{ background: CREAM.green, color: '#fff', boxShadow: '0 2px 10px rgba(5,150,105,.25)' }}>
+            <Plus className="w-4 h-4" strokeWidth={2.5} />{t('newList')}
+          </button>
+        </div>
       </div>
 
       {!hasLists ? (
@@ -1187,6 +1305,11 @@ export const ShoppingListView = () => {
 
       <AnimatePresence>
         {menuList && <OptionsMenu items={buildMenu(menuList)} onClose={() => setMenuListId(null)} isRTL={isRTL} />}
+      </AnimatePresence>
+      <AnimatePresence>
+        {recipePicker && (
+          <RecipePickerSheet uid={uid} busyId={recipeBusyId} t={t} isRTL={isRTL} onClose={() => setRecipePicker(false)} onPick={handleRecipeToList} />
+        )}
       </AnimatePresence>
     </div>
   );

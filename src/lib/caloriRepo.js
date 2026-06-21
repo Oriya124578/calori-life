@@ -18,6 +18,7 @@
 import {
   collection,
   doc,
+  getDocs,
   onSnapshot,
   query,
   where,
@@ -246,5 +247,36 @@ export const subscribeCoachSessionsForDay = (uid, date, cb) => {
       cb([]);
     },
   );
+};
+
+// --- Recipes (read-only) ---------------------------------------------------
+
+/**
+ * Fetch the user's saved recipes from the calori app's top-level `recipes`
+ * collection (one-shot; used by the shopping "recipe → list" picker). Recipes
+ * store their ingredients as newline-separated plain text in `ingredients_text`.
+ * Returns [{ id, title, ingredientsText, imageUrl, portions }] or [].
+ */
+export const fetchSavedRecipes = async (uid) => {
+  try {
+    const q = query(
+      collection(db, 'recipes'),
+      where('saved_by', 'array-contains', uid),
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => {
+      const x = d.data();
+      return {
+        id: d.id,
+        title: x.title || 'מתכון',
+        ingredientsText: x.ingredients_text || '',
+        imageUrl: x.image_url || null,
+        portions: Number(x.portions) || null,
+      };
+    });
+  } catch (err) {
+    console.warn('[calori] fetchSavedRecipes failed:', err?.code);
+    return [];
+  }
 };
 
