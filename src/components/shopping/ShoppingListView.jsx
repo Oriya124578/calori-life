@@ -199,6 +199,54 @@ const ItemRow = ({ item, onToggle, onEdit, onDelete, onMoveCat, t, isRTL, highli
   );
 };
 
+/* ── "My regulars" strip — curated staples, one-tap add (incl. "add all") ─ */
+const RegularsStrip = ({ regulars, existingNames, onAdd, onAddAll, t }) => {
+  const pending = regulars.filter((r) => !existingNames.has((r.name || '').trim().toLowerCase()));
+  if (regulars.length === 0) return null;
+  return (
+    <div style={{ ...card, borderRadius: 16 }} className="px-3.5 py-3">
+      <div className="flex items-center justify-between mb-2 px-0.5">
+        <div className="flex items-center gap-1.5">
+          <Star className="w-3.5 h-3.5" style={{ color: '#D97706', fill: '#D97706' }} />
+          <span className="text-[12px] font-bold" style={{ color: CREAM.sub }}>
+            {t('myRegulars', 'הקבועים שלי')}
+          </span>
+        </div>
+        {pending.length > 0 && (
+          <button
+            onClick={onAddAll}
+            className="text-[11px] font-bold px-2.5 py-1 rounded-full transition-transform active:scale-95"
+            style={{ background: CREAM.greenLight, color: CREAM.green }}
+          >
+            {t('addAll', 'הוסף הכל')} ({pending.length})
+          </button>
+        )}
+      </div>
+      {pending.length === 0 ? (
+        <p className="text-[12px] px-0.5" style={{ color: CREAM.muted }}>{t('allRegularsAdded', 'כל הקבועים כבר ברשימה ✓')}</p>
+      ) : (
+        <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+          {pending.map((r) => {
+            const meta = getCategoryMeta(r.category);
+            return (
+              <button
+                key={(r.name || '').toLowerCase()}
+                onClick={() => onAdd(r)}
+                className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-transform active:scale-95"
+                style={{ background: 'rgba(217,119,6,.07)', border: '1px solid rgba(217,119,6,.18)' }}
+              >
+                <span className="text-sm">{meta.emoji}</span>
+                <span className="text-[13px] font-medium whitespace-nowrap" style={{ color: CREAM.ink }}>{r.name}</span>
+                <Plus className="w-3 h-3" strokeWidth={2.5} style={{ color: '#D97706' }} />
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
 /* ── Quick Add bar (auto-categorizes a single typed item; autocompletes from
       the user's purchase history) ─── */
 const QuickAddBar = ({ onAdd, onPick, memory = [], existingNames, t, language }) => {
@@ -486,7 +534,7 @@ const CategorySection = ({ group, isOpen, onToggleOpen, onToggleItem, onEditItem
 };
 
 /* ── Edit Item Modal (with category picker that teaches the dict) ── */
-const EditItemModal = ({ item, onClose, onSave, t, isRTL, language }) => {
+const EditItemModal = ({ item, onClose, onSave, isRegular, onToggleRegular, t, isRTL, language }) => {
   const [name, setName] = useState(item.name || '');
   const [qty, setQty] = useState(item.qty ? `${item.qty}${item.unit ? ' ' + item.unit : ''}` : '');
   const [category, setCategory] = useState(item.category || 'other');
@@ -526,6 +574,17 @@ const EditItemModal = ({ item, onClose, onSave, t, isRTL, language }) => {
             })}
           </div>
         </div>
+        {/* Mark as a regular (staple) — toggles membership in "my regulars" */}
+        <button
+          onClick={() => onToggleRegular({ name: name.trim(), category, qty: null, unit: null })}
+          className="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl transition-colors text-start"
+          style={{ border: `1.5px solid ${isRegular ? 'rgba(217,119,6,.4)' : CREAM.borderLight}`, background: isRegular ? 'rgba(217,119,6,.07)' : 'transparent' }}
+        >
+          <Star className="w-[18px] h-[18px] shrink-0" style={{ color: '#D97706', fill: isRegular ? '#D97706' : 'transparent' }} />
+          <span className="flex-1 text-[13px] font-semibold" style={{ color: isRegular ? '#B45309' : CREAM.sub }}>
+            {isRegular ? t('isRegularOn', 'מוצר קבוע — לחץ להסרה') : t('markRegular', 'סמן כמוצר קבוע')}
+          </span>
+        </button>
         <button onClick={handleSave} className="w-full py-3 rounded-xl text-white text-sm font-semibold" style={{ background: CREAM.green }}>{t('save')}</button>
       </motion.div>
     </div>
@@ -731,6 +790,9 @@ export const ShoppingListView = () => {
   const resetShoppingChecks = useStore((s) => s.resetShoppingChecks);
   const duplicateShoppingList = useStore((s) => s.duplicateShoppingList);
   const learnGroceryItems = useStore((s) => s.learnGroceryItems);
+  const addShoppingRegular = useStore((s) => s.addShoppingRegular);
+  const removeShoppingRegular = useStore((s) => s.removeShoppingRegular);
+  const regulars = useStore((s) => s.data.profile?.shoppingRegulars) || [];
 
   const [mode, setMode] = useState('lists'); // 'lists' | 'paste'
   const [viewingListId, setViewingListId] = useState(null);
@@ -754,6 +816,10 @@ export const ShoppingListView = () => {
   const existingNames = useMemo(
     () => new Set((viewingList?.items || []).map((i) => (i.name || '').trim().toLowerCase())),
     [viewingList],
+  );
+  const regularNames = useMemo(
+    () => new Set(regulars.map((r) => (r.name || '').trim().toLowerCase())),
+    [regulars],
   );
 
   // Reorder mode shows ALL categories (even empty) as drop targets so an item
@@ -828,6 +894,20 @@ export const ShoppingListView = () => {
     setOpenOverrides((o) => ({ ...o, [mem.category]: true }));
     const m = getCategoryMeta(mem.category);
     toast.success(`${mem.name} ← ${m.emoji} ${language === 'he' ? m.he : m.en}`);
+  };
+
+  // Add every regular not already on the list, in one tap.
+  const handleAddAllRegulars = () => {
+    const pending = regulars.filter((r) => !existingNames.has((r.name || '').trim().toLowerCase()));
+    pending.forEach((r) => addShoppingItem(viewingList.id, { name: r.name, category: r.category, qty: r.qty, unit: r.unit }));
+    if (pending.length) toast.success(`${pending.length} ${t('itemsAdded', 'מוצרים נוספו')}`);
+  };
+
+  // Toggle an item's membership in "my regulars".
+  const handleToggleRegular = (item) => {
+    const key = (item.name || '').trim().toLowerCase();
+    if (regularNames.has(key)) removeShoppingRegular(item.name);
+    else addShoppingRegular(item);
   };
 
   // One-tap move from the row's category badge.
@@ -933,6 +1013,11 @@ export const ShoppingListView = () => {
             t={t}
             language={language}
           />
+        )}
+
+        {/* My regulars — curated staples, one-tap add (incl. add-all) */}
+        {!reorderMode && (
+          <RegularsStrip regulars={regulars} existingNames={existingNames} onAdd={handleAddKnown} onAddAll={handleAddAllRegulars} t={t} />
         )}
 
         {/* Buy again — frequently bought items not already on this list */}
@@ -1044,6 +1129,8 @@ export const ShoppingListView = () => {
           {editItem && (
             <EditItemModal
               item={editItem} t={t} isRTL={isRTL} language={language}
+              isRegular={regularNames.has((editItem.name || '').trim().toLowerCase())}
+              onToggleRegular={handleToggleRegular}
               onClose={() => setEditItem(null)}
               onSave={(patch, categoryChanged) => {
                 updateShoppingItem(viewingList.id, editItem.id, patch);

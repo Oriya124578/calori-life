@@ -10,9 +10,11 @@ export const connectGoogleCalendar = async () => {
   const user = auth.currentUser;
   if (!user) throw new Error("User not authenticated");
   
-  // We need to redirect the browser to the Cloud Function
+  const idToken = await user.getIdToken();
+  
+  // We need to redirect the browser to the Cloud Function, passing the verification token
   const authUrl = new URL(`${API_BASE_URL}/auth/google`);
-  authUrl.searchParams.append('uid', user.uid);
+  authUrl.searchParams.append('idToken', idToken);
   
   window.location.href = authUrl.toString();
   
@@ -25,17 +27,22 @@ export const fetchGoogleEvents = async (dateStr) => {
   const user = auth.currentUser;
   if (!user) throw new Error("User not authenticated");
   
+  const idToken = await user.getIdToken();
+  
   const startOfDay = new Date(dateStr);
   startOfDay.setHours(0, 0, 0, 0);
   const endOfDay = new Date(dateStr);
   endOfDay.setHours(23, 59, 59, 999);
 
   const url = new URL(`${API_BASE_URL}/api/calendar/events`);
-  url.searchParams.append('uid', user.uid);
   url.searchParams.append('timeMin', startOfDay.toISOString());
   url.searchParams.append('timeMax', endOfDay.toISOString());
 
-  const response = await fetch(url.toString());
+  const response = await fetch(url.toString(), {
+    headers: {
+      'Authorization': `Bearer ${idToken}`
+    }
+  });
 
   if (!response.ok) {
     if (response.status === 401 || response.status === 403) {

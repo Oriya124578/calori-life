@@ -212,6 +212,14 @@ export const NotificationSettings = () => {
             checked={s.weeklyTasks}
             onChange={(v) => setNotificationSettings({ weeklyTasks: v })}
           />
+
+          {/* Shopping staples reminder (delivered by the scheduled cloud fn) */}
+          <ToggleRow
+            label={t('notifStaples')}
+            desc={t('notifStaplesDesc')}
+            checked={s.staples !== false}
+            onChange={(v) => setNotificationSettings({ staples: v })}
+          />
         </div>
 
         {/* Test button */}

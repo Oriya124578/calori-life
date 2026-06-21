@@ -2,7 +2,15 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 /** Get the configured Gemini API key from localStorage or VITE env. */
 export const getGeminiApiKey = () => {
-  return localStorage.getItem('gemini_api_key') || import.meta.env.VITE_GEMINI_API_KEY || '';
+  const localKey = localStorage.getItem('gemini_api_key');
+  if (localKey) return localKey;
+  
+  // Only allow VITE env fallback in development mode to prevent leaking key in production builds
+  if (import.meta.env.DEV) {
+    return import.meta.env.VITE_GEMINI_API_KEY || '';
+  }
+  
+  return '';
 };
 
 /** Initialize the Gemini API client. Throws if no key found. */

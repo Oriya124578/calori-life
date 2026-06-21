@@ -34,22 +34,47 @@ const getOAuth2Client = (req) => {
   );
 };
 
-// Milestone 3.1.2: Initiate Google OAuth
-app.get("/auth/google", (req, res) => {
-  const uid = req.query.uid;
-  if (!uid) {
-    return res.status(400).send("Missing uid parameter");
+// Helper middleware to validate Firebase ID Token
+const validateFirebaseIdToken = async (req, res, next) => {
+  if (!req.headers.authorization || !req.headers.authorization.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Unauthorized: Missing or invalid authorization header' });
   }
 
-  const oauth2Client = getOAuth2Client(req);
-  const url = oauth2Client.generateAuthUrl({
-    access_type: 'offline',
-    scope: SCOPES,
-    state: uid,
-    prompt: 'consent'
-  });
+  const idToken = req.headers.authorization.split('Bearer ')[1];
+  try {
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    req.user = decodedToken;
+    next();
+  } catch (error) {
+    console.error('Error while verifying Firebase ID token:', error);
+    return res.status(401).json({ error: 'Unauthorized: Verification failed' });
+  }
+};
 
-  res.redirect(url);
+// Milestone 3.1.2: Initiate Google OAuth (Secured with Firebase ID Token query parameter)
+app.get("/auth/google", async (req, res) => {
+  const idToken = req.query.idToken;
+  if (!idToken) {
+    return res.status(400).send("Missing idToken parameter");
+  }
+
+  try {
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    const uid = decodedToken.uid;
+
+    const oauth2Client = getOAuth2Client(req);
+    const url = oauth2Client.generateAuthUrl({
+      access_type: 'offline',
+      scope: SCOPES,
+      state: uid,
+      prompt: 'consent'
+    });
+
+    res.redirect(url);
+  } catch (error) {
+    console.error("Error during auth/google initiation:", error);
+    res.status(401).send("Unauthorized: Authentication failed");
+  }
 });
 
 // Milestone 3.1.2: Google OAuth Callback
@@ -83,14 +108,17 @@ app.get("/auth/google/callback", async (req, res) => {
   }
 });
 
-// Milestone 3.1.3: Fetch Calendar Events
-app.get("/api/calendar/events", async (req, res) => {
-  const uid = req.query.uid;
+// Milestone 3.1.3: Fetch Calendar Events (Secured with validateFirebaseIdToken middleware)
+app.get("/api/calendar/events", validateFirebaseIdToken, async (req, res) => {
+  const uid = req.user.uid;
   const timeMin = req.query.timeMin;
   const timeMax = req.query.timeMax;
 
-  if (!uid) {
-    return res.status(401).json({ error: "Missing uid parameter" });
+  if (timeMin && isNaN(Date.parse(timeMin))) {
+    return res.status(400).json({ error: "Invalid timeMin parameter" });
+  }
+  if (timeMax && isNaN(Date.parse(timeMax))) {
+    return res.status(400).json({ error: "Invalid timeMax parameter" });
   }
 
   try {
@@ -155,7 +183,7 @@ app.get("/api/calendar/events", async (req, res) => {
 
 exports.api = onRequest({ cors: true }, app);
 
-exports.aiManager = onSchedule({ schedule: "0 7,21 * * *", timeZone: "Asia/Jerusalem" }, async (event) => {
+exports.aiManager = onSchedule({ schedule: "0 7,21 * * *", timeZone: "Asia/Jerusalem" }, async () => {
   const db = admin.firestore();
   const usersSnapshot = await db.collection("users").get();
   
@@ -419,5 +447,143 @@ exports.pushReminders = onSchedule(
     }
 
     console.log(`pushReminders: dispatched ${sentTotal} reminders.`);
+  },
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Staples reminder: "אולי נגמר לך?"
+//
+// Runs daily at 09:00. For each user with FCM tokens and push enabled (and
+// notificationSettings.staples !== false), learns each grocery item's purchase
+// cadence from shopping-list history, and nudges them about items that look due
+// to be re-bought. One push per day max, deduped via cl_pushLog.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+exports.staplesReminder = onSchedule(
+  { schedule: "0 9 * * *", timeZone: TZ },
+  async () => {
+    const db = admin.firestore();
+    const now = Date.now();
+    const usersSnapshot = await db.collection("users").get();
+    let sentTotal = 0;
+
+    for (const userDoc of usersSnapshot.docs) {
+      const uid = userDoc.id;
+
+      // 1. Tokens — skip user entirely if none registered.
+      const tokensSnap = await db.collection("users").doc(uid).collection("cl_fcmTokens").get();
+      if (tokensSnap.empty) continue;
+      const tokens = tokensSnap.docs.map((d) => d.data().token).filter(Boolean);
+      if (!tokens.length) continue;
+
+      // 2. Settings — opt-out via staples === false.
+      const profileSnap = await db.collection("users").doc(uid).collection("cl_profile").doc("main").get();
+      const s = (profileSnap.exists && profileSnap.data().notificationSettings) || null;
+      if (!s || !s.enabled) continue;
+      if (s.staples === false) continue;
+
+      // 3. Read all shopping lists.
+      const listsSnap = await db.collection("users").doc(uid).collection("cl_shoppingLists").get();
+      if (listsSnap.empty) continue;
+
+      // Per normalized name: purchase timestamps (bought items) + most recent display name + on-list (unchecked) flag.
+      const stats = new Map();
+      const getStat = (norm) => {
+        let st = stats.get(norm);
+        if (!st) {
+          st = { times: [], display: null, displayAt: -Infinity, onList: false };
+          stats.set(norm, st);
+        }
+        return st;
+      };
+
+      listsSnap.docs.forEach((doc) => {
+        const items = doc.data().items;
+        if (!Array.isArray(items)) return;
+        items.forEach((it) => {
+          if (!it || !it.name) return;
+          const norm = String(it.name).trim().toLowerCase();
+          if (!norm) return;
+          const st = getStat(norm);
+          const at = it.addedAt ? Date.parse(it.addedAt) : NaN;
+          if (it.checked === true) {
+            if (!Number.isNaN(at)) st.times.push(at);
+            // Track most recent display name from purchases.
+            if (!Number.isNaN(at) && at >= st.displayAt) {
+              st.display = it.name;
+              st.displayAt = at;
+            }
+          } else {
+            // Currently on a list to buy — exclude from suggestions.
+            st.onList = true;
+          }
+        });
+      });
+
+      // 4. Compute due items.
+      const dueItems = [];
+      stats.forEach((st, norm) => {
+        if (st.onList) return; // already on a list
+        if (st.times.length < 3) return;
+
+        const times = st.times.slice().sort((a, b) => a - b);
+        let sum = 0;
+        for (let i = 1; i < times.length; i++) sum += times[i] - times[i - 1];
+        const avgInterval = sum / (times.length - 1);
+        if (avgInterval < DAY_MS || avgInterval > 60 * DAY_MS) return; // not a sane cadence
+
+        const lastPurchase = times[times.length - 1];
+        const sinceLast = now - lastPurchase;
+        if (sinceLast < DAY_MS) return; // bought very recently
+        if (sinceLast < 1.2 * avgInterval) return; // not yet due
+
+        dueItems.push({
+          name: st.display || norm,
+          overdue: sinceLast / avgInterval,
+        });
+      });
+
+      if (!dueItems.length) continue;
+
+      // 5. Rank by overdue ratio, take top 3.
+      dueItems.sort((a, b) => b.overdue - a.overdue);
+      const top = dueItems.slice(0, 3);
+      const names = top.map((d) => d.name);
+
+      // 6. Send one push (deduped to once per day).
+      const key = `staples:${dayKeyJ(new Date())}`;
+      const logRef = db.collection("users").doc(uid).collection("cl_pushLog").doc(encodeURIComponent(key));
+      const exists = await logRef.get();
+      if (exists.exists) continue;
+
+      const body = `${names.join(", ")} — אולי הגיע הזמן לקנות?`;
+      const resp = await admin.messaging().sendEachForMulticast({
+        tokens,
+        data: { title: "אולי נגמר לך?", body, url: "/", tag: key },
+      });
+
+      // Prune tokens that are no longer valid.
+      const stale = [];
+      resp.responses.forEach((r, i) => {
+        if (!r.success) {
+          const code = r.error && r.error.code;
+          if (code === "messaging/registration-token-not-registered" ||
+              code === "messaging/invalid-argument") {
+            stale.push(tokens[i]);
+          }
+        }
+      });
+      for (const tok of stale) {
+        await db.collection("users").doc(uid).collection("cl_fcmTokens")
+          .doc(encodeURIComponent(tok)).delete().catch(() => {});
+      }
+
+      await logRef.set({ sentAt: admin.firestore.FieldValue.serverTimestamp(), key });
+      sentTotal++;
+    }
+
+    console.log(`staplesReminder: dispatched ${sentTotal} staples nudges.`);
   },
 );

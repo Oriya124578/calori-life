@@ -110,6 +110,7 @@ export const DEFAULT_NOTIFICATION_SETTINGS = {
   events: true, // event start reminders
   eventLeadMinutes: 30, // default minutes-before for events without an override
   weeklyTasks: false, // include weekly course tasks in the daily digest
+  staples: true, // shopping staples reminder (scheduled cloud function)
 };
 
 const loadNotificationSettings = () => {
@@ -919,6 +920,30 @@ export const useStore = create((set, get) => ({
     get()._patchShoppingItems(listId, (items) =>
       items.filter((it) => it.id !== itemId)
     ),
+
+  // ---------- Shopping "regulars" (staples) — stored on the profile ------
+  // A small curated set of items the user buys regularly. Persisted under
+  // cl_profile/main.shoppingRegulars so it follows the user across devices.
+
+  addShoppingRegular: (item) => {
+    const { uid, data } = get();
+    const name = (item?.name || '').trim();
+    if (!name) return;
+    const key = name.toLowerCase();
+    const existing = data.profile?.shoppingRegulars || [];
+    if (existing.some((r) => (r.name || '').toLowerCase() === key)) return;
+    const next = [...existing, { name, category: item.category || 'other', qty: item.qty ?? null, unit: item.unit ?? null }];
+    set((state) => ({ data: { ...state.data, profile: { ...state.data.profile, shoppingRegulars: next } } }));
+    if (uid) fsSetProfile(uid, { shoppingRegulars: next }).catch(console.error);
+  },
+
+  removeShoppingRegular: (name) => {
+    const { uid, data } = get();
+    const key = (name || '').trim().toLowerCase();
+    const next = (data.profile?.shoppingRegulars || []).filter((r) => (r.name || '').toLowerCase() !== key);
+    set((state) => ({ data: { ...state.data, profile: { ...state.data.profile, shoppingRegulars: next } } }));
+    if (uid) fsSetProfile(uid, { shoppingRegulars: next }).catch(console.error);
+  },
 
   clearShoppingList: (listId) => {
     const { uid } = get();
