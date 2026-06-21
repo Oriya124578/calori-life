@@ -9,12 +9,12 @@
   --gradient-brand: linear-gradient(135deg, #10B981 0%, #059669 35%, #2563EB 65%, #7C3AED 100%);
   --gradient-brand-soft: linear-gradient(135deg, rgba(16,185,129,.10) 0%, rgba(5,150,105,.10) 35%, rgba(37,99,235,.10) 65%, rgba(124,58,237,.10) 100%);
 
-  --color-cream-warm: rgba(180,140,80,.12);
-  --color-cream-border: rgba(180,140,80,.14);
-  --color-cream-text: #2A1A0A;
-  --color-cream-sub: #5A4A3A;
-  --color-cream-muted: #8A7A6A;
-  --color-cream-highlight: rgba(255,245,220,.4);
+  --color-cream-warm: var(--cream-warm);
+  --color-cream-border: var(--cream-border);
+  --color-cream-text: var(--cream-text);
+  --color-cream-sub: var(--cream-sub);
+  --color-cream-muted: var(--cream-muted);
+  --color-cream-highlight: var(--cream-highlight);
 
   --color-nutrition-primary: #059669;
   --color-nutrition-secondary: #10B981;
@@ -79,6 +79,17 @@
     --ring: 161 94% 30%;
 
     --radius: 1rem;
+
+    /* Cream v3 Light custom variables */
+    --cream-warm: rgba(180, 140, 80, 0.12);
+    --cream-border: rgba(180, 140, 80, 0.14);
+    --cream-text: #2A1A0A;
+    --cream-sub: #5A4A3A;
+    --cream-muted: #8A7A6A;
+    --cream-highlight: rgba(255, 245, 220, 0.4);
+    --header-bg: rgba(250, 247, 242, 0.94);
+    --bottom-nav-bg: rgba(250, 247, 242, 0.92);
+    --header-border: rgba(180, 140, 80, 0.12);
   }
 
   .dark {
@@ -109,6 +120,17 @@
     --border: 240 3% 16%;
     --input: 240 3% 22%;
     --ring: 158 65% 52%;
+
+    /* Cream v3 Dark custom variables overrides */
+    --cream-warm: rgba(63, 63, 70, 0.3);
+    --cream-border: rgba(63, 63, 70, 0.5);
+    --cream-text: #F4F4F5;
+    --cream-sub: #E4E4E7;
+    --cream-muted: #A1A1AA;
+    --cream-highlight: rgba(24, 24, 27, 0.6);
+    --header-bg: rgba(18, 18, 18, 0.94);
+    --bottom-nav-bg: rgba(18, 18, 18, 0.92);
+    --header-border: rgba(63, 63, 70, 0.3);
   }
 }
 

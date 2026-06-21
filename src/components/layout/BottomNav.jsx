@@ -28,10 +28,10 @@ export const BottomNav = () => {
     <nav
       className="fixed z-50 left-1/2 bottom-[calc(14px+env(safe-area-inset-bottom))] flex items-center gap-0.5 px-1.5 py-1.5"
       style={{
-        background: 'rgba(250,247,242,.92)',
+        background: 'var(--bottom-nav-bg)',
         backdropFilter: 'blur(22px)',
         WebkitBackdropFilter: 'blur(22px)',
-        border: '1px solid rgba(180,140,80,.18)',
+        border: '1px solid var(--header-border)',
         borderRadius: 999,
         boxShadow: '0 10px 36px rgba(40,20,0,.16), 0 2px 8px rgba(40,20,0,.08)',
         // translateZ keeps iOS WebKit from detaching the fixed bar mid-scroll

@@ -311,7 +311,7 @@ export const StudiesHub = () => {
                 <span>{pct}% {isRTL ? 'הושלם' : 'done'}</span>
                 {course.examDate && (() => {
                   try {
-                    const days = differenceInDays(parseISO(course.examDate), new Date());
+                    const days = differenceInCalendarDays(parseISO(course.examDate), new Date());
                     if (days >= 0) return (
                       <span style={{
                         fontFamily: "'Instrument Serif', serif",

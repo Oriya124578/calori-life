@@ -120,10 +120,10 @@ export const Layout = () => {
       <header
         className="flex items-center justify-between px-5 py-3 border-b z-20 shrink-0 sticky top-0 transition-all pt-[max(env(safe-area-inset-top),14px)]"
         style={{
-          background: 'rgba(250,247,242,.94)',
+          background: 'var(--header-bg)',
           backdropFilter: 'blur(22px)',
           WebkitBackdropFilter: 'blur(22px)',
-          borderColor: 'rgba(180,140,80,.12)',
+          borderColor: 'var(--header-border)',
           transform: 'translateZ(0)',
         }}
         dir={language === 'he' ? 'rtl' : 'ltr'}
@@ -137,8 +137,8 @@ export const Layout = () => {
               aria-label={t('back', 'חזרה')}
             >
               {isRTL
-                ? <ChevronRight className="w-6 h-6" style={{ color: '#2A1A0A' }} />
-                : <ChevronLeft className="w-6 h-6" style={{ color: '#2A1A0A' }} />}
+                ? <ChevronRight className="w-6 h-6" style={{ color: 'var(--color-foreground)' }} />
+                : <ChevronLeft className="w-6 h-6" style={{ color: 'var(--color-foreground)' }} />}
             </button>
           ) : (
             <button

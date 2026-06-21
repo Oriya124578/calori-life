@@ -162,7 +162,7 @@ export const SmartDashboard = () => {
       ['moedA', 'moedB', 'moedC'].forEach((moed) => {
         const dt = safeParse(course[moed] || course.exams?.[moed]);
         if (dt) {
-          const d = differenceInDays(startOfDay(dt), startOfDay(today));
+          const d = differenceInCalendarDays(startOfDay(dt), startOfDay(today));
           if (d > 0 && d <= 7) items.push({ id: `e-${course.id}-${moed}`, kind: 'exam', title: `${course.name} — ${t(moed)}`, date: dt });
         }
       });
@@ -170,14 +170,14 @@ export const SmartDashboard = () => {
     (data?.events || []).forEach((ev) => {
       const dt = safeParse(ev.start);
       if (dt) {
-        const d = differenceInDays(startOfDay(dt), startOfDay(today));
+        const d = differenceInCalendarDays(startOfDay(dt), startOfDay(today));
         if (d > 0 && d <= 7) items.push({ id: ev.id, kind: 'event', title: ev.title, date: dt });
       }
     });
     (data?.personalTasks || []).forEach((task) => {
       const dt = safeParse(task.dueDate);
       if (dt && !task.done) {
-        const d = differenceInDays(startOfDay(dt), startOfDay(today));
+        const d = differenceInCalendarDays(startOfDay(dt), startOfDay(today));
         if (d > 0 && d <= 7) items.push({ id: task.id, kind: 'task', title: task.title, date: dt });
       }
     });

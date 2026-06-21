@@ -80,6 +80,7 @@ export const AddItemSheet = () => {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [dueDate, setDueDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [allDay, setAllDay] = useState(false);
@@ -105,6 +106,7 @@ export const AddItemSheet = () => {
       setTitle('');
       setContent('');
       setDueDate(addSheetPrefill?.date || '');
+      setEndDate(addSheetPrefill?.date || '');
       setStartTime('');
       setEndTime('');
       setAllDay(false);
@@ -146,7 +148,7 @@ export const AddItemSheet = () => {
         await addEvent({
           title: title.trim(),
           start: dueDate ? (allDay ? dueDate : `${dueDate}T${startTime || '09:00'}`) : null,
-          end: dueDate ? (allDay ? dueDate : `${dueDate}T${endTime || startTime || '10:00'}`) : null,
+          end: endDate ? (allDay ? endDate : `${endDate}T${endTime || startTime || '10:00'}`) : null,
           allDay,
           location: location.trim(),
           notes: notes.trim(),
@@ -474,8 +476,8 @@ export const AddItemSheet = () => {
                     <DateTimeCell label={t('endDate', 'End date')}>
                       <input
                         type="date"
-                        value={dueDate}
-                        onChange={(e) => setDueDate(e.target.value)}
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
                         className="bg-transparent outline-none cursor-pointer w-full"
                         style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, fontStyle: 'italic', fontSize: 16, color: CREAM.ink, letterSpacing: '-.03em' }}
                       />

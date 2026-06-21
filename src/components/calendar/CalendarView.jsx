@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useStore } from '../../store/useStore';
+import { useTranslation } from '../../hooks/useTranslation';
 import {
   format,
   startOfMonth,
@@ -41,8 +42,9 @@ function safeParse(d) {
 
 export const CalendarView = () => {
   const { data, updateEvent, deleteEvent, updatePersonalTask, deletePersonalTask, togglePersonalTask, setActiveCategory, setScheduleDate } = useStore();
-  const isRTL = true;
-  const locale = he;
+  const { t, language } = useTranslation();
+  const isRTL = language === 'he';
+  const locale = isRTL ? he : enUS;
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState('week'); // 'day', '3days', 'week', 'month', 'list'
