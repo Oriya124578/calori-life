@@ -327,6 +327,13 @@ export const validateAndRepair = (blocksIn, bounds, originalBlocks = []) => {
     const e = timeToMin(b.endTime);
     if (e > s) return true;
     if (e < s) {
+      // Point-event types (meal/reminder) carry no range — an inverted time is
+      // an AI slip; collapse to a point at the start rather than swapping into a
+      // tiny ranged block (which would lose their no-time-range semantics).
+      if (b.type === 'meal' || b.type === 'reminder') {
+        b.endTime = b.startTime;
+        return true;
+      }
       // swap
       const tmp = b.startTime;
       b.startTime = b.endTime;

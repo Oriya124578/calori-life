@@ -10,10 +10,11 @@
 // Phase 5b (FCM + Cloud Function) will add true closed-app delivery.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore, isTaskIncludedInProgress } from '../store/useStore';
 import { useTranslation } from './useTranslation';
 import { showLocalNotification, getNotificationPermission } from '../lib/notifications';
+import { fetchShabbatTimes } from '../lib/shabbatService';
 
 const FIRED_KEY = 'notifFiredKeys';
 const CHECK_INTERVAL_MS = 60 * 1000; // re-evaluate every minute
@@ -50,6 +51,27 @@ export const useNotificationScheduler = () => {
   const settings = useStore((s) => s.notificationSettings);
   const { t } = useTranslation();
   const firedRef = useRef(loadFired());
+  const [shabbatTimes, setShabbatTimes] = useState(null);
+
+  useEffect(() => {
+    if (!data?.profile?.shabbatMode) {
+      setShabbatTimes(null);
+      return;
+    }
+    const loadTimes = async () => {
+      const location = data?.profile?.useGPS && navigator.geolocation
+        ? await new Promise((resolve) => {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+              () => resolve({ city: data?.profile?.selectedCity || 'tel_aviv' })
+            );
+          })
+        : { city: data?.profile?.selectedCity || 'tel_aviv' };
+      const times = await fetchShabbatTimes(location);
+      setShabbatTimes(times);
+    };
+    loadTimes();
+  }, [data?.profile?.shabbatMode, data?.profile?.selectedCity, data?.profile?.useGPS]);
 
   useEffect(() => {
     if (!settings?.enabled) return undefined;
@@ -57,6 +79,19 @@ export const useNotificationScheduler = () => {
 
     const tick = () => {
       const now = Date.now();
+
+      // Check if Shabbat is active
+      if (data?.profile?.shabbatMode && shabbatTimes) {
+        const start = new Date(shabbatTimes.start).getTime();
+        const end = new Date(shabbatTimes.end).getTime();
+        // Shabbat block starts 1 hour before candle lighting and ends 1 hour after Havdalah
+        const blockStart = start - 60 * 60 * 1000;
+        const blockEnd = end + 60 * 60 * 1000;
+        if (now >= blockStart && now <= blockEnd) {
+          return; // Shabbat mode is active, block all notifications
+        }
+      }
+
       const fired = firedRef.current;
       const due = [];
 
@@ -206,5 +241,5 @@ export const useNotificationScheduler = () => {
     tick(); // evaluate immediately on mount / settings change
     const id = setInterval(tick, CHECK_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [data, settings, t]);
+  }, [data, settings, t, shabbatTimes]);
 };

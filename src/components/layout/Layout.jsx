@@ -160,7 +160,7 @@ export const Layout = () => {
           )}
           <h1
             className="text-[17px] tracking-tight truncate text-start select-none"
-            style={{ fontFamily: "'Instrument Serif', serif", fontWeight: 400, color: '#2A1A0A' }}
+            style={{ fontFamily: "'Instrument Serif', serif", fontWeight: 400, color: 'var(--cream-text)' }}
           >
             {headerTitle}
           </h1>
@@ -173,7 +173,7 @@ export const Layout = () => {
             tabIndex={0}
             onKeyDown={(e) => { if (e.key === 'Enter') setActiveCategory('overview'); }}
           >
-            <span className="text-[19px] font-extrabold tracking-tight leading-none" style={{ color: '#2A1A0A', letterSpacing: '-.02em' }}>
+            <span className="text-[19px] font-extrabold tracking-tight leading-none" style={{ color: 'var(--cream-text)', letterSpacing: '-.02em' }}>
               calori<span style={{ color: '#059669', fontFamily: "'Instrument Serif', serif", fontStyle: 'normal', fontWeight: 400, fontSize: '21px' }}> life</span>
             </span>
           </div>
@@ -202,7 +202,7 @@ export const Layout = () => {
           so it always floats clearly above the nav and is never clipped by it. */}
       <button
         onClick={() => setIsFanMenuOpen(!isFanMenuOpen)}
-        className="fixed right-4 bottom-[calc(92px+env(safe-area-inset-bottom))] w-[52px] h-[52px] rounded-full text-white shadow-lg hover:scale-105 active:scale-95 transition-all duration-200 flex items-center justify-center z-50 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:outline-none"
+        className="fixed end-4 bottom-[calc(92px+env(safe-area-inset-bottom))] w-[52px] h-[52px] rounded-full text-white shadow-lg hover:scale-105 active:scale-95 transition-all duration-200 flex items-center justify-center z-50 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:outline-none"
         style={{ background: '#065F46', boxShadow: '0 6px 20px rgba(6,95,70,.35)', transform: 'translateZ(0)', willChange: 'transform' }}
         aria-label={isFanMenuOpen ? t('close') : t('navMore')}
       >
@@ -219,7 +219,7 @@ export const Layout = () => {
           from any screen. Mirrors the right FAB's safe-area-aware bottom offset. */}
       <button
         onClick={openCoachChat}
-        className="fixed left-4 bottom-[calc(92px+env(safe-area-inset-bottom))] w-[52px] h-[52px] rounded-full text-white shadow-lg hover:scale-105 active:scale-95 transition-all duration-200 flex items-center justify-center z-50 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:outline-none"
+        className="fixed start-4 bottom-[calc(92px+env(safe-area-inset-bottom))] w-[52px] h-[52px] rounded-full text-white shadow-lg hover:scale-105 active:scale-95 transition-all duration-200 flex items-center justify-center z-50 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:outline-none"
         style={{ background: 'linear-gradient(135deg,#7C3AED,#5B21B6)', boxShadow: '0 6px 20px rgba(124,58,237,.4)', transform: 'translateZ(0)', willChange: 'transform' }}
         aria-label={t('personalManager', 'המנהל האישי')}
       >

@@ -16,18 +16,18 @@ import { Bell, Shield, Database, Info, ChevronLeft, ChevronRight, Tags, X } from
 
 /* ── cream v3 shared inline styles ── */
 const creamCard = {
-  background: '#fff',
+  background: 'var(--color-card)',
   borderRadius: '22px',
-  border: '1px solid rgba(180,140,80,.14)',
-  boxShadow: '0 4px 24px rgba(40,20,0,.07)',
+  border: '1px solid var(--cream-border)',
+  boxShadow: '0 4px 24px var(--cream-warm)',
   overflow: 'hidden',
   position: 'relative',
 };
 const creamGroupCard = {
-  background: '#fff',
+  background: 'var(--color-card)',
   borderRadius: '16px',
-  border: '1px solid rgba(180,140,80,.12)',
-  boxShadow: '0 1px 6px rgba(40,20,0,.04)',
+  border: '1px solid var(--cream-border)',
+  boxShadow: '0 1px 6px var(--cream-warm)',
   overflow: 'hidden',
 };
 const creamRow = (isFirst) => ({
@@ -35,7 +35,7 @@ const creamRow = (isFirst) => ({
   display: 'flex',
   alignItems: 'center',
   gap: '12px',
-  borderTop: isFirst ? 'none' : '1px solid rgba(180,140,80,.08)',
+  borderTop: isFirst ? 'none' : '1px solid var(--cream-warm)',
   cursor: 'pointer',
 });
 const creamIcon = (bg, color) => ({
@@ -45,35 +45,35 @@ const creamIcon = (bg, color) => ({
   flexShrink: 0,
 });
 const creamGroupLabel = {
-  fontSize: '10px', fontWeight: 700, color: '#8A7A6A',
+  fontSize: '10px', fontWeight: 700, color: 'var(--cream-muted)',
   letterSpacing: '.16em', textTransform: 'uppercase',
   padding: '0 4px 6px',
 };
 const creamGroupLabelEm = {
   fontFamily: "'Instrument Serif', serif", fontStyle: 'italic',
-  fontSize: '13px', color: '#2A1A0A', textTransform: 'none', letterSpacing: 0,
+  fontSize: '13px', color: 'var(--cream-text)', textTransform: 'none', letterSpacing: 0,
 };
 const creamHeading = {
-  fontFamily: "'Instrument Serif', serif", fontWeight: 400, color: '#2A1A0A',
+  fontFamily: "'Instrument Serif', serif", fontWeight: 400, color: 'var(--cream-text)',
 };
-const creamMuted = { fontSize: '11px', color: '#8A7A6A', marginTop: 2 };
-const creamTitle = { fontSize: '14px', fontWeight: 600, color: '#2A1A0A' };
-const creamChevron = { color: '#C7BCAA', fontSize: '18px', flexShrink: 0 };
+const creamMuted = { fontSize: '11px', color: 'var(--cream-muted)', marginTop: 2 };
+const creamTitle = { fontSize: '14px', fontWeight: 600, color: 'var(--cream-text)' };
+const creamChevron = { color: 'var(--cream-muted)', fontSize: '18px', flexShrink: 0 };
 const creamGradientBar = {
   position: 'absolute', top: 0, left: 0, right: 0, height: 3,
   background: 'linear-gradient(90deg,#065F46,#059669,#047857)',
 };
 const creamVal = {
   fontFamily: "'Instrument Serif', serif", fontStyle: 'italic',
-  fontSize: '13px', color: '#059669', flexShrink: 0,
+  fontSize: '13px', color: 'var(--color-primary)', flexShrink: 0,
 };
 
 const BackButton = ({ onClick, language }) => (
   <button
     onClick={onClick}
     style={{
-      width: 36, height: 36, borderRadius: '50%', background: '#F5F0E8',
-      color: '#2A1A0A', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      width: 36, height: 36, borderRadius: '50%', background: 'var(--cream-warm)',
+      color: 'var(--cream-text)', display: 'flex', alignItems: 'center', justifyContent: 'center',
       fontSize: 18, border: 'none', cursor: 'pointer', marginBottom: 8, flexShrink: 0,
     }}
     aria-label={language === 'he' ? 'חזור' : 'Back'}
@@ -371,7 +371,7 @@ export const SettingsView = () => {
         title: t('data', 'נתונים'),
         items: [
           { id: 'data', iconEl: <Database className="w-4 h-4" />, ic: 'gr', title: t('exportData', 'ייצוא וגיבוי'), sub: 'קובץ JSON, איפוס סמסטר' },
-          { id: 'about', iconEl: <Info className="w-4 h-4" />, ic: 'gr', title: t('aboutTitle', 'אודות'), sub: 'גרסה, רישיון, פרטיות', val: 'v6.21.2' },
+          { id: 'about', iconEl: <Info className="w-4 h-4" />, ic: 'gr', title: t('aboutTitle', 'אודות'), sub: 'גרסה, רישיון, פרטיות', val: 'v6.21.4' },
         ]
       }
     ];
@@ -461,7 +461,7 @@ export const SettingsView = () => {
           textAlign: 'center', fontFamily: "'Instrument Serif', serif",
           fontStyle: 'italic', fontSize: 13, color: 'rgba(138,122,106,.5)', padding: '14px 0 4px',
         }}>
-          Calori Life &middot; <em style={{ color: '#059669' }}>v6.21.2</em>
+          Calori Life &middot; <em style={{ color: '#059669' }}>v6.21.4</em>
         </div>
       </div>
     );
@@ -1019,7 +1019,7 @@ export const SettingsView = () => {
       <CardContent className="space-y-3">
         <div className="flex items-center justify-between p-4 rounded-xl border bg-card">
           <span className="font-semibold text-foreground">Calori Life</span>
-          <span className="text-sm font-mono text-primary">v6.21.2</span>
+          <span className="text-sm font-mono text-primary">v6.21.4</span>
         </div>
         <a href="/privacy" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-4 rounded-xl border bg-card hover:bg-muted/40 transition-colors">
           <span className="font-semibold text-foreground flex items-center gap-2"><Lock className="w-4 h-4" /> מדיניות פרטיות</span>

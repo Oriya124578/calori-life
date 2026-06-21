@@ -199,8 +199,8 @@ export const SmartDashboard = () => {
       <div
         className="rounded-[22px] p-5 pb-4 relative overflow-hidden"
         style={{
-          background: '#FFFFFF',
-          border: '1px solid rgba(180,140,80,.14)',
+          background: 'var(--color-card)',
+          border: '1px solid var(--cream-border)',
           boxShadow: '0 4px 24px rgba(40,20,0,.07), 0 1px 0 rgba(255,255,255,.8) inset',
         }}
       >
@@ -212,16 +212,16 @@ export const SmartDashboard = () => {
         {/* Top: greeting + exam badge */}
         <div className="flex justify-between items-start mb-4 relative">
           <div>
-            <div className="text-[10px] font-semibold tracking-widest uppercase" style={{ color: '#8A7A6A' }}>
+            <div className="text-[10px] font-semibold tracking-widest uppercase" style={{ color: 'var(--cream-muted)' }}>
               {format(new Date(), 'EEEE · d MMMM yyyy', { locale })}
             </div>
-            <div className="mt-1.5" style={{ fontFamily: "'Instrument Serif', serif", fontSize: '27px', fontWeight: 400, color: '#2A1A0A', letterSpacing: '-.04em', lineHeight: 1.05 }}>
+            <div className="mt-1.5" style={{ fontFamily: "'Instrument Serif', serif", fontSize: '27px', fontWeight: 400, color: 'var(--cream-text)', letterSpacing: '-.04em', lineHeight: 1.05 }}>
               {getGreeting()},<br />
               <span style={{ color: '#059669', fontStyle: 'italic' }}>{displayName || t('user')} 👋</span>
             </div>
             <div className="flex items-center gap-1.5 mt-2">
               <div className="w-1.5 h-1.5 rounded-full" style={{ background: '#059669' }} />
-              <span className="text-xs font-semibold" style={{ color: '#8A7A6A' }}>{summaryText}</span>
+              <span className="text-xs font-semibold" style={{ color: 'var(--cream-muted)' }}>{summaryText}</span>
             </div>
           </div>
           {nearestExam && (
@@ -240,7 +240,7 @@ export const SmartDashboard = () => {
         </div>
 
         {/* Divider */}
-        <div style={{ borderTop: '1px solid rgba(180,140,80,.1)', marginBottom: '14px' }} />
+        <div style={{ borderTop: '1px solid var(--cream-border)', marginBottom: '14px' }} />
 
         {/* Nutrition row */}
         <div className="flex items-center gap-3 relative">
@@ -251,30 +251,30 @@ export const SmartDashboard = () => {
                 <div style={{ fontFamily: "'Fraunces', serif", fontSize: '30px', fontWeight: 600, fontStyle: 'italic', color: '#059669', letterSpacing: '-.04em', lineHeight: 1 }}>
                   {totalCalories}
                 </div>
-                <div className="text-[10px] mt-1" style={{ color: '#8A7A6A' }}>{t('caloriesShort', 'קק"ל')} / {dailyGoal.toLocaleString()}</div>
+                <div className="text-[10px] mt-1" style={{ color: 'var(--cream-muted)' }}>{t('caloriesShort', 'קק"ל')} / {dailyGoal.toLocaleString()}</div>
               </div>
               {/* Workout */}
-              <div className="flex-1 px-2.5" style={{ borderRight: '1px solid rgba(180,140,80,.1)' }}>
+              <div className="flex-1 px-2.5" style={{ borderInlineEnd: '1px solid var(--cream-border)', borderInlineStart: '1px solid var(--cream-border)' }}>
                 {burned > 0 ? (
                   <>
                     <div style={{ fontFamily: "'Fraunces', serif", fontSize: '20px', fontWeight: 600, fontStyle: 'italic', color: '#7C3AED', letterSpacing: '-.03em', lineHeight: 1 }}>
                       +{burned}
                     </div>
-                    <div className="text-[10px] mt-1" style={{ color: '#8A7A6A' }}>{t('caloriesBurned', 'נשרפו')} · {workoutMin}{t('min', 'ד׳')}</div>
+                    <div className="text-[10px] mt-1" style={{ color: 'var(--cream-muted)' }}>{t('caloriesBurned', 'נשרפו')} · {workoutMin}{t('min', 'ד׳')}</div>
                   </>
                 ) : (
                   <>
-                    <div className="text-sm leading-tight" style={{ color: '#8A7A6A' }}>{t('noWorkoutToday', 'לא היה')}<br />{t('noWorkoutToday2', 'אימון היום')}</div>
-                    <div className="text-[10px] mt-1" style={{ color: '#8A7A6A' }}>{t('trySoon', 'נסה בקרוב')}</div>
+                    <div className="text-sm leading-tight" style={{ color: 'var(--cream-muted)' }}>{t('noWorkoutToday', 'לא היה')}<br />{t('noWorkoutToday2', 'אימון היום')}</div>
+                    <div className="text-[10px] mt-1" style={{ color: 'var(--cream-muted)' }}>{t('trySoon', 'נסה בקרוב')}</div>
                   </>
                 )}
               </div>
               {/* Weight */}
-              <div className="flex-1 px-2.5" style={{ borderRight: '1px solid rgba(180,140,80,.1)' }}>
-                <div style={{ fontFamily: "'Fraunces', serif", fontSize: '18px', fontWeight: 600, fontStyle: 'italic', color: '#2A1A0A', letterSpacing: '-.02em', lineHeight: 1 }}>
+              <div className="flex-1 px-2.5" style={{ borderInlineEnd: '1px solid var(--cream-border)' }}>
+                <div style={{ fontFamily: "'Fraunces', serif", fontSize: '18px', fontWeight: 600, fontStyle: 'italic', color: 'var(--cream-text)', letterSpacing: '-.02em', lineHeight: 1 }}>
                   {weight || '—'}
                 </div>
-                <div className="text-[10px] mt-1" style={{ color: '#8A7A6A' }}>{t('kg', 'ק"ג')} · {t('target', 'יעד')} {data?.calori?.targetWeight || 78}</div>
+                <div className="text-[10px] mt-1" style={{ color: 'var(--cream-muted)' }}>{t('kg', 'ק"ג')} · {t('target', 'יעד')} {data?.calori?.targetWeight || 78}</div>
               </div>
             </div>
             {/* Macros pills */}
@@ -304,8 +304,8 @@ export const SmartDashboard = () => {
                 transform="rotate(-90 44 44)" className="transition-all duration-700" />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-[15px] font-extrabold" style={{ color: '#2A1A0A' }}>{calsPercentage}%</span>
-              <span className="text-[9px]" style={{ color: '#8A7A6A' }}>{t('completed', 'הושלם')}</span>
+              <span className="text-[15px] font-extrabold" style={{ color: 'var(--cream-text)' }}>{calsPercentage}%</span>
+              <span className="text-[9px]" style={{ color: 'var(--cream-muted)' }}>{t('completed', 'הושלם')}</span>
             </div>
           </div>
         </div>

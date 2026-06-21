@@ -70,10 +70,22 @@ Scheduling Rules:
 `;
 
 export const extractJSONFromMarkdown = (text) => {
-  let cleanText = text.trim();
-  const match = cleanText.match(/```(?:json)?\n([\s\S]*?)```/);
-  if (match) cleanText = match[1].trim();
+  let cleanText = String(text).trim();
+  // Strip a ```json … ``` or ~~~ … ~~~ fence (with or without a newline after it).
+  const fence = cleanText.match(/(?:```|~~~)(?:json)?\s*([\s\S]*?)(?:```|~~~)/i);
+  if (fence) cleanText = fence[1].trim();
   return JSON.parse(cleanText);
+};
+
+// Best-effort recovery for a slightly-malformed model response: isolate the
+// outermost {...} and strip trailing commas before the closing brace/bracket.
+const salvageJSON = (text) => {
+  const s = String(text);
+  const first = s.indexOf('{');
+  const last = s.lastIndexOf('}');
+  if (first === -1 || last === -1 || last <= first) return null;
+  let body = s.slice(first, last + 1).replace(/,(\s*[}\]])/g, '$1');
+  try { return JSON.parse(body); } catch { return null; }
 };
 
 const parseGeminiJSON = (text) => {
@@ -81,8 +93,11 @@ const parseGeminiJSON = (text) => {
   try {
     return extractJSONFromMarkdown(text);
   } catch (err) {
+    const salvaged = salvageJSON(text);
+    if (salvaged) return salvaged;
     console.error('[Gemini Service] Failed to parse JSON:', err, text);
-    return { blocks: [], coachNote: 'Failed to parse AI response' };
+    // Hebrew fallback so the message never leaks English into the RTL UI.
+    return { blocks: [], coachNote: 'לא הצלחתי לעבד את התשובה — נסה שוב' };
   }
 };
 

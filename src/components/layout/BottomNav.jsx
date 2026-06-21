@@ -54,7 +54,7 @@ export const BottomNav = () => {
             aria-current={isActive ? 'page' : undefined}
             aria-label={t(item.labelKey)}
             className="relative flex flex-col items-center justify-center gap-[3px] rounded-full px-3.5 py-2 min-w-[58px] transition-colors active:scale-95 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
-            style={{ color: isActive ? '#fff' : 'rgba(42,26,10,.42)' }}
+            style={{ color: isActive ? '#fff' : 'var(--cream-muted)' }}
           >
             {/* Floating bubble that springs between tabs */}
             {isActive && (
