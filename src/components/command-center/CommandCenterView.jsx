@@ -36,8 +36,8 @@ const parseToLocalTime = (timestamp) => {
 // One-tap day templates — each becomes the AI planner directive (dayProfile).
 const DAY_TEMPLATES = [
   { key: 'study', labelHe: 'יום לימודים מלא', labelEn: 'Full study day',
-    he: 'תכנן לי יום לימודים מלא — בלוקי לימוד לאורך כל היום עם הפסקות קצרות ביניהם, וכל המשימות הפתוחות שלי להיום.',
-    en: 'Plan a full study day — study blocks across the day with short breaks, plus all my open tasks for today.' },
+    he: 'תכנן לי יום לימודים מלא — בלוקי לימוד לאורך כל היום עם רווחים קצרים ביניהם, וכל המשימות הפתוחות שלי להיום.',
+    en: 'Plan a full study day — study blocks across the day with short gaps between them, plus all my open tasks for today.' },
   { key: 'half', labelHe: 'חצי יום לימודים', labelEn: 'Half study day',
     he: 'תכנן חצי יום לימודים בבוקר ועד הצהריים, ושאר היום השאר פנוי.',
     en: 'Plan a half study day from morning until noon, leave the rest of the day open.' },
@@ -68,7 +68,8 @@ export const CommandCenterView = () => {
     setGoogleCalendarToken,
     openCoachChat,
     pendingTuneCommand,
-    setPendingTuneCommand
+    setPendingTuneCommand,
+    scheduleLoadedDate,
   } = useStore();
 
   const { t } = useTranslation();
@@ -430,7 +431,9 @@ export const CommandCenterView = () => {
       // the planned day are sent (the subscription follows the viewed calori day).
       const plannedWorkouts = (data?.calori?.coachSessions || [])
         .filter((cs) => cs.type !== 'rest' && cs.status !== 'completed' && cs.status !== 'skipped')
-        .filter((cs) => !cs.scheduledDate || cs.scheduledDate.slice(0, 10) === dateStr)
+        // Sessions are subscribed for the viewed calori day; a date-less session
+        // is only trustworthy when we're planning today.
+        .filter((cs) => (cs.scheduledDate ? cs.scheduledDate.slice(0, 10) === dateStr : dateStr === dateKey()))
         .map((cs) => {
           const tm = cs.scheduledDate ? parseToLocalTime(cs.scheduledDate) : null;
           return {
@@ -447,7 +450,9 @@ export const CommandCenterView = () => {
           const examDate = course[moed] || course.exams?.[moed];
           if (examDate) {
             const dt = parseISO(examDate);
-            if (isValid(dt) && dt >= new Date()) {
+            // Compare by DATE (string), so an exam ON the planned day isn't
+            // dropped just because its midnight is already in the past.
+            if (isValid(dt) && examDate.slice(0, 10) >= dateStr) {
               upcomingExams.push({
                 course: course.name,
                 moed: moed.replace('moed', ''),
@@ -519,7 +524,12 @@ export const CommandCenterView = () => {
 
       const result = await generateDailySchedule(context);
 
-      const processedBlocks = sanitizeAiBlocks(result.blocks);
+      const processedBlocks = sanitizeAiBlocks(result?.blocks);
+      // Never overwrite the day with an empty plan (malformed/empty AI response).
+      if (!processedBlocks || processedBlocks.length === 0) {
+        toast.error(t('ccPlanError'));
+        return;
+      }
 
       if (autoSave) {
         // Questionnaire / "build my day": persist straight to cl_schedule so it
@@ -552,8 +562,10 @@ export const CommandCenterView = () => {
     if (hasEvaluatedMorningCoach.current) return;
     // Wait for profile AND the schedule doc snapshot before evaluating —
     // otherwise we'd offer a new plan while the saved one is still loading.
+    // (data.schedule is null both when loading AND when there's no saved doc, so
+    // we gate on the explicit "snapshot arrived for this date" marker instead.)
     if (!data?.profile) return;
-    if (data?.schedule === undefined) return;
+    if (scheduleLoadedDate !== dateStr) return;
     hasEvaluatedMorningCoach.current = true;
 
     const now = new Date();
@@ -580,7 +592,7 @@ export const CommandCenterView = () => {
       setProfile({ lastCoachShownDate: todayLocal });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data?.profile, data?.schedule, draftSchedule, dateStr]);
+  }, [data?.profile, data?.schedule, draftSchedule, dateStr, scheduleLoadedDate]);
 
   // Detect whether "now" is inside Shabbat window (uses shabbatTimes already loaded).
   const isNowDuringShabbat = useMemo(() => {
@@ -664,6 +676,10 @@ export const CommandCenterView = () => {
   // Consume a replan/tune command handed off from the global manager chat.
   useEffect(() => {
     if (!pendingTuneCommand) return;
+    // Wait until the saved schedule for this day has loaded — otherwise
+    // timelineBlocks is still empty and a "tune my plan" request would be
+    // mis-routed into plan-from-scratch, wiping the existing day.
+    if (scheduleLoadedDate !== dateStr) return;
     const cmd = pendingTuneCommand;
     setPendingTuneCommand(null);
     if (timelineBlocks.length === 0) {
@@ -672,10 +688,13 @@ export const CommandCenterView = () => {
       handleTuneSchedule(cmd);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingTuneCommand]);
+  }, [pendingTuneCommand, scheduleLoadedDate, dateStr]);
 
   // Save the schedule Draft to Firestore
   const handleSaveSchedule = async () => {
+    // Guard: only persist a draft that actually belongs to the viewed day, so we
+    // never write one day's plan onto another's cl_schedule doc.
+    if (draftSchedule?.date !== dateStr || !(draftSchedule?.blocks?.length > 0)) return;
     setLoading(true);
     try {
       await saveDraftSchedule(dateStr, draftSchedule.blocks, draftSchedule.coachNote);
@@ -705,7 +724,7 @@ export const CommandCenterView = () => {
       }
       
       // Inject events into draft (if drafting) or merge and set as draft
-      const currentBlocks = draftSchedule?.blocks?.length > 0 ? draftSchedule.blocks : [...timelineBlocks];
+      const currentBlocks = (draftSchedule?.date === dateStr && draftSchedule?.blocks?.length > 0) ? draftSchedule.blocks : [...timelineBlocks];
       const newBlocks = [...currentBlocks, ...events].sort((a, b) => a.startTime.localeCompare(b.startTime));
       
       setDraftSchedule({
@@ -801,7 +820,7 @@ export const CommandCenterView = () => {
       } else if (sourceBlockId.startsWith('task-')) {
         const refId = sourceBlockId.replace('task-', '');
         const task = data?.personalTasks?.find(t => t.id === refId);
-        const duration = task?.scheduledDuration || 60;
+        const duration = task?.scheduledDuration || data?.profile?.studyBlockDuration || 90;
         scheduleTask(refId, dateStr, hourStr, duration);
         toast.success(t('ccTaskScheduledAtTime', 'שובץ בשעה {time}').replace('{time}', hourStr));
       } else if ((data?.schedule?.blocks || []).some((b) => b.id === sourceBlockId)) {
@@ -1033,7 +1052,7 @@ export const CommandCenterView = () => {
                 <em style={{ fontStyle: 'italic', color: '#7C3AED' }}>{isRTL ? 'הלו״ז שלי' : 'My schedule'}</em>
               </h3>
               <div className="flex gap-2 flex-wrap">
-                {draftSchedule?.blocks?.length > 0 ? (
+                {(draftSchedule?.date === dateStr && draftSchedule?.blocks?.length > 0) ? (
                   <>
                     <button onClick={handleSaveSchedule} className="px-3 py-1.5 flex items-center gap-1 active:scale-95 transition-all cursor-pointer" style={{ borderRadius: 11, background: '#059669', color: '#fff', fontSize: 11, fontWeight: 700, border: 'none' }}>
                       <Save className="w-3.5 h-3.5" /> {t('ccSaveSchedule')}

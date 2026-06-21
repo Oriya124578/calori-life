@@ -307,6 +307,7 @@ export const useStore = create((set, get) => ({
   _caloriDayUnsubs: [], // per-day calori listeners (re-subscribed on date change)
   // Phase 6a: schedule doc subscription (per-day, re-subscribed on date change)
   scheduleDate: dateKey(), // date currently subscribed for cl_schedule
+  scheduleLoadedDate: null, // date whose cl_schedule snapshot has arrived (vs null=loading)
   _scheduleUnsub: null,
   // Phase 5: notification settings (persisted to localStorage; FCM-ready)
   notificationSettings: loadNotificationSettings(),
@@ -588,10 +589,17 @@ export const useStore = create((set, get) => ({
     const { uid } = get();
     if (!uid) return;
     try { get()._scheduleUnsub && get()._scheduleUnsub(); } catch { /* ignore */ }
+    // Reset the "loaded" marker until the first snapshot for this date arrives,
+    // so consumers can distinguish "no saved schedule" from "not loaded yet"
+    // (data.schedule is null in BOTH cases).
+    set({ scheduleLoadedDate: null });
     const unsub = fsSubscribeSchedule(uid, date, (doc) => {
       // Tag the doc with its date so views can ignore a stale doc while
       // navigating between days (snapshot is async).
-      set((state) => ({ data: { ...state.data, schedule: doc ? { ...doc, _docDate: date } : null } }));
+      set((state) => ({
+        data: { ...state.data, schedule: doc ? { ...doc, _docDate: date } : null },
+        scheduleLoadedDate: date,
+      }));
     });
     set({ _scheduleUnsub: unsub });
   },
@@ -1800,12 +1808,16 @@ export const useStore = create((set, get) => ({
     const blocks = (draftBlocks || [])
       .filter((b) => b.type !== 'sleep' && b.type !== 'leisure')
       .map((b) => {
+        // Point events (reminders / zero-range meals) MUST keep duration 0 —
+        // never coerce them to a 60-min block (that defeats the reminder
+        // contract: a task with no duration is a point, not a time block).
+        const isPoint = b.type === 'reminder' || b.isPointEvent || b.startTime === b.endTime;
         let duration = b.duration;
-        if (!duration && b.startTime && b.endTime) {
+        if (!isPoint && !duration && b.startTime && b.endTime) {
           try { duration = timeToMin(b.endTime) - timeToMin(b.startTime); } catch { duration = 60; }
         }
         const source = b.source || (b.refId && taskIds.has(b.refId) ? 'task' : 'schedule');
-        return { ...b, duration: duration || 60, source };
+        return { ...b, duration: isPoint ? 0 : (duration || 60), source };
       });
 
     await get().saveSchedule(dateStr, blocks, coachNote || '');
@@ -2070,7 +2082,9 @@ export const useStore = create((set, get) => ({
           });
         });
 
-        // Filter and construct unscheduled tasks tray
+        // Filter and construct unscheduled tasks tray. Mirror handleAutoPlan's
+        // shape EXACTLY (dueToday/overdue/duration) so the AI applies the same
+        // strict duration→block/reminder contract on this reschedule path.
         const unscheduledTasks = data.personalTasks
           .filter((t) => {
             if (t.done) return false;
@@ -2078,27 +2092,54 @@ export const useStore = create((set, get) => ({
             if (t.id === taskId) return true;
             return !t.scheduledDate;
           })
-          .map((t) => ({
-            id: t.id,
-            title: t.title,
-            priority: t.priority || 'medium',
-          }));
+          .map((t) => {
+            const due = (t.dueDate || '').slice(0, 10);
+            return {
+              id: t.id,
+              title: t.title,
+              priority: t.priority || 'medium',
+              dueToday: due === dateStr || t.list === 'today',
+              overdue: !!due && due < dateStr,
+              duration: t.duration ?? null,
+            };
+          });
 
-        const plannedWorkouts = data?.calori?.coachSessions || [];
+        // Planned Calori workouts mapped to the {title, durationMinutes,
+        // scheduledTime} shape the prompt's rule 6 expects. Only for the planned
+        // day; date-less sessions only when planning today.
+        const plannedWorkouts = (data?.calori?.coachSessions || [])
+          .filter((cs) => cs.type !== 'rest' && cs.status !== 'completed' && cs.status !== 'skipped')
+          .filter((cs) => (cs.scheduledDate ? cs.scheduledDate.slice(0, 10) === dateStr : dateStr === dateKey()))
+          .map((cs) => {
+            let tm = null;
+            if (cs.scheduledDate) { const d = parseISO(cs.scheduledDate); if (isValid(d)) tm = format(d, 'HH:mm'); }
+            return {
+              title: cs.title || 'אימון',
+              durationMinutes: cs.estimatedDurationMinutes || 60,
+              scheduledTime: tm && tm !== '00:00' ? tm : null,
+            };
+          });
 
         const courseProgress = getCourseProgressSummary(data?.courses || [], data?.tasks || {});
 
+        // Derive day-of-week + Shabbat relevance from the PLANNED date, not "now"
+        // — otherwise a reschedule mislabels the day and can leak Shabbat context
+        // onto a weekday.
+        const plannedDate = parseISO(dateStr);
+        const plannedDow = isValid(plannedDate) ? plannedDate.getDay() : new Date().getDay();
+        const shabbatRelevant = plannedDow === 5 || plannedDow === 6;
+
         const context = {
           todayDate: dateStr,
-          dayOfWeek: format(new Date(), 'EEEE'),
+          dayOfWeek: isValid(plannedDate) ? format(plannedDate, 'EEEE') : format(new Date(), 'EEEE'),
           settings: {
             wakeTime: data?.profile?.wakeTime || '07:00',
             sleepTime: data?.profile?.sleepTime || '23:00',
             studyBlockDuration: data?.profile?.studyBlockDuration || 90,
-            shabbatMode: !!data?.profile?.shabbatMode,
+            shabbatMode: !!data?.profile?.shabbatMode && shabbatRelevant,
             studyPreferences: data?.profile?.studyPreferences || {},
           },
-          shabbatTimes: shabbatTimes ? {
+          shabbatTimes: (shabbatTimes && shabbatRelevant) ? {
             start: shabbatTimes.start.substring(11, 16),
             end: shabbatTimes.end.substring(11, 16)
           } : null,
@@ -2116,9 +2157,11 @@ export const useStore = create((set, get) => ({
           // truth), not the legacy draft pipeline. Normalize AI blocks to the
           // canonical shape and run validateAndRepair before save.
           const normalized = result.blocks.map((b) => ({
-            id: b.id || `ai-${Math.random().toString(36).substring(2, 9)}`,
+            // Always mint a fresh id so an AI-echoed id can't collide with an
+            // existing locked block's id.
+            id: `ai-${Math.random().toString(36).substring(2, 10)}`,
             source: b.refId
-              ? (b.type === 'study' || b.type === 'personal' ? 'task' : 'event')
+              ? (['study', 'personal', 'task', 'reminder'].includes(b.type) ? 'task' : 'event')
               : 'schedule',
             refId: b.refId || null,
             type: b.type,
@@ -2140,6 +2183,7 @@ export const useStore = create((set, get) => ({
         }
       } catch (err) {
         console.error('[Focus Tracker] Interruption rescheduling failed:', err);
+        try { toast.error('עדכון הלו"ז נכשל — נסה לסדר מחדש ידנית'); } catch { /* no toast surface */ }
       }
     }
   },

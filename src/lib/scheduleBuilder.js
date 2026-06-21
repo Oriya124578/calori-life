@@ -106,6 +106,8 @@ export const buildTimeline = ({
     for (const raw of scheduleDoc.blocks) {
       const b = { ...raw };
       if (filterLeisure && isBreakish(b)) continue;
+      // Mirror the fallback path: hide read-only calori items on a non-today doc.
+      if (!allowCalori && (b.source === 'calori_meal' || b.source === 'calori_workout' || b.source === 'calori_coach')) continue;
 
       // Overlay live data by refId
       if (b.source === 'task' && b.refId) {
@@ -113,7 +115,8 @@ export const buildTimeline = ({
         if (t) {
           b.title = t.title || b.title;
           b.isCompleted = !!t.done;
-          if (t.status) b.status = t.status;
+          // Default to 'planned' so doc-path and fallback-path tasks match.
+          b.status = t.status || b.status || 'planned';
           b.notes = t.notes || b.notes || '';
         } else {
           // Task was deleted — drop block
@@ -228,13 +231,29 @@ export const buildTimeline = ({
     // Planned Calori workouts (coach_sessions). These are FUTURE sessions with a
     // scheduled time — surface them as locked workout blocks so the day shows
     // "אימון רגליים 17:00" before it's logged. Skip rest days, already-handled
-    // statuses, and sessions without a real time-of-day.
+    // statuses, and sessions without a real time-of-day. Also skip a planned
+    // session once an actual workout has been logged in the same window — Calori
+    // may not flip the session status, so dedupe by time to avoid a double block.
+    const toMin = (hhmm) => {
+      const [h, m] = String(hhmm).split(':').map(Number);
+      return (h || 0) * 60 + (m || 0);
+    };
+    const loggedWindows = (calori.workouts || [])
+      .filter((w) => w.timestamp)
+      .map((w) => {
+        const s = toMin(parseToLocalTime(w.timestamp));
+        return [s, s + (w.durationMinutes || 60)];
+      });
     for (const cs of calori.coachSessions || []) {
       if (!cs.scheduledDate || cs.type === 'rest') continue;
       if (cs.status === 'completed' || cs.status === 'skipped') continue;
       const time = parseToLocalTime(cs.scheduledDate);
       if (time === '00:00') continue; // date-only → no concrete slot to place
       const duration = cs.estimatedDurationMinutes || 60;
+      const csStart = toMin(time);
+      const csEnd = csStart + duration;
+      // Overlaps an already-logged workout → it was (likely) done; don't double up.
+      if (loggedWindows.some(([ls, le]) => csStart < le && ls < csEnd)) continue;
       blocks.push({
         id: `coach-${cs.id}`,
         source: 'calori_coach',
