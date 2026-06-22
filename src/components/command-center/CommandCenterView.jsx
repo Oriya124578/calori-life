@@ -524,6 +524,13 @@ export const CommandCenterView = () => {
 
       const result = await generateDailySchedule(context);
 
+      // No Gemini key configured → tell the user to set one (Settings → AI)
+      // instead of a generic "planning failed".
+      if (result?.error === 'MISSING_KEY') {
+        toast.error(t('ccMissingGeminiKey'));
+        return;
+      }
+
       const processedBlocks = sanitizeAiBlocks(result?.blocks);
       // Never overwrite the day with an empty plan (malformed/empty AI response).
       if (!processedBlocks || processedBlocks.length === 0) {

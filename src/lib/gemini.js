@@ -1,16 +1,13 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-/** Get the configured Gemini API key from localStorage or VITE env. */
+/** Get the configured Gemini API key.
+ *  Priority: a user-entered key in localStorage (Settings → AI), else the build
+ *  env key. The env key is bundled into the production build, so restrict it to
+ *  the app's domains in the Google Cloud Console to prevent quota abuse. */
 export const getGeminiApiKey = () => {
   const localKey = localStorage.getItem('gemini_api_key');
   if (localKey) return localKey;
-  
-  // Only allow VITE env fallback in development mode to prevent leaking key in production builds
-  if (import.meta.env.DEV) {
-    return import.meta.env.VITE_GEMINI_API_KEY || '';
-  }
-  
-  return '';
+  return import.meta.env.VITE_GEMINI_API_KEY || '';
 };
 
 /** Initialize the Gemini API client. Throws if no key found. */
