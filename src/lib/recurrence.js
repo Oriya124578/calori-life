@@ -44,6 +44,8 @@ export const recurrenceMatches = (task, date) => {
   if (!task || !task.recurrence || !date) return false;
   
   const rec = task.recurrence;
+  if (rec.active === false) return false;
+  
   const target = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   const start = parseLocalDate(rec.startDate);
   if (!start) return false;
@@ -125,9 +127,11 @@ export const recurringInstancesForDate = (personalTasks, dateStr) => {
     // If the task has a specific exception that spawns a detached task, we assume the skip
     // logic handles hiding the recurrence here because we added it to `skips` when detaching.
     
-    if (!recurrenceMatches(task, date)) continue;
+        if (!recurrenceMatches(task, date)) continue;
 
     const rec = task.recurrence;
+    if (rec.completions && rec.completions[dateStr] && rec.completions[dateStr].done) continue;
+    
     let time = rec.time;
     let durationMinutes = rec.durationMinutes;
 
