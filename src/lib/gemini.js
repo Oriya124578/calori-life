@@ -5,8 +5,12 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
  *  env key. The env key is bundled into the production build, so restrict it to
  *  the app's domains in the Google Cloud Console to prevent quota abuse. */
 export const getGeminiApiKey = () => {
-  const localKey = localStorage.getItem('gemini_api_key');
-  if (localKey) return localKey;
+  // A user-entered key wins — but only if it LOOKS like a real Google API key
+  // (AIza-prefixed, ~39 chars). This auto-heals a stale/empty/garbage value left
+  // in localStorage that would otherwise shadow the working build key and break
+  // every AI feature.
+  const localKey = (localStorage.getItem('gemini_api_key') || '').trim();
+  if (/^AIza[\w-]{30,}$/.test(localKey)) return localKey;
   return import.meta.env.VITE_GEMINI_API_KEY || '';
 };
 
