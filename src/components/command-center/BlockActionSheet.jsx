@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, RefreshCcw, ArrowRightLeft, CalendarClock } from 'lucide-react';
+import { X, RefreshCcw, ArrowRightLeft, CalendarClock, Trash2 } from 'lucide-react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { cn } from '../../lib/utils';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -10,7 +10,7 @@ export const BlockActionSheet = ({ isOpen, block, onClose, onAction }) => {
 
   if (!block) return null;
 
-  const isTask = block.id?.startsWith('task-') || block.type === 'study';
+  const isTask = block.id?.startsWith('task-') || block.type === 'study' || block.source === 'task';
 
   return (
     <AnimatePresence>
@@ -59,7 +59,35 @@ export const BlockActionSheet = ({ isOpen, block, onClose, onAction }) => {
               </div>
 
               {/* Actions Grid */}
-              <div className="grid grid-cols-1 gap-3">
+              <div className="grid grid-cols-1 gap-3 max-h-[60vh] overflow-y-auto pb-4">
+                <button
+                  onClick={() => {
+                    onAction('edit');
+                    onClose();
+                  }}
+                  className="flex items-center gap-3 p-4 rounded-2xl bg-primary/10 hover:bg-primary/20 text-primary transition-colors text-start"
+                >
+                  <CalendarClock className="w-5 h-5" />
+                  <div>
+                    <div className="font-bold text-sm">{isRTL ? 'ערוך פעילות' : 'Edit Activity'}</div>
+                    <div className="text-xs opacity-80 mt-0.5">{isRTL ? 'ערוך שם, סוג, זמנים והערות' : 'Edit title, type, times, and notes'}</div>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => {
+                    onAction('delete');
+                    onClose();
+                  }}
+                  className="flex items-center gap-3 p-4 rounded-2xl bg-red-500/10 hover:bg-red-500/20 text-red-600 transition-colors text-start"
+                >
+                  <Trash2 className="w-5 h-5" />
+                  <div>
+                    <div className="font-bold text-sm">{isRTL ? 'מחק פעילות' : 'Delete Activity'}</div>
+                    <div className="text-xs opacity-80 mt-0.5">{isRTL ? 'הסר פעילות זו לחלוטין מהלו״ז' : 'Remove this activity completely from schedule'}</div>
+                  </div>
+                </button>
+
                 <button
                   onClick={() => {
                     onAction('interrupted');

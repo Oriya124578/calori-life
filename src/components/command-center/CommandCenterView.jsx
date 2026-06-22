@@ -23,6 +23,7 @@ import { CalendarView } from '../calendar/CalendarView';
 import { MorningCoachOverlay } from './MorningCoachOverlay';
 import { SmartClarifier } from './SmartClarifier';
 import { BlockActionSheet } from './BlockActionSheet';
+import { BlockEditModal } from './BlockEditModal';
 import { DndContext, DragOverlay, useSensor, useSensors, PointerSensor, TouchSensor } from '@dnd-kit/core';
 import { DroppableHour, DraggableBlock, DraggableSidebarTask } from './DndComponents';
 import { initGoogleCalendarAuth, connectGoogleCalendar, fetchGoogleEvents } from '../../lib/googleCalendar';
@@ -61,6 +62,8 @@ export const CommandCenterView = () => {
     setDraftSchedule,
     updatePersonalTask,
     updateEvent,
+    deleteEvent,
+    saveSchedule,
     setProfile,
     setScheduleDate,
     updateScheduleBlock,
@@ -99,6 +102,7 @@ export const CommandCenterView = () => {
   const [showMorningCoach, setShowMorningCoach] = useState(false);
   const [clarifierText, setClarifierText] = useState(null);
   const [activeActionBlock, setActiveActionBlock] = useState(null);
+  const [editingBlock, setEditingBlock] = useState(null);
   const [activeDragItem, setActiveDragItem] = useState(null);
   const hasEvaluatedMorningCoach = useRef(false);
 
@@ -853,7 +857,13 @@ export const CommandCenterView = () => {
 
   // Block Action Sheet
   const handleBlockAction = (block, action) => {
-    if (action === 'interrupted') {
+    if (action === 'edit') {
+      setEditingBlock(block);
+      setActiveActionBlock(null);
+    } else if (action === 'delete') {
+      handleDeleteBlock(block);
+      setActiveActionBlock(null);
+    } else if (action === 'interrupted') {
       handleTuneSchedule('הייתה לי הפרעה במשימה הזו, תכנן מחדש את שאר היום');
     } else if (action === 'postpone') {
       if (block.refId) {
@@ -871,6 +881,114 @@ export const CommandCenterView = () => {
         unscheduleTask(block.refId);
         setTimePickerModal({ hourStr: block.startTime }); // Opens task picker for that hour!
       }
+    }
+  };
+
+  const handleSaveBlock = async (updatedBlock) => {
+    setEditingBlock(null);
+    setLoading(true);
+    try {
+      const isNew = updatedBlock.id.startsWith('temp-new-');
+      const isInDraft = draftSchedule?.date === dateStr &&
+        (draftSchedule?.blocks || []).some((b) => b.id === updatedBlock.id);
+
+      if (isNew) {
+        // Creating a new block
+        const newBlock = {
+          ...updatedBlock,
+          id: `custom-${Date.now()}`
+        };
+
+        if (draftSchedule?.date === dateStr && draftSchedule?.blocks?.length > 0) {
+          const updatedBlocks = [...draftSchedule.blocks, newBlock].sort((a, b) => a.startTime.localeCompare(b.startTime));
+          setDraftSchedule({ ...draftSchedule, blocks: updatedBlocks });
+        } else {
+          const current = [...timelineBlocks, newBlock].sort((a, b) => a.startTime.localeCompare(b.startTime));
+          await saveSchedule(dateStr, current, data?.schedule?.coachNote || '');
+        }
+        toast.success(t('ccTaskScheduled'));
+      } else {
+        // Editing an existing block
+        if (isInDraft) {
+          const updatedBlocks = draftSchedule.blocks.map(b =>
+            b.id === updatedBlock.id ? updatedBlock : b
+          ).sort((a, b) => a.startTime.localeCompare(b.startTime));
+          setDraftSchedule({ ...draftSchedule, blocks: updatedBlocks });
+          toast.success(t('ccTaskScheduled'));
+        } else {
+          if ((data?.schedule?.blocks || []).some((b) => b.id === updatedBlock.id)) {
+            await updateScheduleBlock(dateStr, updatedBlock.id, updatedBlock);
+            if (updatedBlock.source === 'task' && updatedBlock.refId) {
+              await updatePersonalTask(updatedBlock.refId, { title: updatedBlock.title });
+            }
+            toast.success(t('ccTaskScheduled'));
+          } else if (updatedBlock.id.startsWith('task-')) {
+            await updatePersonalTask(updatedBlock.refId, {
+              title: updatedBlock.title,
+              scheduledTime: updatedBlock.startTime,
+              scheduledDuration: updatedBlock.duration,
+              isLocked: updatedBlock.isLocked
+            });
+            toast.success(t('ccTaskScheduled'));
+          } else {
+            // Personal event
+            const start = `${dateStr}T${updatedBlock.startTime}:00`;
+            const end = updatedBlock.endTime ? `${dateStr}T${updatedBlock.endTime}:00` : null;
+            await updateEvent(updatedBlock.id, { 
+              title: updatedBlock.title, 
+              start, 
+              end, 
+              isLocked: updatedBlock.isLocked,
+              notes: updatedBlock.notes 
+            });
+            toast.success(t('ccTaskScheduled'));
+          }
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error(t('ccPlanError'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteBlock = async (blockToDelete) => {
+    setEditingBlock(null);
+    setLoading(true);
+    try {
+      const isInDraft = draftSchedule?.date === dateStr &&
+        (draftSchedule?.blocks || []).some((b) => b.id === blockToDelete.id);
+
+      if (isInDraft) {
+        const updatedBlocks = draftSchedule.blocks.filter(b => b.id !== blockToDelete.id);
+        setDraftSchedule({ ...draftSchedule, blocks: updatedBlocks });
+        if (blockToDelete.refId && (blockToDelete.source === 'task' || blockToDelete.type === 'study')) {
+          await unscheduleTask(blockToDelete.refId);
+        }
+        toast.success(t('ccClearSuccess'));
+      } else {
+        if ((data?.schedule?.blocks || []).some((b) => b.id === blockToDelete.id)) {
+          const current = data.schedule.blocks || [];
+          const next = current.filter(b => b.id !== blockToDelete.id);
+          await saveSchedule(dateStr, next, data.schedule.coachNote || '');
+          if (blockToDelete.refId) {
+            await unscheduleTask(blockToDelete.refId);
+          }
+          toast.success(t('ccClearSuccess'));
+        } else if (blockToDelete.id.startsWith('task-') || blockToDelete.refId) {
+          await unscheduleTask(blockToDelete.refId);
+          toast.success(t('ccClearSuccess'));
+        } else {
+          await deleteEvent(blockToDelete.id);
+          toast.success(t('ccClearSuccess'));
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error(t('ccClearError'));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -1159,6 +1277,7 @@ export const CommandCenterView = () => {
                                   id={block.id}
                                   isLocked={block.isLocked}
                                   data={{ ...block, isTimelineBlock: true }}
+                                  onShortTap={() => setActiveActionBlock(block)}
                                 >
                                   <div
                                     style={{ animationDelay: `${Math.min(blockIdx * 50, 250)}ms` }}
@@ -1431,6 +1550,26 @@ export const CommandCenterView = () => {
                 <X className="w-4 h-4" />
               </button>
             </div>
+
+            <button
+              onClick={() => {
+                const hour = timePickerModal.hourStr;
+                setTimePickerModal(null);
+                setEditingBlock({
+                  id: `temp-new-${Date.now()}`,
+                  title: '',
+                  type: 'study',
+                  startTime: hour,
+                  isLocked: true,
+                  isProposed: false,
+                  notes: ''
+                });
+              }}
+              className="w-full py-2.5 px-4 mb-2 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-2xl transition-all cursor-pointer font-bold text-xs flex items-center justify-center gap-1.5"
+            >
+              <Plus className="w-4 h-4" />
+              {isRTL ? 'יצירת בלוק מותאם אישית' : 'Create Custom Block'}
+            </button>
             
             <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1 py-1">
               {sidebarTasks.length > 0 ? (
@@ -1524,6 +1663,15 @@ export const CommandCenterView = () => {
         block={activeActionBlock}
         onClose={() => setActiveActionBlock(null)}
         onAction={(action) => handleBlockAction(activeActionBlock, action)}
+      />
+
+      {/* Block Edit Modal */}
+      <BlockEditModal
+        isOpen={!!editingBlock}
+        block={editingBlock}
+        onSave={handleSaveBlock}
+        onDelete={handleDeleteBlock}
+        onClose={() => setEditingBlock(null)}
       />
 
       {/* Loading Overlay — animated "schedule being built" skeleton */}
