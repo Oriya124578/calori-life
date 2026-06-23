@@ -7,7 +7,7 @@
 // than as cryptic auth/firestore errors deep in the UI.
 
 import { initializeApp } from 'firebase/app';
-import { initializeAuth, browserLocalPersistence, GoogleAuthProvider } from 'firebase/auth';
+import { initializeAuth, browserLocalPersistence, browserPopupRedirectResolver, GoogleAuthProvider } from 'firebase/auth';
 import { initializeFirestore, persistentLocalCache } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getMessaging, isSupported as isMessagingSupported } from 'firebase/messaging';
@@ -42,7 +42,8 @@ const firebaseConfig = {
 
 export const app = initializeApp(firebaseConfig);
 export const auth = initializeAuth(app, {
-  persistence: browserLocalPersistence
+  persistence: browserLocalPersistence,
+  popupRedirectResolver: browserPopupRedirectResolver,
 });
 export const db = initializeFirestore(app, { localCache: persistentLocalCache() });
 export const storage = getStorage(app);

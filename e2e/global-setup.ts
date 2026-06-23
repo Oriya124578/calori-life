@@ -86,6 +86,13 @@ async function globalSetup(config: FullConfig) {
       console.log('Logged in successfully!');
     }
     
+    // Switch language to English for E2E tests so all spec selectors match
+    console.log('Setting language to English for E2E tests...');
+    await page.evaluate(() => {
+      localStorage.setItem('language', 'en');
+    });
+    await page.waitForTimeout(500);
+
     // Save storage state to be reused by tests
     const statePath = typeof storageState === 'string' ? storageState : 'e2e/auth-state.json';
     await page.context().storageState({ path: statePath });

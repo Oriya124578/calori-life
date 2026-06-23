@@ -3,6 +3,7 @@ import { test, expect } from '@playwright/test';
 test.describe('Calendar 5-Views UI', () => {
   test('should correctly render the Day view and align events properly by time', async ({ page }) => {
     await page.goto('/');
+    await page.getByRole('button', { name: 'Calendar' }).click();
     await page.getByRole('button', { name: 'Day View' }).click();
     await expect(page.locator('.day-view-container')).toBeVisible();
     const event = page.getByText('Lunch Meeting');
@@ -14,6 +15,7 @@ test.describe('Calendar 5-Views UI', () => {
 
   test('should correctly render the 3 Days view and handle spanning events appropriately', async ({ page }) => {
     await page.goto('/');
+    await page.getByRole('button', { name: 'Calendar' }).click();
     await page.getByRole('button', { name: '3 Days View' }).click();
     await expect(page.locator('.three-days-view')).toBeVisible();
     
@@ -23,6 +25,7 @@ test.describe('Calendar 5-Views UI', () => {
 
   test('should correctly render the Week view with accurate column alignment', async ({ page }) => {
     await page.goto('/');
+    await page.getByRole('button', { name: 'Calendar' }).click();
     await page.getByRole('button', { name: 'Week View' }).click();
     await expect(page.locator('.week-view')).toBeVisible();
     // Week columns
@@ -32,6 +35,7 @@ test.describe('Calendar 5-Views UI', () => {
 
   test('should correctly render the Month view with aggregated multiple events per day', async ({ page }) => {
     await page.goto('/');
+    await page.getByRole('button', { name: 'Calendar' }).click();
     await page.getByRole('button', { name: 'Month View' }).click();
     await expect(page.locator('.month-view')).toBeVisible();
     
@@ -44,6 +48,7 @@ test.describe('Calendar 5-Views UI', () => {
 
   test('should correctly render the Schedule view as a chronological list and toggle via segmented control', async ({ page }) => {
     await page.goto('/');
+    await page.getByRole('button', { name: 'Calendar' }).click();
     await page.getByRole('button', { name: 'Schedule View' }).click();
     await expect(page.locator('.schedule-view-list')).toBeVisible();
     

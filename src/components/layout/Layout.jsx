@@ -154,7 +154,7 @@ export const Layout = () => {
                 src={data?.profile?.photoURL}
                 initial={displayName ? displayName.trim().charAt(0).toUpperCase() : 'א'}
                 size={34}
-                alt={t('navSettings', 'הגדרות')}
+                alt="User Profile"
               />
             </button>
           )}
