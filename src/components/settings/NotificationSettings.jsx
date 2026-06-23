@@ -205,6 +205,28 @@ export const NotificationSettings = () => {
             </div>
           )}
 
+          {/* Workouts */}
+          <ToggleRow
+            label={t('notifWorkouts')}
+            desc={t('notifWorkoutsDesc')}
+            checked={s.workouts !== false}
+            onChange={(v) => setNotificationSettings({ workouts: v })}
+          />
+          {s.workouts !== false && (
+            <div className="flex items-center justify-between py-3">
+              <span className="text-sm text-muted-foreground">{t('notifEventLead')}</span>
+              <select
+                value={s.workoutLeadMinutes ?? s.eventLeadMinutes ?? 30}
+                onChange={(e) => setNotificationSettings({ workoutLeadMinutes: Number(e.target.value) })}
+                className="text-sm bg-transparent border border-border rounded-lg px-2 py-1 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              >
+                {LEAD_OPTIONS.map((o) => (
+                  <option key={o.v} value={o.v}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Weekly tasks */}
           <ToggleRow
             label={t('notifWeeklyTasks')}

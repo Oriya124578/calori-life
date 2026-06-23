@@ -177,6 +177,27 @@ export const useNotificationScheduler = () => {
         });
       }
 
+      // ── Calori workouts (planned training sessions) ──
+      if (settings.workouts !== false) {
+        (data?.calori?.coachSessions || []).forEach((s) => {
+          if (s.type === 'rest') return;
+          if (s.status && s.status !== 'pending') return;
+          const start = parseDate(s.scheduledDate);
+          if (!start) return;
+          // Only remind when a real time was set (encoded into scheduled_date);
+          // midnight means "no time" → skip to avoid a 00:00 ping.
+          if (start.getHours() === 0 && start.getMinutes() === 0) return;
+          const lead = settings.workoutLeadMinutes ?? settings.eventLeadMinutes ?? 30;
+          const fire = new Date(start.getTime() - lead * 60000);
+          consider(
+            `workout:${s.id}:${dayKey(start)}`,
+            fire,
+            t('notifWorkoutTitle'),
+            (t('notifWorkoutBody') || '').replace('{workout}', s.title || ''),
+          );
+        });
+      }
+
       // ── Daily digest ──
       if (settings.dailyDigest) {
         const [h, m] = (settings.dailyDigestTime || '08:00').split(':').map(Number);
