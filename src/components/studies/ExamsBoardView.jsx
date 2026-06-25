@@ -2,24 +2,20 @@ import React, { useState, useMemo } from 'react';
 import { useStore } from '../../store/useStore';
 import { useTranslation } from '../../hooks/useTranslation';
 import { 
-  format, 
-  startOfMonth, 
-  endOfMonth, 
-  startOfWeek, 
-  eachDayOfInterval, 
-  isSameDay, 
-  isToday, 
-  addMonths, 
-  subMonths, 
-  addDays, 
-  getDay, 
+  format,
+  startOfMonth,
+  endOfMonth,
+  eachDayOfInterval,
+  isToday,
+  addMonths,
+  subMonths,
+  getDay,
   parseISO, 
   isValid,
   differenceInCalendarDays,
   startOfDay
 } from 'date-fns';
 import { he } from 'date-fns/locale';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog';
@@ -31,9 +27,8 @@ import {
   ChevronRight, 
   Trash2, 
   Edit, 
-  Clock, 
-  GraduationCap,
-  AlertTriangle
+  Clock,
+  GraduationCap
 } from 'lucide-react';
 import { toast } from '../../store/useToast';
 import { formatExamDaysBadge } from '../../lib/examDaysFormat';
@@ -47,9 +42,8 @@ const creamCard = {
 
 export const ExamsBoardView = () => {
   const { data, updateCourse } = useStore();
-  const { t, language } = useTranslation();
+  const { language } = useTranslation();
   const isRTL = language === 'he';
-  const locale = he;
 
   // View state: 'list' or 'calendar'
   const [viewMode, setViewMode] = useState('list');
@@ -66,7 +60,7 @@ export const ExamsBoardView = () => {
   const [formDate, setFormDate] = useState('');
   const [formTime, setFormTime] = useState('');
 
-  const courses = data?.courses?.filter(c => !c.isArchived) || [];
+  const courses = useMemo(() => data?.courses?.filter(c => !c.isArchived) || [], [data?.courses]);
 
   // Parse date safely
   const safeParse = (d) => {
@@ -232,7 +226,7 @@ export const ExamsBoardView = () => {
       setFormTime('');
       setEditingExam(null);
     }
-  }, [formCourseId, formType, isDialogOpen]);
+  }, [formCourseId, formType, isDialogOpen, courses, editingExam]);
 
   // Save changes (create/update)
   const handleSaveExam = () => {

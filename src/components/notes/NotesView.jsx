@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Pin, PinOff, Trash2, X, Palette, Plus, Edit3, MoreVertical } from 'lucide-react';
+import { Pin, PinOff, Trash2, X, Palette, Plus, Edit3 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { useTranslation } from '../../hooks/useTranslation';
 import { cn } from '../../lib/utils';

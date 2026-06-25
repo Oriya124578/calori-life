@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Clock, BookOpen, Dumbbell, Car, Calendar, ChevronLeft, ChevronRight,
-  Sparkles, Check, MapPin,
+  Sparkles, Check,
 } from 'lucide-react';
 
 const C = {
@@ -303,7 +303,7 @@ export const SmartClarifier = ({ userText, onSubmit, onCancel, courses = [] }) =
   );
 };
 
-function composeDirective(originalText, answers, intents) {
+function composeDirective(originalText, answers, _intents) {
   const parts = [originalText];
 
   if (answers.study_start || answers.study_end) {

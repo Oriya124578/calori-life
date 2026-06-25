@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Calendar, Clock, MapPin, Bell, BookOpen, Flag, Check, Star, Pin, Lock, Repeat, Tags } from 'lucide-react';
+import { Star, Pin, Lock, Repeat } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { useTranslation } from '../../hooks/useTranslation';
 import { toast } from '../../store/useToast';

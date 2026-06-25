@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { useStore } from '../../store/useStore';
-import { Play, Pause, RotateCcw, X, Clock, Settings2 } from 'lucide-react';
+import { Play, Pause, RotateCcw, Clock } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { useTranslation } from '../../hooks/useTranslation';
 import { toast } from '../../store/useToast';
@@ -9,7 +9,7 @@ import { cn } from '../../lib/utils';
 export const PomodoroTimer = ({ inline = false }) => {
   const { 
     pomodoro, setPomodoro, 
-    pomoSettings, setShowPomoSettings, showPomoSettings,
+    pomoSettings,
     addPomodoroSession, data, showPomodoroModal, setShowPomodoroModal
   } = useStore();
   const { t, language } = useTranslation();
@@ -83,6 +83,11 @@ export const PomodoroTimer = ({ inline = false }) => {
     }
 
     return () => clearInterval(interval);
+    // `pomodoro.timeLeft` and `switchMode` are intentionally excluded: the
+    // interval captures the segment start once and derives remaining time from
+    // Date.now(), so re-running on every tick would recreate the interval each
+    // second and break the wall-clock accuracy this effect is built for.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pomodoro.active, pomodoro.mode, pomodoro.courseId, pomoSettings, addPomodoroSession, setPomodoro]);
 
   const formatTime = (seconds) => {

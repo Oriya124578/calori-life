@@ -88,7 +88,7 @@ const buildItemMemory = (lists) => {
 };
 
 /* ── "Buy again" strip — one-tap re-add of frequently bought items ───── */
-const BuyAgainStrip = ({ memory, existingNames, onAdd, t, language }) => {
+const BuyAgainStrip = ({ memory, existingNames, onAdd, t }) => {
   const suggestions = memory
     .filter((m) => m.count >= 2 && !existingNames.has(m.key))
     .slice(0, 14);
@@ -861,7 +861,8 @@ export const ShoppingListView = () => {
   const learnGroceryItems = useStore((s) => s.learnGroceryItems);
   const addShoppingRegular = useStore((s) => s.addShoppingRegular);
   const removeShoppingRegular = useStore((s) => s.removeShoppingRegular);
-  const regulars = useStore((s) => s.data.profile?.shoppingRegulars) || [];
+  const shoppingRegulars = useStore((s) => s.data.profile?.shoppingRegulars);
+  const regulars = useMemo(() => shoppingRegulars || [], [shoppingRegulars]);
   const uid = useStore((s) => s.uid);
 
   const [mode, setMode] = useState('lists'); // 'lists' | 'paste'

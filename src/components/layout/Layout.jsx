@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useState, useEffect } from 'react';
+import React, { Suspense, lazy, useState } from 'react';
 import { BottomNav } from './BottomNav';
 import { useStore } from '../../store/useStore';
 // SmartDashboard stays eager: it's the default landing view, so we don't want the
@@ -11,7 +11,7 @@ import { AddItemSheet } from '../add-item/AddItemSheet';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useNotificationScheduler } from '../../hooks/useNotificationScheduler';
 import { dateKey } from '../../lib/caloriRepo';
-import { Plus, CheckSquare, StickyNote, UtensilsCrossed, Timer, MoreHorizontal, X, User, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
+import { Plus, CheckSquare, StickyNote, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import { Avatar } from '../ui/Avatar';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../lib/utils';

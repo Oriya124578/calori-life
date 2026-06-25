@@ -14,7 +14,7 @@ import { NotificationSettings } from './NotificationSettings';
 import { CITIES_LIST } from '../../lib/shabbatService';
 import { Bell, Shield, Database, Info, ChevronLeft, ChevronRight, Tags, X } from 'lucide-react';
 
-/* ג”€ג”€ cream v3 shared inline styles ג”€ג”€ */
+/* ── cream v3 shared inline styles ── */
 const creamCard = {
   background: 'var(--color-card)',
   borderRadius: '22px',
@@ -76,7 +76,7 @@ const BackButton = ({ onClick, language }) => (
       color: 'var(--cream-text)', display: 'flex', alignItems: 'center', justifyContent: 'center',
       fontSize: 18, border: 'none', cursor: 'pointer', marginBottom: 8, flexShrink: 0,
     }}
-    aria-label={language === 'he' ? '׳—׳–׳•׳¨' : 'Back'}
+    aria-label={language === 'he' ? 'חזור' : 'Back'}
   >
     {language === 'he' ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
   </button>
@@ -86,7 +86,7 @@ export const SettingsView = () => {
   const { data, resetSemester, addCourse, updateCourse, archiveCourse, deleteCourseFully, language, setLanguage, theme, setTheme, setProfile, pomoSettings, setPomoSettings, setCategory, deleteCategory } = useStore();
   const { t } = useTranslation();
   // Local section navigation (the app navigates via Zustand activeCategory, NOT
-  // react-router ג€” so settings sub-screens are plain local state). null = index.
+  // react-router — so settings sub-screens are plain local state). null = index.
   const [section, setSection] = useState(null);
   // Google Calendar integration status (lifted out of the render fn so the hook
   // isn't called conditionally).
@@ -111,8 +111,8 @@ export const SettingsView = () => {
 
   // Profile local state
   const [displayName, setDisplayName] = useState(data?.profile?.displayName || "");
-  const [academicYear, setAcademicYear] = useState(data?.profile?.academicYear || "׳©׳ ׳” ׳'");
-  const [semester, setSemester] = useState(data?.profile?.semester || "׳¡׳׳¡׳˜׳¨ ׳'");
+  const [academicYear, setAcademicYear] = useState(data?.profile?.academicYear || "שנה א'");
+  const [semester, setSemester] = useState(data?.profile?.semester || "סמסטר א'");
 
   // AI & CommandCenter settings state
   const [wakeTime, setWakeTime] = useState(data?.profile?.wakeTime || "07:00");
@@ -148,7 +148,7 @@ export const SettingsView = () => {
     localStorage.setItem('gemini_api_key', geminiApiKey.trim());
     localStorage.setItem('google_maps_api_key', googleMapsApiKey.trim());
 
-    toast.success(t('aiSettingsSaved', '׳”׳’׳“׳¨׳•׳× ׳”-Command Center ׳ ׳©׳׳¨׳• ׳‘׳”׳¦׳׳—׳”'));
+    toast.success(t('aiSettingsSaved', 'הגדרות ה-Command Center נשמרו בהצלחה'));
   };
 
   // Convert a possibly-ISO date string to YYYY-MM-DD for <input type="date">.
@@ -184,12 +184,12 @@ export const SettingsView = () => {
 
   const handleSaveProfile = () => {
     setProfile({ displayName, academicYear, semester });
-    toast.success(t('profileSaved', '׳₪׳¨׳•׳₪׳™׳ ׳¢׳•׳“׳›׳ ׳‘׳”׳¦׳׳—׳”'));
+    toast.success(t('profileSaved', 'פרופיל עודכן בהצלחה'));
   };
 
   const handleSavePomodoro = () => {
     setPomoSettings({ work: parseInt(pomoWork) || 25, break: parseInt(pomoBreak) || 5 });
-    toast.success(t('pomodoroSaved', '׳”׳’׳“׳¨׳•׳× ׳₪׳•׳׳•׳“׳•׳¨׳• ׳¢׳•׳“׳›׳ ׳•'));
+    toast.success(t('pomodoroSaved', 'הגדרות פומודורו עודכנו'));
   };
 
   const openEditModal = (course) => {
@@ -225,16 +225,16 @@ export const SettingsView = () => {
 
   const saveCourse = async () => {
     if (!editingCourse.name || !editingCourse.name.trim()) {
-      toast.error(t('courseNameRequired', '׳©׳ ׳”׳§׳•׳¨׳¡ ׳”׳•׳ ׳©׳“׳” ׳—׳•׳‘׳”'));
+      toast.error(t('courseNameRequired', 'שם הקורס הוא שדה חובה'));
       return;
     }
 
     try {
       if (isAddMode) {
         const seeds = [];
-        if (generateLecture) seeds.push({ type: 'lecture', label: language === 'he' ? '׳”׳¨׳¦׳׳”' : 'Lecture' });
-        if (generateTutorial) seeds.push({ type: 'tutorial', label: language === 'he' ? '׳×׳¨׳’׳•׳' : 'Tutorial' });
-        if (generateHomework) seeds.push({ type: 'homework', label: language === 'he' ? '׳©׳™׳¢׳•׳¨׳™ ׳‘׳™׳×' : 'Homework' });
+        if (generateLecture) seeds.push({ type: 'lecture', label: language === 'he' ? 'הרצאה' : 'Lecture' });
+        if (generateTutorial) seeds.push({ type: 'tutorial', label: language === 'he' ? 'תרגול' : 'Tutorial' });
+        if (generateHomework) seeds.push({ type: 'homework', label: language === 'he' ? 'שיעורי בית' : 'Homework' });
 
         await addCourse({
           name: editingCourse.name,
@@ -251,7 +251,7 @@ export const SettingsView = () => {
             custom: true
           }
         }, seeds);
-        toast.success(t('courseAdded', '׳”׳§׳•׳¨׳¡ ׳ ׳•׳¡׳£ ׳‘׳”׳¦׳׳—׳”'));
+        toast.success(t('courseAdded', 'הקורס נוסף בהצלחה'));
       } else {
         await updateCourse(editingCourse.id, {
           name: editingCourse.name,
@@ -266,35 +266,35 @@ export const SettingsView = () => {
             gemini: editingCourse.gemini || '',
           }
         });
-        toast.success(t('courseUpdated', '׳”׳§׳•׳¨׳¡ ׳¢׳•׳“׳›׳ ׳‘׳”׳¦׳׳—׳”'));
+        toast.success(t('courseUpdated', 'הקורס עודכן בהצלחה'));
       }
       setEditingCourse(null);
     } catch (e) {
       console.error(e);
-      toast.error(t('courseSaveFailed', '׳©׳׳™׳¨׳× ׳”׳§׳•׳¨׳¡ ׳ ׳›׳©׳׳”'));
+      toast.error(t('courseSaveFailed', 'שמירת הקורס נכשלה'));
     }
   };
 
   const handleDeleteCourse = async (courseId) => {
-    if (window.confirm(t('confirmDeleteCourse', '׳”׳׳ ׳׳×׳” ׳‘׳˜׳•׳— ׳©׳‘׳¨׳¦׳•׳ ׳ ׳׳׳—׳•׳§ ׳§׳•׳¨׳¡ ׳–׳” ׳׳¦׳׳™׳×׳•׳×? ׳₪׳¢׳•׳׳” ׳–׳• ׳×׳׳—׳§ ׳׳× ׳›׳ ׳”׳׳˜׳׳•׳×, ׳”׳§׳‘׳¦׳™׳ ׳•׳”׳”׳™׳¡׳˜׳•׳¨׳™׳” ׳©׳׳•.'))) {
+    if (window.confirm(t('confirmDeleteCourse', 'האם אתה בטוח שברצונך למחוק קורס זה לצמיתות? פעולה זו תמחק את כל המטלות, הקבצים וההיסטוריה שלו.'))) {
       try {
         await deleteCourseFully(courseId);
-        toast.success(t('courseDeleted', '׳”׳§׳•׳¨׳¡ ׳ ׳׳—׳§ ׳‘׳”׳¦׳׳—׳”'));
+        toast.success(t('courseDeleted', 'הקורס נמחק בהצלחה'));
       } catch (e) {
         console.error(e);
-        toast.error(t('courseDeleteFailed', '׳׳—׳™׳§׳× ׳”׳§׳•׳¨׳¡ ׳ ׳›׳©׳׳”'));
+        toast.error(t('courseDeleteFailed', 'מחיקת הקורס נכשלה'));
       }
     }
   };
 
   const handleArchiveToggle = (courseId, currentStatus) => {
     const msg = currentStatus 
-      ? t('confirmRestoreCourse', '׳”׳׳ ׳׳©׳—׳–׳¨ ׳§׳•׳¨׳¡ ׳–׳” ׳׳”׳׳¨׳›׳™׳•׳?')
-      : t('confirmArchiveCourse', '׳”׳׳ ׳׳”׳¢׳‘׳™׳¨ ׳§׳•׳¨׳¡ ׳–׳” ׳׳׳¨׳›׳™׳•׳? ׳”׳§׳•׳¨׳¡ ׳™׳•׳¡׳×׳¨ ׳׳”׳×׳₪׳¨׳™׳˜.');
+      ? t('confirmRestoreCourse', 'האם לשחזר קורס זה מהארכיון?')
+      : t('confirmArchiveCourse', 'האם להעביר קורס זה לארכיון? הקורס יוסתר מהתפריט.');
     
     if (window.confirm(msg)) {
       archiveCourse(courseId, !currentStatus);
-      toast.success(currentStatus ? t('courseRestored', '׳”׳§׳•׳¨׳¡ ׳©׳•׳—׳–׳¨') : t('courseArchived', '׳”׳§׳•׳¨׳¡ ׳”׳•׳¢׳‘׳¨ ׳׳׳¨׳›׳™׳•׳'));
+      toast.success(currentStatus ? t('courseRestored', 'הקורס שוחזר') : t('courseArchived', 'הקורס הועבר לארכיון'));
     }
   };
 
@@ -317,7 +317,7 @@ export const SettingsView = () => {
   };
 
   const saveCategory = () => {
-    if (!editingCategory.name) return toast.error(t('titleRequired', '׳©׳ ׳—׳•׳‘׳”'));
+    if (!editingCategory.name) return toast.error(t('titleRequired', 'שם חובה'));
     
     setCategory(editingCategory.id, {
       id: editingCategory.id,
@@ -328,7 +328,7 @@ export const SettingsView = () => {
   };
 
   const handleDeleteCategory = (catId) => {
-    if (window.confirm(t('confirmDelete', '׳”׳׳ ׳׳×׳” ׳‘׳˜׳•׳—?'))) {
+    if (window.confirm(t('confirmDelete', 'האם אתה בטוח?'))) {
       deleteCategory(catId);
     }
   };
@@ -345,33 +345,33 @@ export const SettingsView = () => {
 
     const groups = [
       {
-        title: t('account', '׳—׳©׳‘׳•׳'),
+        title: t('account', 'חשבון'),
         items: [
-          { id: 'profile', iconEl: <User className="w-4 h-4" />, ic: 'g', title: t('profileTitle', '׳₪׳¨׳•׳₪׳™׳'), sub: '׳©׳, ׳×׳׳•׳ ׳”, ׳׳™׳׳™׳™׳' },
-          { id: 'notifications', iconEl: <Bell className="w-4 h-4" />, ic: 'b', title: t('notificationsTitle', '׳”׳×׳¨׳׳•׳×'), sub: '׳™׳•׳׳™, ׳₪׳¨-׳§׳˜׳’׳•׳¨׳™׳”, ׳©׳§׳˜ ׳‘׳׳™׳׳”', val: t('active', '׳₪׳¢׳™׳') },
+          { id: 'profile', iconEl: <User className="w-4 h-4" />, ic: 'g', title: t('profileTitle', 'פרופיל'), sub: 'שם, תמונה, אימייל' },
+          { id: 'notifications', iconEl: <Bell className="w-4 h-4" />, ic: 'b', title: t('notificationsTitle', 'התראות'), sub: 'יומי, פר-קטגוריה, שקט בלילה', val: t('active', 'פעיל') },
         ]
       },
       {
-        title: t('content', '׳×׳›׳ ׳™׳'),
+        title: t('content', 'תכנים'),
         items: [
-          { id: 'studies', iconEl: <BookOpen className="w-4 h-4" />, ic: 'r', title: t('courseManagerTitle', '׳׳™׳׳•׳“׳™׳'), sub: '׳¡׳׳¡׳˜׳¨, ׳™׳¢׳“׳™׳, AI Links', val: `${activeCourses.length} ${t('courses', '׳§׳•׳¨׳¡׳™׳')}` },
-          { id: 'manager', iconEl: <Bot className="w-4 h-4" />, ic: 'p', title: t('aiSettingsTitle', '׳”׳׳ ׳”׳ ׳”׳׳™׳©׳™'), sub: '׳©׳¢׳•׳×, ׳׳™׳§׳•׳, ׳©׳‘׳×, ׳׳₪׳×׳—׳•׳× AI' },
-          { id: 'calori', iconEl: <Shield className="w-4 h-4" />, ic: 'g', title: t('caloriTitle', '׳§׳׳•׳¨׳™'), sub: '׳¡׳ ׳›׳¨׳•׳ ׳×׳–׳•׳ ׳” ׳•׳׳™׳׳•׳ ׳™׳', val: t('linked', '׳׳§׳•׳©׳¨') },
-          { id: 'categories', iconEl: <Tags className="w-4 h-4" />, ic: 'p', title: '׳§׳˜׳’׳•׳¨׳™׳•׳× ׳×׳™׳•׳’', sub: '׳ ׳™׳”׳•׳ ׳×׳’׳™׳•׳× ׳•׳§׳˜׳’׳•׳¨׳™׳•׳×' },
+          { id: 'studies', iconEl: <BookOpen className="w-4 h-4" />, ic: 'r', title: t('courseManagerTitle', 'לימודים'), sub: 'סמסטר, יעדים, AI Links', val: `${activeCourses.length} ${t('courses', 'קורסים')}` },
+          { id: 'manager', iconEl: <Bot className="w-4 h-4" />, ic: 'p', title: t('aiSettingsTitle', 'המנהל האישי'), sub: 'שעות, מיקום, שבת, מפתחות AI' },
+          { id: 'calori', iconEl: <Shield className="w-4 h-4" />, ic: 'g', title: t('caloriTitle', 'קלורי'), sub: 'סנכרון תזונה ואימונים', val: t('linked', 'מקושר') },
+          { id: 'categories', iconEl: <Tags className="w-4 h-4" />, ic: 'p', title: 'קטגוריות תיוג', sub: 'ניהול תגיות וקטגוריות' },
         ]
       },
       {
-        title: t('preferences', '׳”׳¢׳“׳₪׳•׳×'),
+        title: t('preferences', 'העדפות'),
         items: [
-          { id: 'general', iconEl: <Palette className="w-4 h-4" />, ic: 'a', title: t('preferencesTitle', '׳›׳׳׳™'), sub: '׳©׳₪׳”, ׳¢׳¨׳›׳× ׳ ׳•׳©׳, ׳₪׳•׳׳•׳“׳•׳¨׳•' },
-          { id: 'integrations', iconEl: <Globe className="w-4 h-4" />, ic: 'b', title: '׳׳™׳ ׳˜׳’׳¨׳¦׳™׳•׳×', sub: '׳—׳™׳‘׳•׳¨ ׳׳©׳™׳¨׳•׳×׳™׳ ׳—׳™׳¦׳•׳ ׳™׳™׳' },
+          { id: 'general', iconEl: <Palette className="w-4 h-4" />, ic: 'a', title: t('preferencesTitle', 'כללי'), sub: 'שפה, ערכת נושא, פומודורו' },
+          { id: 'integrations', iconEl: <Globe className="w-4 h-4" />, ic: 'b', title: 'אינטגרציות', sub: 'חיבור לשירותים חיצוניים' },
         ]
       },
       {
-        title: t('data', '׳ ׳×׳•׳ ׳™׳'),
+        title: t('data', 'נתונים'),
         items: [
-          { id: 'data', iconEl: <Database className="w-4 h-4" />, ic: 'gr', title: t('exportData', '׳™׳™׳¦׳•׳ ׳•׳’׳™׳‘׳•׳™'), sub: '׳§׳•׳‘׳¥ JSON, ׳׳™׳₪׳•׳¡ ׳¡׳׳¡׳˜׳¨' },
-          { id: 'about', iconEl: <Info className="w-4 h-4" />, ic: 'gr', title: t('aboutTitle', '׳׳•׳“׳•׳×'), sub: '׳’׳¨׳¡׳”, ׳¨׳™׳©׳™׳•׳, ׳₪׳¨׳˜׳™׳•׳×', val: 'v6.23.1' },
+          { id: 'data', iconEl: <Database className="w-4 h-4" />, ic: 'gr', title: t('exportData', 'ייצוא וגיבוי'), sub: 'קובץ JSON, איפוס סמסטר' },
+          { id: 'about', iconEl: <Info className="w-4 h-4" />, ic: 'gr', title: t('aboutTitle', 'אודות'), sub: 'גרסה, רישיון, פרטיות', val: 'v6.25.0' },
         ]
       }
     ];
@@ -393,7 +393,7 @@ export const SettingsView = () => {
           }}>
             {data?.profile?.photoURL ? (
               <img src={data.profile.photoURL} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            ) : (data?.profile?.displayName?.charAt(0) || '׳')}
+            ) : (data?.profile?.displayName?.charAt(0) || 'א')}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ ...creamHeading, fontSize: 20, letterSpacing: '-.02em', lineHeight: 1.1 }}>
@@ -407,7 +407,7 @@ export const SettingsView = () => {
             color: '#065F46', fontSize: 11, fontWeight: 700,
             padding: '6px 11px', borderRadius: 999, flexShrink: 0,
           }}>
-            {t('edit', '׳¢׳¨׳•׳')}
+            {t('edit', 'ערוך')}
           </div>
         </div>
 
@@ -453,7 +453,7 @@ export const SettingsView = () => {
             cursor: 'pointer',
           }}
         >
-          <em>{t('logoutBtn', '׳”׳×׳ ׳×׳§')}</em>
+          <em>{t('logoutBtn', 'התנתק')}</em>
         </button>
 
         {/* Version */}
@@ -461,7 +461,7 @@ export const SettingsView = () => {
           textAlign: 'center', fontFamily: "'Instrument Serif', serif",
           fontStyle: 'italic', fontSize: 13, color: 'rgba(138,122,106,.5)', padding: '14px 0 4px',
         }}>
-          Calori Life &middot; <em style={{ color: '#059669' }}>v6.23.1</em>
+          Calori Life &middot; <em style={{ color: '#059669' }}>v6.25.0</em>
         </div>
       </div>
     );
@@ -474,41 +474,41 @@ export const SettingsView = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <User className="w-5 h-5 text-primary" />
-            {t('profileTitle', '׳₪׳¨׳•׳₪׳™׳ ׳׳™׳©׳™')}
+            {t('profileTitle', 'פרופיל אישי')}
           </CardTitle>
-          <CardDescription>{t('profileDesc', '׳”׳’׳“׳¨ ׳׳× ׳”׳©׳ ׳©׳׳ ׳©׳™׳•׳¦׳’ ׳‘׳׳₪׳׳™׳§׳¦׳™׳”')}</CardDescription>
+          <CardDescription>{t('profileDesc', 'הגדר את השם שלך שיוצג באפליקציה')}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-4">
             <div className="flex flex-col sm:flex-row gap-4">
               <div className="space-y-2 flex-1 w-full">
-                <label className="text-sm font-medium text-foreground">{t('displayName', '׳©׳ ׳×׳¦׳•׳’׳”')}</label>
+                <label className="text-sm font-medium text-foreground">{t('displayName', 'שם תצוגה')}</label>
                 <Input 
                   value={displayName} 
                   onChange={(e) => setDisplayName(e.target.value)} 
-                  placeholder={t('displayNamePlaceholder', '׳׳“׳•׳’׳׳”: ׳׳•׳¨׳™׳”')}
+                  placeholder={t('displayNamePlaceholder', 'לדוגמה: אוריה')}
                 />
               </div>
               <div className="space-y-2 flex-1 w-full">
-                <label className="text-sm font-medium text-foreground">{t('academicYear', '׳©׳ ׳× ׳׳™׳׳•׳“׳™׳')}</label>
+                <label className="text-sm font-medium text-foreground">{t('academicYear', 'שנת לימודים')}</label>
                 <select 
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   value={academicYear} 
                   onChange={(e) => setAcademicYear(e.target.value)}
                 >
-                  {(language === 'en' ? ['Year 1','Year 2','Year 3','Year 4'] : ['׳©׳ ׳” ׳\'', '׳©׳ ׳” ׳‘\'', '׳©׳ ׳” ׳’\'', '׳©׳ ׳” ׳“\'']).map(y => (
+                  {(language === 'en' ? ['Year 1','Year 2','Year 3','Year 4'] : ['שנה א\'', 'שנה ב\'', 'שנה ג\'', 'שנה ד\'']).map(y => (
                     <option key={y} value={y}>{y}</option>
                   ))}
                 </select>
               </div>
               <div className="space-y-2 flex-1 w-full">
-                <label className="text-sm font-medium text-foreground">{t('semester', '׳¡׳׳¡׳˜׳¨')}</label>
+                <label className="text-sm font-medium text-foreground">{t('semester', 'סמסטר')}</label>
                 <select 
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   value={semester} 
                   onChange={(e) => setSemester(e.target.value)}
                 >
-                  {(language === 'en' ? ['Semester A','Semester B','Summer'] : ['׳¡׳׳¡׳˜׳¨ ׳\'', '׳¡׳׳¡׳˜׳¨ ׳‘\'', '׳¡׳׳¡׳˜׳¨ ׳§׳™׳¥']).map(s => (
+                  {(language === 'en' ? ['Semester A','Semester B','Summer'] : ['סמסטר א\'', 'סמסטר ב\'', 'סמסטר קיץ']).map(s => (
                     <option key={s} value={s}>{s}</option>
                   ))}
                 </select>
@@ -551,11 +551,11 @@ export const SettingsView = () => {
                 <div className="flex gap-2 justify-end">
                   <Button variant="ghost" size="sm" onClick={() => handleDeleteCourse(course.id)} className="text-muted-foreground hover:text-red-500">
                     <Trash2 className="w-4 h-4 ml-1" />
-                    {t('delete', '׳׳—׳§')}
+                    {t('delete', 'מחק')}
                   </Button>
                   <Button variant="ghost" size="sm" onClick={() => handleArchiveToggle(course.id, course.isArchived)} className="text-muted-foreground hover:text-amber-500">
                     <Archive className="w-4 h-4 ml-1" />
-                    {t('archive', '׳׳¨׳›׳™׳•׳')}
+                    {t('archive', 'ארכיון')}
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => openEditModal(course)} className="text-muted-foreground hover:text-primary">
                     <Edit2 className="w-4 h-4 ml-1" />
@@ -573,7 +573,7 @@ export const SettingsView = () => {
                 onClick={() => setShowArchived(!showArchived)}
                 className="w-full flex items-center justify-between text-muted-foreground"
               >
-                <span>{t('archivedCourses', '׳§׳•׳¨׳¡׳™׳ ׳‘׳׳¨׳›׳™׳•׳')} ({archivedCourses.length})</span>
+                <span>{t('archivedCourses', 'קורסים בארכיון')} ({archivedCourses.length})</span>
                 <ArchiveRestore className="w-4 h-4" />
               </Button>
               
@@ -587,11 +587,11 @@ export const SettingsView = () => {
                       <div className="flex gap-2 justify-end">
                         <Button variant="ghost" size="sm" onClick={() => handleDeleteCourse(course.id)} className="text-muted-foreground hover:text-red-500">
                           <Trash2 className="w-4 h-4 ml-1" />
-                          {t('delete', '׳׳—׳§')}
+                          {t('delete', 'מחק')}
                         </Button>
                         <Button variant="outline" size="sm" onClick={() => handleArchiveToggle(course.id, course.isArchived)} className="text-primary hover:text-primary">
                           <ArchiveRestore className="w-4 h-4 ml-1" />
-                          {t('restore', '׳©׳—׳–׳¨')}
+                          {t('restore', 'שחזר')}
                         </Button>
                       </div>
                     </div>
@@ -613,13 +613,13 @@ export const SettingsView = () => {
           <div>
             <CardTitle className="flex items-center gap-2">
               <Tags className="w-5 h-5 text-primary" />
-              ׳§׳˜׳’׳•׳¨׳™׳•׳× ׳×׳™׳•׳’
+              קטגוריות תיוג
             </CardTitle>
-            <CardDescription>׳ ׳™׳”׳•׳ ׳×׳’׳™׳•׳× ׳©׳™׳•׳¦׳׳“׳• ׳׳׳©׳™׳׳•׳× ׳•׳׳₪׳×׳§׳™׳</CardDescription>
+            <CardDescription>ניהול תגיות שיוצמדו למשימות ולפתקים</CardDescription>
           </div>
           <Button onClick={openAddCategoryModal} className="flex items-center gap-1 bg-primary text-primary-foreground hover:bg-primary/90">
             <Plus className="w-4 h-4" />
-            ׳§׳˜׳’׳•׳¨׳™׳” ׳—׳“׳©׳”
+            קטגוריה חדשה
           </Button>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -661,19 +661,19 @@ export const SettingsView = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Bot className="w-5 h-5 text-primary" />
-            {t('aiSettingsTitle', '׳”׳’׳“׳¨׳•׳× ׳”-Command Center ׳•-AI')}
+            {t('aiSettingsTitle', 'הגדרות ה-Command Center ו-AI')}
           </CardTitle>
           <CardDescription>
-            {t('aiSettingsDesc', '׳”׳’׳“׳¨ ׳׳× ׳©׳¢׳•׳× ׳”׳₪׳¢׳™׳׳•׳× ׳•׳”׳¢׳“׳₪׳•׳× ׳”׳׳™׳§׳•׳ ׳©׳׳ ׳׳©׳™׳׳•׳‘ ׳”-AI')}
+            {t('aiSettingsDesc', 'הגדר את שעות הפעילות והעדפות המיקום שלך לשילוב ה-AI')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Preferences */}
           <div className="space-y-4">
-            <h3 className="text-sm font-bold text-foreground border-b pb-1">׳׳™׳׳•׳¦׳™ ׳–׳׳ ׳•׳×׳›׳ ׳•׳</h3>
+            <h3 className="text-sm font-bold text-foreground border-b pb-1">אילוצי זמן ותכנון</h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">׳©׳¢׳× ׳™׳§׳™׳¦׳”</label>
+                <label className="text-sm font-medium text-foreground">שעת יקיצה</label>
                 <Input
                   type="time"
                   value={wakeTime}
@@ -681,7 +681,7 @@ export const SettingsView = () => {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">׳©׳¢׳× ׳©׳™׳ ׳”</label>
+                <label className="text-sm font-medium text-foreground">שעת שינה</label>
                 <Input
                   type="time"
                   value={sleepTime}
@@ -689,7 +689,7 @@ export const SettingsView = () => {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">׳‘׳׳•׳§ ׳׳׳™׳“׳” ׳׳•׳¢׳“׳£ (׳“׳§׳•׳×)</label>
+                <label className="text-sm font-medium text-foreground">בלוק למידה מועדף (דקות)</label>
                 <Input
                   type="number"
                   min="30"
@@ -702,10 +702,10 @@ export const SettingsView = () => {
             
             {/* Preferred study periods */}
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground block">׳©׳¢׳•׳× ׳₪׳¨׳•׳“׳•׳§׳˜׳™׳‘׳™׳•׳× ׳׳•׳¢׳“׳₪׳•׳× ׳׳׳׳™׳“׳”</label>
+              <label className="text-sm font-medium text-foreground block">שעות פרודוקטיביות מועדפות ללמידה</label>
               <div className="flex gap-4">
                 {['morning', 'afternoon', 'evening'].map((period) => {
-                  const labels = { morning: '׳‘׳•׳§׳¨', afternoon: '׳¦׳”׳¨׳™׳™׳', evening: '׳¢׳¨׳‘' };
+                  const labels = { morning: 'בוקר', afternoon: 'צהריים', evening: 'ערב' };
                   return (
                     <label key={period} className="flex items-center gap-2 text-sm text-foreground cursor-pointer select-none">
                       <input
@@ -727,14 +727,14 @@ export const SettingsView = () => {
 
           {/* Location & Shabbat */}
           <div className="space-y-4">
-            <h3 className="text-sm font-bold text-foreground border-b pb-1">׳©׳‘׳× ׳•׳׳™׳§׳•׳</h3>
+            <h3 className="text-sm font-bold text-foreground border-b pb-1">שבת ומיקום</h3>
             
             <div className="flex flex-col sm:flex-row gap-6">
               {/* Shabbat Mode Toggle */}
               <div className="flex items-center justify-between p-3 border rounded-xl bg-card flex-1">
                 <div>
-                  <h4 className="text-sm font-semibold text-foreground">׳׳¦׳‘ ׳©׳‘׳×</h4>
-                  <p className="text-xs text-muted-foreground">׳”׳₪׳¡׳§׳× ׳©׳™׳‘׳•׳¥ ׳׳©׳™׳׳•׳× ׳©׳¢׳” ׳׳₪׳ ׳™ ׳›׳ ׳™׳¡׳” ׳•׳¢׳“ ׳©׳¢׳” ׳׳—׳¨׳™ ׳™׳¦׳™׳׳”</p>
+                  <h4 className="text-sm font-semibold text-foreground">מצב שבת</h4>
+                  <p className="text-xs text-muted-foreground">הפסקת שיבוץ משימות שעה לפני כניסה ועד שעה אחרי יציאה</p>
                 </div>
                 <button
                   type="button"
@@ -755,8 +755,8 @@ export const SettingsView = () => {
               <div className="flex flex-col gap-3 flex-1">
                 <div className="flex items-center justify-between p-3 border rounded-xl bg-card">
                   <div>
-                    <h4 className="text-sm font-semibold text-foreground">׳©׳™׳׳•׳© ׳‘-GPS</h4>
-                    <p className="text-xs text-muted-foreground">׳©׳׳™׳₪׳× ׳–׳׳ ׳™ ׳©׳‘׳× ׳•׳ ׳¡׳™׳¢׳•׳× ׳׳₪׳™ ׳׳™׳§׳•׳ ׳”׳׳›׳©׳™׳¨</p>
+                    <h4 className="text-sm font-semibold text-foreground">שימוש ב-GPS</h4>
+                    <p className="text-xs text-muted-foreground">שליפת זמני שבת ונסיעות לפי מיקום המכשיר</p>
                   </div>
                   <button
                     type="button"
@@ -775,7 +775,7 @@ export const SettingsView = () => {
 
                 {!useGPS && (
                   <div className="space-y-2 animate-in slide-in-from-top-2 duration-300">
-                    <label className="text-sm font-medium text-foreground">׳‘׳—׳¨ ׳¢׳™׳¨ ׳׳’׳•׳¨׳™׳ (׳׳–׳׳ ׳™ ׳©׳‘׳×)</label>
+                    <label className="text-sm font-medium text-foreground">בחר עיר מגורים (לזמני שבת)</label>
                     <select
                       value={selectedCity}
                       onChange={(e) => setSelectedCity(e.target.value)}
@@ -796,7 +796,7 @@ export const SettingsView = () => {
           {/* API Keys Configuration */}
           <div className="space-y-4 pt-4 border-t border-border">
             <h3 className="text-sm font-bold text-foreground flex items-center gap-1.5">
-              <span>נ”‘</span>
+              <span>🔑</span>
               {t('apiKeysSectionTitle')}
             </h3>
             <p className="text-xs text-muted-foreground">{t('apiKeysSectionDesc')}</p>
@@ -843,9 +843,9 @@ export const SettingsView = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Settings className="w-5 h-5 text-primary" />
-            {t('preferencesTitle', '׳”׳¢׳“׳₪׳•׳×')}
+            {t('preferencesTitle', 'העדפות')}
           </CardTitle>
-          <CardDescription>{t('preferencesDesc', '׳”׳’׳“׳¨׳•׳× ׳©׳₪׳”, ׳¢׳™׳¦׳•׳‘ ׳•׳₪׳•׳׳•׳“׳•׳¨׳•')}</CardDescription>
+          <CardDescription>{t('preferencesDesc', 'הגדרות שפה, עיצוב ופומודורו')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           
@@ -854,16 +854,16 @@ export const SettingsView = () => {
             <div>
               <h3 className="font-semibold text-foreground flex items-center gap-2">
                 <Palette className="w-4 h-4" />
-                {t('themeTitle', '׳¢׳™׳¦׳•׳‘ (Theme)')}
+                {t('themeTitle', 'עיצוב (Theme)')}
               </h3>
-              <p className="text-sm text-muted-foreground">{t('themeDesc', '׳‘׳—׳¨ ׳‘׳™׳ ׳׳¦׳‘ ׳‘׳”׳™׳¨ ׳׳›׳”׳”')}</p>
+              <p className="text-sm text-muted-foreground">{t('themeDesc', 'בחר בין מצב בהיר לכהה')}</p>
             </div>
             <div className="flex items-center gap-2 bg-secondary p-1 rounded-lg">
               <Button variant={theme === 'light' ? 'default' : 'ghost'} size="sm" onClick={() => setTheme('light')}>
-                {t('light', '׳‘׳”׳™׳¨')}
+                {t('light', 'בהיר')}
               </Button>
               <Button variant={theme === 'dark' ? 'default' : 'ghost'} size="sm" onClick={() => setTheme('dark')}>
-                {t('dark', '׳›׳”׳”')}
+                {t('dark', 'כהה')}
               </Button>
             </div>
           </div>
@@ -892,17 +892,17 @@ export const SettingsView = () => {
             <div>
               <h3 className="font-semibold text-foreground flex items-center gap-2">
                 <Clock className="w-4 h-4" />
-                {t('pomodoroSettings', '׳”׳’׳“׳¨׳•׳× ׳₪׳•׳׳•׳“׳•׳¨׳•')}
+                {t('pomodoroSettings', 'הגדרות פומודורו')}
               </h3>
-              <p className="text-sm text-muted-foreground">{t('pomodoroDesc', '׳§׳‘׳¢ ׳׳× ׳׳©׳ ׳”׳–׳׳ ׳׳׳™׳§׳•׳“ ׳•׳׳”׳₪׳¡׳§׳”')}</p>
+              <p className="text-sm text-muted-foreground">{t('pomodoroDesc', 'קבע את משך הזמן למיקוד ולהפסקה')}</p>
             </div>
             <div className="flex flex-col sm:flex-row gap-4 items-end">
               <div className="space-y-2 flex-1">
-                <label className="text-sm font-medium text-foreground">{t('workTime', '׳–׳׳ ׳׳™׳§׳•׳“ (׳“׳§׳•׳×)')}</label>
+                <label className="text-sm font-medium text-foreground">{t('workTime', 'זמן מיקוד (דקות)')}</label>
                 <Input type="number" min="1" max="120" value={pomoWork} onChange={(e) => setPomoWork(e.target.value)} />
               </div>
               <div className="space-y-2 flex-1">
-                <label className="text-sm font-medium text-foreground">{t('breakTime', '׳–׳׳ ׳”׳₪׳¡׳§׳” (׳“׳§׳•׳×)')}</label>
+                <label className="text-sm font-medium text-foreground">{t('breakTime', 'זמן הפסקה (דקות)')}</label>
                 <Input type="number" min="1" max="60" value={pomoBreak} onChange={(e) => setPomoBreak(e.target.value)} />
               </div>
               <Button onClick={handleSavePomodoro} className="w-full sm:w-auto">{t('save')}</Button>
@@ -914,29 +914,29 @@ export const SettingsView = () => {
         </>
   );
 
-  // ג”€ג”€ Data & backup ג”€ג”€
+  // ── Data & backup ──
   const renderData = () => (
     <Card className="shadow-sm border-border">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Database className="w-5 h-5 text-primary" />
-          {t('exportData', '׳™׳™׳¦׳•׳ ׳•׳’׳™׳‘׳•׳™')}
+          {t('exportData', 'ייצוא וגיבוי')}
         </CardTitle>
-        <CardDescription>{t('exportDataDesc', '׳”׳•׳¨׳“ ׳¢׳•׳×׳§ ׳©׳ ׳›׳ ׳”׳׳™׳“׳¢ ׳©׳׳')}</CardDescription>
+        <CardDescription>{t('exportDataDesc', 'הורד עותק של כל המידע שלך')}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Export */}
         <div className="p-4 rounded-xl border bg-card flex items-center justify-between gap-4">
           <div>
-            <h3 className="font-semibold text-foreground">{t('exportData', '׳™׳™׳¦׳•׳ ׳•׳’׳™׳‘׳•׳™')}</h3>
-            <p className="text-sm text-muted-foreground">{t('exportDataDesc', '׳§׳•׳‘׳¥ JSON ׳©׳ ׳›׳ ׳”׳׳™׳“׳¢')}</p>
+            <h3 className="font-semibold text-foreground">{t('exportData', 'ייצוא וגיבוי')}</h3>
+            <p className="text-sm text-muted-foreground">{t('exportDataDesc', 'קובץ JSON של כל המידע')}</p>
           </div>
-          <Button variant="outline" onClick={handleExportData}>{t('exportDataBtn', '׳”׳•׳¨׳“ ׳’׳™׳‘׳•׳™')}</Button>
+          <Button variant="outline" onClick={handleExportData}>{t('exportDataBtn', 'הורד גיבוי')}</Button>
         </div>
 
         {/* Danger Zone */}
         <div className="mt-4 pt-4 border-t">
-          <h3 className="text-sm font-bold text-destructive uppercase tracking-wider mb-4 px-2">{t('dangerZone', '׳׳–׳•׳¨ ׳¡׳›׳ ׳”')}</h3>
+          <h3 className="text-sm font-bold text-destructive uppercase tracking-wider mb-4 px-2">{t('dangerZone', 'אזור סכנה')}</h3>
           <div className="space-y-4">
             <div className="flex items-center justify-between p-4 rounded-xl bg-destructive/5 border border-destructive/20 gap-4">
               <div>
@@ -965,28 +965,28 @@ export const SettingsView = () => {
     </Card>
   );
 
-  // ג”€ג”€ Calori bridge (read-only sync info) ג”€ג”€
+  // ── Calori bridge (read-only sync info) ──
   const renderCalori = () => {
     const cal = data?.calori || {};
     const rows = [
-      { label: '׳׳¨׳•׳—׳•׳× ׳”׳™׳•׳', value: (cal.meals || []).length },
-      { label: '׳׳™׳׳•׳ ׳™׳ ׳”׳™׳•׳', value: (cal.workouts || []).length },
-      { label: '׳™׳¢׳“ ׳§׳׳•׳¨׳™ ׳™׳•׳׳™', value: cal.dailyGoal ? `${cal.dailyGoal} ׳§׳§"׳` : 'ג€”' },
+      { label: 'ארוחות היום', value: (cal.meals || []).length },
+      { label: 'אימונים היום', value: (cal.workouts || []).length },
+      { label: 'יעד קלורי יומי', value: cal.dailyGoal ? `${cal.dailyGoal} קק"ל` : '—' },
     ];
     return (
       <Card className="shadow-sm border-border">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Shield className="w-5 h-5 text-primary" />
-            {t('caloriTitle', '׳§׳׳•׳¨׳™')}
+            {t('caloriTitle', 'קלורי')}
           </CardTitle>
-          <CardDescription>׳¡׳ ׳›׳¨׳•׳ ׳׳§׳¨׳™׳׳” ׳‘׳׳‘׳“ ׳׳׳₪׳׳™׳§׳¦׳™׳™׳× ׳§׳׳•׳¨׳™ (׳×׳–׳•׳ ׳” ׳•׳׳™׳׳•׳ ׳™׳)</CardDescription>
+          <CardDescription>סנכרון לקריאה בלבד מאפליקציית קלורי (תזונה ואימונים)</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center gap-3 p-4 rounded-xl border bg-card">
             <div className="w-2.5 h-2.5 rounded-full bg-[#059669]" />
             <div className="flex-1">
-              <h3 className="font-semibold text-foreground">{t('linked', '׳׳§׳•׳©׳¨')}</h3>
+              <h3 className="font-semibold text-foreground">{t('linked', 'מקושר')}</h3>
               <p className="text-sm text-muted-foreground">{auth?.currentUser?.email}</p>
             </div>
           </div>
@@ -999,34 +999,34 @@ export const SettingsView = () => {
             ))}
           </div>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            ׳”׳ ׳×׳•׳ ׳™׳ ׳ ׳׳©׳›׳™׳ ׳׳•׳˜׳•׳׳˜׳™׳× ׳׳׳₪׳׳™׳§׳¦׳™׳™׳× ׳§׳׳•׳¨׳™. Calori Life ׳׳¢׳•׳׳ ׳׳ ׳›׳•׳×׳‘ ׳׳ ׳×׳•׳ ׳™ ׳”׳×׳–׳•׳ ׳”/׳׳™׳׳•׳ ׳™׳ ג€” ׳§׳¨׳™׳׳” ׳‘׳׳‘׳“.
+            הנתונים נמשכים אוטומטית מאפליקציית קלורי. Calori Life לעולם לא כותב לנתוני התזונה/אימונים — קריאה בלבד.
           </p>
         </CardContent>
       </Card>
     );
   };
 
-  // ג”€ג”€ About ג”€ג”€
+  // ── About ──
   const renderAbout = () => (
     <Card className="shadow-sm border-border">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Info className="w-5 h-5 text-primary" />
-          {t('aboutTitle', '׳׳•׳“׳•׳×')}
+          {t('aboutTitle', 'אודות')}
         </CardTitle>
-        <CardDescription>׳’׳¨׳¡׳”, ׳¨׳™׳©׳™׳•׳ ׳•׳₪׳¨׳˜׳™׳•׳×</CardDescription>
+        <CardDescription>גרסה, רישיון ופרטיות</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex items-center justify-between p-4 rounded-xl border bg-card">
           <span className="font-semibold text-foreground">Calori Life</span>
-          <span className="text-sm font-mono text-primary">v6.23.1</span>
+          <span className="text-sm font-mono text-primary">v6.25.0</span>
         </div>
         <a href="/privacy" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-4 rounded-xl border bg-card hover:bg-muted/40 transition-colors">
-          <span className="font-semibold text-foreground flex items-center gap-2"><Lock className="w-4 h-4" /> ׳׳“׳™׳ ׳™׳•׳× ׳₪׳¨׳˜׳™׳•׳×</span>
+          <span className="font-semibold text-foreground flex items-center gap-2"><Lock className="w-4 h-4" /> מדיניות פרטיות</span>
           <ExternalLink className="w-4 h-4 text-muted-foreground" />
         </a>
         <div className="p-4 rounded-xl border bg-card text-sm text-muted-foreground leading-relaxed">
-          ׳׳ ׳”׳ ׳׳™׳©׳™ ׳•׳׳¢׳§׳‘ ׳׳™׳׳•׳“׳™׳, ׳—׳׳§ ׳׳׳¢׳¨׳›׳× Calori. ׳ ׳‘׳ ׳” ׳¢׳ React + Firebase.
+          מנהל אישי ומעקב לימודים, חלק ממערכת Calori. נבנה עם React + Firebase.
         </div>
       </CardContent>
     </Card>
@@ -1070,7 +1070,7 @@ export const SettingsView = () => {
         }
         setStatus('Calendar Connected');
         toast.success("Sync successful");
-      } catch (e) {
+      } catch {
         setStatus('Failed to sync events');
       }
     };
@@ -1080,9 +1080,9 @@ export const SettingsView = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Globe className="w-5 h-5 text-primary" />
-            ׳׳™׳ ׳˜׳’׳¨׳¦׳™׳•׳×
+            אינטגרציות
           </CardTitle>
-          <CardDescription>׳—׳™׳‘׳•׳¨ ׳©׳™׳¨׳•׳×׳™׳ ׳—׳™׳¦׳•׳ ׳™׳™׳ ׳׳׳¢׳¨׳›׳×</CardDescription>
+          <CardDescription>חיבור שירותים חיצוניים למערכת</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-col md:flex-row items-center justify-between p-4 rounded-xl border bg-card gap-4">
@@ -1143,7 +1143,7 @@ export const SettingsView = () => {
                   <div className="flex gap-2">
                     <Input type="date" value={editingCourse.moedA} onChange={e => setEditingCourse({...editingCourse, moedA: e.target.value})} className="text-start" />
                     {editingCourse.moedA && (
-                      <Button variant="outline" size="icon" onClick={() => setEditingCourse({...editingCourse, moedA: ''})} className="shrink-0 rounded-xl" title={language === 'he' ? '׳ ׳§׳” ׳׳•׳¢׳“' : 'Clear date'}>
+                      <Button variant="outline" size="icon" onClick={() => setEditingCourse({...editingCourse, moedA: ''})} className="shrink-0 rounded-xl" title={language === 'he' ? 'נקה מועד' : 'Clear date'}>
                         <X className="w-4 h-4" />
                       </Button>
                     )}
@@ -1154,18 +1154,18 @@ export const SettingsView = () => {
                   <div className="flex gap-2">
                     <Input type="date" value={editingCourse.moedB} onChange={e => setEditingCourse({...editingCourse, moedB: e.target.value})} className="text-start" />
                     {editingCourse.moedB && (
-                      <Button variant="outline" size="icon" onClick={() => setEditingCourse({...editingCourse, moedB: ''})} className="shrink-0 rounded-xl" title={language === 'he' ? '׳ ׳§׳” ׳׳•׳¢׳“' : 'Clear date'}>
+                      <Button variant="outline" size="icon" onClick={() => setEditingCourse({...editingCourse, moedB: ''})} className="shrink-0 rounded-xl" title={language === 'he' ? 'נקה מועד' : 'Clear date'}>
                         <X className="w-4 h-4" />
                       </Button>
                     )}
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">{language === 'he' ? '׳׳•׳¢׳“ ׳’׳³' : 'Moed C'}</label>
+                  <label className="text-sm font-medium">{language === 'he' ? 'מועד ג׳' : 'Moed C'}</label>
                   <div className="flex gap-2">
                     <Input type="date" value={editingCourse.moedC || ''} onChange={e => setEditingCourse({...editingCourse, moedC: e.target.value})} className="text-start" />
                     {editingCourse.moedC && (
-                      <Button variant="outline" size="icon" onClick={() => setEditingCourse({...editingCourse, moedC: ''})} className="shrink-0 rounded-xl" title={language === 'he' ? '׳ ׳§׳” ׳׳•׳¢׳“' : 'Clear date'}>
+                      <Button variant="outline" size="icon" onClick={() => setEditingCourse({...editingCourse, moedC: ''})} className="shrink-0 rounded-xl" title={language === 'he' ? 'נקה מועד' : 'Clear date'}>
                         <X className="w-4 h-4" />
                       </Button>
                     )}
@@ -1183,7 +1183,7 @@ export const SettingsView = () => {
               {isAddMode && (
                 <div className="space-y-2 border-t pt-3">
                   <label className="text-sm font-bold block mb-1">
-                    {language === 'he' ? '׳׳˜׳׳•׳× ׳©׳‘׳•׳¢׳™׳•׳× ׳׳™׳™׳¦׳•׳¨ ׳¨׳׳©׳•׳ ׳™:' : 'Weekly tasks to generate:'}
+                    {language === 'he' ? 'מטלות שבועיות לייצור ראשוני:' : 'Weekly tasks to generate:'}
                   </label>
                   <div className="flex flex-col gap-2">
                     <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer select-none">
@@ -1193,7 +1193,7 @@ export const SettingsView = () => {
                         onChange={(e) => setGenerateLecture(e.target.checked)}
                         className="rounded border-input text-primary focus:ring-primary w-4 h-4"
                       />
-                      {language === 'he' ? '׳”׳¨׳¦׳׳•׳×' : 'Lectures'}
+                      {language === 'he' ? 'הרצאות' : 'Lectures'}
                     </label>
                     <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer select-none">
                       <input
@@ -1202,7 +1202,7 @@ export const SettingsView = () => {
                         onChange={(e) => setGenerateTutorial(e.target.checked)}
                         className="rounded border-input text-primary focus:ring-primary w-4 h-4"
                       />
-                      {language === 'he' ? '׳×׳¨׳’׳•׳׳™׳' : 'Tutorials'}
+                      {language === 'he' ? 'תרגולים' : 'Tutorials'}
                     </label>
                     <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer select-none">
                       <input
@@ -1211,13 +1211,13 @@ export const SettingsView = () => {
                         onChange={(e) => setGenerateHomework(e.target.checked)}
                         className="rounded border-input text-primary focus:ring-primary w-4 h-4"
                       />
-                      {language === 'he' ? '׳©׳™׳¢׳•׳¨׳™ ׳‘׳™׳×' : 'Homework'}
+                      {language === 'he' ? 'שיעורי בית' : 'Homework'}
                     </label>
                   </div>
                   
                   <div className="flex flex-col gap-2.5 bg-secondary/10 p-3 rounded-xl border mt-2.5">
                     <label className="text-xs font-bold text-muted-foreground block">
-                      {language === 'he' ? '׳”׳’׳“׳¨׳•׳× ׳”׳×׳§׳“׳׳•׳× (׳׳™׳׳• ׳׳˜׳׳•׳× ׳™׳™׳¡׳₪׳¨׳•):' : 'Progress Settings (which tasks will count):'}
+                      {language === 'he' ? 'הגדרות התקדמות (אילו מטלות ייספרו):' : 'Progress Settings (which tasks will count):'}
                     </label>
                     <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer select-none">
                       <input
@@ -1226,7 +1226,7 @@ export const SettingsView = () => {
                         onChange={(e) => setProgressLecture(e.target.checked)}
                         className="rounded border-input text-primary focus:ring-primary w-4 h-4"
                       />
-                      {language === 'he' ? '׳”׳¨׳¦׳׳•׳× ׳ ׳›׳׳׳•׳× ׳‘׳”׳×׳§׳“׳׳•׳×' : 'Lectures count in progress'}
+                      {language === 'he' ? 'הרצאות נכללות בהתקדמות' : 'Lectures count in progress'}
                     </label>
                     <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer select-none">
                       <input
@@ -1235,7 +1235,7 @@ export const SettingsView = () => {
                         onChange={(e) => setProgressTutorial(e.target.checked)}
                         className="rounded border-input text-primary focus:ring-primary w-4 h-4"
                       />
-                      {language === 'he' ? '׳×׳¨׳’׳•׳׳™׳ ׳ ׳›׳׳׳™׳ ׳‘׳”׳×׳§׳“׳׳•׳×' : 'Tutorials count in progress'}
+                      {language === 'he' ? 'תרגולים נכללים בהתקדמות' : 'Tutorials count in progress'}
                     </label>
                     <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer select-none">
                       <input
@@ -1244,7 +1244,7 @@ export const SettingsView = () => {
                         onChange={(e) => setProgressHomework(e.target.checked)}
                         className="rounded border-input text-primary focus:ring-primary w-4 h-4"
                       />
-                      {language === 'he' ? '׳©׳™׳¢׳•׳¨׳™ ׳‘׳™׳× ׳ ׳›׳׳׳™׳ ׳‘׳”׳×׳§׳“׳׳•׳×' : 'Homework counts in progress'}
+                      {language === 'he' ? 'שיעורי בית נכללים בהתקדמות' : 'Homework counts in progress'}
                     </label>
                   </div>
                 </div>
@@ -1263,15 +1263,15 @@ export const SettingsView = () => {
         <Dialog open={true} onOpenChange={() => setEditingCategory(null)}>
           <DialogContent className="sm:max-w-[425px]" dir={language === 'en' ? 'ltr' : 'rtl'}>
             <DialogHeader>
-              <DialogTitle>{isCategoryAddMode ? '׳§׳˜׳’׳•׳¨׳™׳” ׳—׳“׳©׳”' : `׳¢׳¨׳•׳ ׳§׳˜׳’׳•׳¨׳™׳”: ${editingCategory.name}`}</DialogTitle>
+              <DialogTitle>{isCategoryAddMode ? 'קטגוריה חדשה' : `ערוך קטגוריה: ${editingCategory.name}`}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-4 px-1">
               <div className="space-y-2">
-                <label className="text-sm font-medium">׳©׳ ׳§׳˜׳’׳•׳¨׳™׳”</label>
+                <label className="text-sm font-medium">שם קטגוריה</label>
                 <Input value={editingCategory.name} onChange={e => setEditingCategory({...editingCategory, name: e.target.value})} />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">׳¦׳‘׳¢</label>
+                <label className="text-sm font-medium">צבע</label>
                 <div className="flex gap-2">
                   <Input type="color" value={editingCategory.color || '#059669'} onChange={e => setEditingCategory({...editingCategory, color: e.target.value})} className="w-12 h-10 p-1" />
                   <Input type="text" value={editingCategory.color || '#059669'} onChange={e => setEditingCategory({...editingCategory, color: e.target.value})} className="flex-1 font-mono" dir="ltr" />

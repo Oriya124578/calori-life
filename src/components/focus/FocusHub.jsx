@@ -8,7 +8,6 @@ import {
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { fetchShabbatTimes } from '../../lib/shabbatService';
-import { cn } from '../../lib/utils';
 import { format } from 'date-fns';
 import { buildTimeline } from '../../lib/scheduleBuilder';
 import { dateKey } from '../../lib/caloriRepo';
@@ -26,10 +25,9 @@ const blockIcons = {
 // Cream v3 warm card styles
 const creamCard = { background: '#fff', borderRadius: 18, border: '1px solid rgba(180,140,80,.14)', boxShadow: '0 2px 10px rgba(40,20,0,.05)' };
 const creamTimerCard = { background: '#fff', borderRadius: 32, border: '1px solid rgba(180,140,80,.14)', boxShadow: '0 8px 32px rgba(40,20,0,.08)', position: 'relative', overflow: 'hidden' };
-const creamStatCard = { background: '#fff', borderRadius: 16, border: '1px solid rgba(180,140,80,.12)', boxShadow: '0 1px 6px rgba(40,20,0,.04)' };
 
 export const FocusHub = () => {
-  const { t, language } = useTranslation();
+  const { language } = useTranslation();
   const isRTL = language === 'he';
 
   const {

@@ -1,11 +1,10 @@
 import React, { useMemo } from 'react';
-import { BookOpen, Clock } from 'lucide-react';
 import { useStore, isTaskIncludedInProgress } from '../../store/useStore';
 import { useTranslation } from '../../hooks/useTranslation';
-import { cn } from '../../lib/utils';
 import { differenceInCalendarDays, startOfDay, parseISO, isValid } from 'date-fns';
 import { StudiesStats } from './StudiesStats';
 import { formatExamDaysBadge } from '../../lib/examDaysFormat';
+import { Stagger } from '../../lib/motion';
 
 const COURSE_COLORS = ['#059669', '#2563EB', '#D97706', '#7C3AED', '#DC2626'];
 
@@ -26,9 +25,8 @@ const heroCard = {
 };
 
 export const StudiesHub = () => {
-  const { data, setActiveCategory, setActiveCourse, setShowPomodoroModal } =
-    useStore();
-  const { t, language } = useTranslation();
+  const { data, setActiveCategory, setActiveCourse } = useStore();
+  const { language } = useTranslation();
   const isRTL = language === 'he';
   const courses = data?.courses?.filter((c) => !c.isArchived) || [];
 
@@ -221,7 +219,7 @@ export const StudiesHub = () => {
       </div>
 
       {/* 2-Column Course Grid */}
-      <div className="grid grid-cols-2 gap-2.5">
+      <Stagger className="grid grid-cols-2 gap-2.5">
         {courses.map((course, idx) => {
           const color = COURSE_COLORS[idx % COURSE_COLORS.length];
           const taskCount = Object.values(data.tasks[course.id] || {}).reduce(
@@ -243,7 +241,8 @@ export const StudiesHub = () => {
           );
 
           return (
-            <button
+            <Stagger.Item
+              as="button"
               key={course.id}
               onClick={() => openCourse(course)}
               style={{
@@ -326,10 +325,10 @@ export const StudiesHub = () => {
                   return null;
                 })()}
               </div>
-            </button>
+            </Stagger.Item>
           );
         })}
-      </div>
+      </Stagger>
 
       {/* Academic stats (moved here from home in Phase 4) */}
       <StudiesStats />

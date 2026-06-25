@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   Calendar as CalendarIcon, Clock, Sparkles, Trash2, Save,
-  AlertTriangle, Plus, Check, MapPin,
-  Coffee, Dumbbell, Utensils, ChevronLeft, ChevronRight, X, RefreshCw,
+  AlertTriangle, Plus, MapPin,
+  Dumbbell, Utensils, ChevronLeft, ChevronRight, X,
   Lock, Unlock, Moon, Sun, MoreVertical, Bell, ListTodo
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -19,7 +19,6 @@ import { calculateTravelTime } from '../../lib/mapsService';
 import { format, parseISO, isValid, isSameDay, addDays, subDays } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { toast } from '../../store/useToast';
-import { CalendarView } from '../calendar/CalendarView';
 import { MorningCoachOverlay } from './MorningCoachOverlay';
 import { SmartClarifier } from './SmartClarifier';
 import { BlockActionSheet } from './BlockActionSheet';
@@ -95,7 +94,7 @@ export const CommandCenterView = () => {
   const [loading, setLoading] = useState(false);
   const [tuneCommand, setTuneCommand] = useState('');
   const [shabbatTimes, setShabbatTimes] = useState(null);
-  const [activeSubTab, setActiveSubTab] = useState('schedule'); // 'schedule', 'calendar', 'pomodoro'
+  const [activeSubTab] = useState('schedule'); // 'schedule', 'calendar', 'pomodoro'
   const [gpsLocation, setGpsLocation] = useState(null);
   const [activeTaskTab, setActiveTaskTab] = useState('all'); // 'all' | 'high' | 'med' | 'low'
   const [timePickerModal, setTimePickerModal] = useState(null); // { taskId, title, hourStr } for manual slot assign
@@ -561,7 +560,7 @@ export const CommandCenterView = () => {
     } finally {
       setLoading(false);
     }
-  }, [data, dateStr, sidebarTasks, gpsLocation, currentDate, locale, shabbatTimes, setDraftSchedule, saveDraftSchedule, sanitizeAiBlocks, t]);
+  }, [data, dateStr, gpsLocation, currentDate, locale, shabbatTimes, setDraftSchedule, saveDraftSchedule, sanitizeAiBlocks, t]);
 
   // NOTE: silent auto-plan on entry was removed on purpose — it regenerated a
   // fresh AI schedule on every visit and shadowed the saved cl_schedule doc.
@@ -718,6 +717,8 @@ export const CommandCenterView = () => {
   };
 
   // Google Calendar Sync
+  // Ready Google Calendar import flow — implemented but not yet wired to a button.
+  // eslint-disable-next-line no-unused-vars
   const handleGoogleCalendarSync = async () => {
     setLoading(true);
     try {

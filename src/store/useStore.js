@@ -707,7 +707,7 @@ export const useStore = create((set, get) => ({
   setTheme: (theme) => {
     try {
       localStorage.setItem('theme', theme);
-    } catch (e) {
+    } catch {
       console.warn('localStorage theme failed');
     }
     document.documentElement.setAttribute('data-theme', theme);
@@ -721,7 +721,7 @@ export const useStore = create((set, get) => ({
   setLanguage: (language) => {
     try {
       localStorage.setItem('language', language);
-    } catch (e) {
+    } catch {
       console.warn('localStorage language failed');
     }
     set({ language });
@@ -1480,12 +1480,12 @@ export const useStore = create((set, get) => ({
     const lang = language || 'he';
 
     const currentTasks = [];
-    Object.entries(data.tasks).forEach(([cid, weeks]) => {
+    Object.values(data.tasks).forEach((weeks) => {
       Object.values(weeks).forEach((weekTasks) => {
         weekTasks.forEach((t) => currentTasks.push(t.id));
       });
     });
-    Object.entries(data.globalTasks).forEach(([cid, cats]) => {
+    Object.values(data.globalTasks).forEach((cats) => {
       Object.values(cats).forEach((catTasks) => {
         catTasks.forEach((t) => currentTasks.push(t.id));
       });
@@ -1971,7 +1971,7 @@ export const useStore = create((set, get) => ({
     get().resetFocusTracking();
   },
 
-  interruptFocusTracking: async (dateStr, shabbatTimes, gpsLocation) => {
+  interruptFocusTracking: async (dateStr, shabbatTimes, _gpsLocation) => {
     const { uid, focusTracking, data } = get();
     if (!uid || !focusTracking.activeBlockId) return;
 

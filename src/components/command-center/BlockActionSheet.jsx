@@ -1,11 +1,10 @@
 import React from 'react';
 import { X, RefreshCcw, ArrowRightLeft, CalendarClock, Trash2 } from 'lucide-react';
 import { useTranslation } from '../../hooks/useTranslation';
-import { cn } from '../../lib/utils';
 import { AnimatePresence, motion } from 'framer-motion';
 
 export const BlockActionSheet = ({ isOpen, block, onClose, onAction }) => {
-  const { t, language } = useTranslation();
+  const { language } = useTranslation();
   const isRTL = language === 'he';
 
   if (!block) return null;

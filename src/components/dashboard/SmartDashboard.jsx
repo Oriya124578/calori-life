@@ -1,9 +1,5 @@
 import React, { useMemo } from 'react';
-import {
-  CheckCircle2, Calendar as CalendarIcon, GraduationCap,
-  UtensilsCrossed, Dumbbell, Sparkles, Play, ListTodo, Bot, ChevronLeft, ChevronRight,
-  Clock, Flame, Plus, Award, Beef, Wheat, Droplet, ExternalLink, Target
-} from 'lucide-react';
+import { Sparkles, Bot } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { useTranslation } from '../../hooks/useTranslation';
 import { cn } from '../../lib/utils';
@@ -11,10 +7,11 @@ import { dateKey } from '../../lib/caloriRepo';
 import { buildTimeline } from '../../lib/scheduleBuilder';
 import {
   format, parseISO, isValid, isSameDay, differenceInCalendarDays,
-  startOfDay, addDays
+  startOfDay
 } from 'date-fns';
 import { he } from 'date-fns/locale';
-import { formatExamDays, formatExamDaysBadge } from '../../lib/examDaysFormat';
+import { formatExamDaysBadge } from '../../lib/examDaysFormat';
+import { Stagger } from '../../lib/motion';
 
 const safeParse = (d) => {
   if (!d) return null;
@@ -23,12 +20,11 @@ const safeParse = (d) => {
 };
 
 export const SmartDashboard = () => {
-  const { data, setActiveCategory, togglePersonalTask, draftSchedule, openAddSheet } = useStore();
+  const { data, setActiveCategory, draftSchedule, openAddSheet } = useStore();
   const { t, language } = useTranslation();
   const isRTL = language === 'he';
   const locale = isRTL ? he : undefined;
   const displayName = data?.profile?.displayName || '';
-  const caloriDate = useStore((s) => s.caloriDate);
   const todayStr = dateKey();
 
   const getGreeting = () => {
@@ -183,14 +179,6 @@ export const SmartDashboard = () => {
     });
     return items.sort((a, b) => a.date - b.date).slice(0, 4);
   }, [data, t]);
-
-  const getTimeSegment = (time) => {
-    if (!time || time === t('allDay')) return t('evening', 'ערב');
-    const h = parseInt(time.split(':')[0], 10);
-    if (h < 12) return t('morning', 'בוקר');
-    if (h < 17) return t('afternoon', 'צהריים');
-    return t('evening', 'ערב');
-  };
 
   return (
     <div className="max-w-lg mx-auto w-full px-3.5 py-3 space-y-2.5 rise-in-stagger" dir={isRTL ? 'rtl' : 'ltr'}>
@@ -360,7 +348,7 @@ export const SmartDashboard = () => {
         </div>
 
         {todayBlocks.length > 0 ? (
-          <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1 no-scrollbar">
+          <Stagger className="space-y-2 max-h-[220px] overflow-y-auto pr-1 no-scrollbar">
             {todayBlocks.map((block) => {
               const dotColor = block.type === 'meal' ? '#059669' : block.type === 'workout' ? '#7C3AED' : block.type === 'exam' ? '#EF4444' : block.type === 'reminder' ? '#D97706' : block.type === 'task' ? '#059669' : '#D6C8B8';
               const cardStyle = block.type === 'meal'
@@ -372,7 +360,7 @@ export const SmartDashboard = () => {
                 : { background: 'rgba(180,140,80,.05)', border: '1.5px dashed rgba(180,140,80,.2)', color: '#8A7A6A' };
 
               return (
-                <div key={block.id} className="flex gap-2.5 items-stretch">
+                <Stagger.Item key={block.id} className="flex gap-2.5 items-stretch">
                   <div className="w-[34px] text-center shrink-0 pt-2.5 text-[10px] font-semibold" style={{ color: '#8A7A6A' }}>{block.time}</div>
                   <div className="flex flex-col items-center shrink-0 w-3.5">
                     <div className="w-[9px] h-[9px] rounded-full mt-2.5" style={{ background: dotColor, boxShadow: dotColor !== '#D6C8B8' ? `0 0 0 2px ${dotColor}33` : 'none' }} />
@@ -382,10 +370,10 @@ export const SmartDashboard = () => {
                     <div className="text-[13px] font-bold">{block.title}</div>
                     {block.sub && <div className="text-[11px] mt-0.5" style={{ opacity: 0.65 }}>{block.sub}</div>}
                   </div>
-                </div>
+                </Stagger.Item>
               );
             })}
-          </div>
+          </Stagger>
         ) : (
           <button
             onClick={() => setActiveCategory('commandCenter')}

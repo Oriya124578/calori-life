@@ -1,8 +1,9 @@
 import React from 'react';
-import { CheckSquare, StickyNote, Settings, Timer, UtensilsCrossed, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CheckSquare, StickyNote, UtensilsCrossed, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { useTranslation } from '../../hooks/useTranslation';
 import { cn } from '../../lib/utils';
+import { Stagger } from '../../lib/motion';
 
 const HUB_ITEMS = [
   {
@@ -54,17 +55,18 @@ export const MoreHub = () => {
 
   return (
     <div
-      className="max-w-2xl mx-auto w-full px-4 py-4 animate-in fade-in slide-in-from-bottom-4 duration-400"
+      className="max-w-2xl mx-auto w-full px-4 py-4"
       dir={isRTL ? 'rtl' : 'ltr'}
     >
-      <div className="grid grid-cols-2 gap-3">
+      <Stagger className="grid grid-cols-2 gap-3">
         {HUB_ITEMS.map((item) => {
           const Icon  = item.icon;
           const badge = getBadge(item.key);
 
           return (
-            <button
+            <Stagger.Item
               key={item.key}
+              as="button"
               onClick={() => handleClick(item.key)}
               className="flex flex-col gap-3 p-4 rounded-2xl border border-border bg-card hover:border-primary/40 active:scale-[0.97] transition-all text-start focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
             >
@@ -89,10 +91,10 @@ export const MoreHub = () => {
                 <p className="text-sm font-bold text-foreground">{t(item.labelKey)}</p>
                 <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{t(item.descKey)}</p>
               </div>
-            </button>
+            </Stagger.Item>
           );
         })}
-      </div>
+      </Stagger>
     </div>
   );
 };

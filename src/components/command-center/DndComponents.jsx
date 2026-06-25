@@ -41,7 +41,7 @@ export function DraggableBlock({ id, data, isLocked, children, onShortTap }) {
         "touch-none cursor-pointer outline-none w-full min-w-0",
         !isLocked && "active:cursor-grabbing",
       )}
-      onClick={(e) => {
+      onClick={() => {
         // Only trigger short tap if not dragging
         if (!isDragging && onShortTap) {
           onShortTap();

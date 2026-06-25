@@ -81,8 +81,8 @@ export const MigrateLocalFiles = () => {
               });
             });
           }
-        } catch (e) {
-          console.log(`No local folder found for course ${course.name} or API error.`);
+        } catch {
+          console.warn(`No local folder found for course ${course.name} or API error.`);
         }
       }
 

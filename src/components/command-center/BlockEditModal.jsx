@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog';
-import { X, Trash2, Calendar, Clock, Lock, Unlock, AlignLeft, Info } from 'lucide-react';
+import { Trash2, Calendar, Clock, Lock, Unlock, AlignLeft, Info } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useTranslation } from '../../hooks/useTranslation';
 
@@ -19,7 +19,7 @@ const minToTime = (min) => {
 };
 
 export const BlockEditModal = ({ isOpen, block, onSave, onDelete, onClose }) => {
-  const { t, language } = useTranslation();
+  const { language } = useTranslation();
   const isRTL = language === 'he';
 
   const [title, setTitle] = useState('');

@@ -1,11 +1,7 @@
 import React, { useEffect } from 'react';
-import {
-  ChevronLeft, ChevronRight, UtensilsCrossed, Dumbbell, Flame,
-  Clock, Award, Beef, Wheat, Droplet, ExternalLink
-} from 'lucide-react';
+import { ChevronLeft, ChevronRight, UtensilsCrossed, Dumbbell } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { useTranslation } from '../../hooks/useTranslation';
-import { cn } from '../../lib/utils';
 import { dateKey } from '../../lib/caloriRepo';
 import { format, parseISO, isToday, isYesterday, isValid, addDays, subDays } from 'date-fns';
 
@@ -189,8 +185,6 @@ export const CaloriView = () => {
   const totalFats     = hasMeals ? meals.reduce((s, m) => s + (m.fats     || 0), 0) : (dayHistory?.fats     ?? 0);
   const burned        = hasWorkouts ? workouts.reduce((s, w) => s + (w.caloriesBurned  || 0), 0) : (dayHistory?.workout_calories ?? 0);
   const workoutMin    = hasWorkouts ? workouts.reduce((s, w) => s + (w.durationMinutes || 0), 0) : (dayHistory?.workout_minutes  ?? 0);
-  const nutritionScore = dayHistory?.nutrition_score;
-
   // Calorie goal (rough estimate)
   const goal = 2000;
   const pct = goal > 0 ? Math.min(100, Math.round((totalCalories / goal) * 100)) : 0;

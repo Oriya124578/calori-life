@@ -3,7 +3,6 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from './lib/firebase';
 import { useStore } from './store/useStore';
-import { useTranslation } from './hooks/useTranslation';
 import { Layout } from './components/layout/Layout';
 import { AuthView } from './components/auth/AuthView';
 import { OnboardingScreen } from './components/onboarding/OnboardingScreen';
@@ -26,7 +25,6 @@ function App() {
     setActiveCategory,
     setCaloriDate,
   } = useStore();
-  const { t } = useTranslation();
 
   const activeCategory = useStore((s) => s.activeCategory);
   const caloriDate = useStore((s) => s.caloriDate);
@@ -76,6 +74,10 @@ function App() {
     } else if (location.pathname !== '/') {
       navigate('/', { replace: true });
     }
+    // `location.pathname` is read but intentionally excluded: the Route->State
+    // effect above owns pathname changes. Including it here would ping-pong
+    // navigation between the two effects.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCategory, caloriDate, navigate]);
 
   // Firebase Auth listener. Drives subscribe/unsubscribe lifecycle on the store.

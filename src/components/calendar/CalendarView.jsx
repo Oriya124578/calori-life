@@ -42,7 +42,7 @@ function safeParse(d) {
 
 export const CalendarView = () => {
   const { data, updateEvent, deleteEvent, updatePersonalTask, deletePersonalTask, togglePersonalTask, setActiveCategory, setScheduleDate } = useStore();
-  const { t, language } = useTranslation();
+  const { language } = useTranslation();
   const isRTL = language === 'he';
   const locale = isRTL ? he : enUS;
 

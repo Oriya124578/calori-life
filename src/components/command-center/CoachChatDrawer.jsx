@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Send, Bot, Check, ArrowLeft, ArrowRight, Sparkles } from 'lucide-react';
-import { useStore, isTaskIncludedInProgress, getCourseProgressSummary } from '../../store/useStore';
+import { useStore, getCourseProgressSummary } from '../../store/useStore';
 import { useTranslation } from '../../hooks/useTranslation';
 import { chatWithCoach } from '../../lib/coachAiService';
 import { cn } from '../../lib/utils';
