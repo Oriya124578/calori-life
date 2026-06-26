@@ -7,6 +7,7 @@ import {
   collection,
   doc,
   deleteDoc,
+  getDoc,
   getDocs,
   onSnapshot,
   setDoc,
@@ -17,6 +18,16 @@ import {
   limit,
 } from 'firebase/firestore';
 import { db } from './firebase';
+
+// --- Weekly plan (cl_meta/weeklyPlan) -------------------------------------
+const weeklyPlanDoc = (uid) => doc(db, 'users', uid, 'cl_meta', 'weeklyPlan');
+export const setWeeklyPlan = async (uid, data) => {
+  await setDoc(weeklyPlanDoc(uid), data, { merge: true });
+};
+export const getWeeklyPlan = async (uid) => {
+  const snap = await getDoc(weeklyPlanDoc(uid));
+  return snap.exists() ? snap.data() : null;
+};
 
 export { increment } from 'firebase/firestore';
 

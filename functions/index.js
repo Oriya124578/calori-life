@@ -4,13 +4,21 @@ const admin = require("firebase-admin");
 const express = require("express");
 const cors = require("cors");
 const { google } = require("googleapis");
+const { defineSecret } = require("firebase-functions/params");
+
+const GOOGLE_CLIENT_ID = defineSecret("GOOGLE_CLIENT_ID");
+const GOOGLE_CLIENT_SECRET = defineSecret("GOOGLE_CLIENT_SECRET");
 
 admin.initializeApp();
 
 const app = express();
 app.use(cors({ origin: true }));
 
-const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly'];
+// Full calendar scope — needed to LIST calendars and CREATE the dedicated
+// "Calori World" calendar, on top of reading/writing events.
+const SCOPES = ['https://www.googleapis.com/auth/calendar'];
+
+const CALORI_WORLD_NAME = 'Calori World';
 
 // A helper function to create an OAuth2 client dynamically,
 // since we want to handle the redirect URI based on the request host/protocol.
@@ -108,6 +116,194 @@ app.get("/auth/google/callback", async (req, res) => {
   }
 });
 
+// Returns an authenticated Calendar client for the user, or null if they have
+// not connected Google yet. Persists silently-refreshed access tokens back to
+// Firestore so we never lose the refresh token.
+const getCalendarForUid = async (uid, req) => {
+  const ref = admin.firestore()
+    .collection("users").doc(uid)
+    .collection("integrations").doc("google");
+  const doc = await ref.get();
+  if (!doc.exists) return null;
+
+  const tokens = doc.data();
+  const oauth2Client = getOAuth2Client(req);
+  oauth2Client.setCredentials(tokens);
+
+  // Persist refreshed tokens (keep the original refresh_token if Google omits it).
+  oauth2Client.on('tokens', (fresh) => {
+    const merged = { ...tokens, ...fresh };
+    if (!fresh.refresh_token && tokens.refresh_token) {
+      merged.refresh_token = tokens.refresh_token;
+    }
+    ref.set(merged, { merge: true }).catch((e) =>
+      console.error("Failed to persist refreshed Google tokens:", e));
+  });
+
+  return google.calendar({ version: 'v3', auth: oauth2Client });
+};
+
+// ── Per-user calendar settings (shared by life + fitness + nutrition) ────────
+// users/{uid}/integrations/google_settings:
+//   writeCalendarId      — where app-created events are written (default primary)
+//   readCalendarIds      — calendars whose events are shown in-app
+//   caloriWorldCalendarId— id of the dedicated "Calori World" calendar, if any
+const settingsRef = (uid) => admin.firestore()
+  .collection("users").doc(uid)
+  .collection("integrations").doc("google_settings");
+
+const getSettings = async (uid) => {
+  const doc = await settingsRef(uid).get();
+  const d = doc.exists ? doc.data() : {};
+  return {
+    writeCalendarId: d.writeCalendarId || 'primary',
+    readCalendarIds: Array.isArray(d.readCalendarIds) && d.readCalendarIds.length
+      ? d.readCalendarIds
+      : ['primary'],
+    caloriWorldCalendarId: d.caloriWorldCalendarId || null,
+  };
+};
+
+// Map of calendarId → accessRole (owner/writer/reader/...) for the user.
+const accessRoleMap = async (calendar) => {
+  const map = {};
+  let pageToken;
+  do {
+    const resp = await calendar.calendarList.list({ pageToken, maxResults: 250 });
+    for (const c of resp.data.items || []) map[c.id] = c.accessRole;
+    pageToken = resp.data.nextPageToken;
+  } while (pageToken);
+  return map;
+};
+
+// List all calendars the user can access.
+app.get("/api/calendar/list", validateFirebaseIdToken, async (req, res) => {
+  try {
+    const calendar = await getCalendarForUid(req.user.uid, req);
+    if (!calendar) return res.status(401).json({ error: "Google Calendar not connected" });
+    const out = [];
+    let pageToken;
+    do {
+      const resp = await calendar.calendarList.list({ pageToken, maxResults: 250 });
+      for (const c of resp.data.items || []) {
+        out.push({
+          id: c.id,
+          summary: c.summaryOverride || c.summary,
+          primary: !!c.primary,
+          accessRole: c.accessRole,
+          backgroundColor: c.backgroundColor || null,
+          writable: c.accessRole === 'owner' || c.accessRole === 'writer',
+        });
+      }
+      pageToken = resp.data.nextPageToken;
+    } while (pageToken);
+    res.status(200).json({ calendars: out });
+  } catch (error) {
+    console.error("Error listing calendars:", error);
+    res.status(500).json({ error: "Failed to list calendars" });
+  }
+});
+
+// Read the user's calendar settings.
+app.get("/api/calendar/settings", validateFirebaseIdToken, async (req, res) => {
+  try {
+    res.status(200).json(await getSettings(req.user.uid));
+  } catch (error) {
+    console.error("Error reading calendar settings:", error);
+    res.status(500).json({ error: "Failed to read settings" });
+  }
+});
+
+// Update the user's calendar settings (partial).
+app.put("/api/calendar/settings", validateFirebaseIdToken, async (req, res) => {
+  try {
+    const patch = {};
+    if (typeof req.body.writeCalendarId === 'string') patch.writeCalendarId = req.body.writeCalendarId;
+    if (Array.isArray(req.body.readCalendarIds)) patch.readCalendarIds = req.body.readCalendarIds;
+    await settingsRef(req.user.uid).set(patch, { merge: true });
+    res.status(200).json(await getSettings(req.user.uid));
+  } catch (error) {
+    console.error("Error saving calendar settings:", error);
+    res.status(500).json({ error: "Failed to save settings" });
+  }
+});
+
+// Ensure the dedicated "Calori World" calendar exists; make it the write target.
+app.post("/api/calendar/calori-world", validateFirebaseIdToken, async (req, res) => {
+  const uid = req.user.uid;
+  try {
+    const calendar = await getCalendarForUid(uid, req);
+    if (!calendar) return res.status(401).json({ error: "Google Calendar not connected" });
+
+    // Reuse if already created (by stored id or by name).
+    const settings = await getSettings(uid);
+    let calId = settings.caloriWorldCalendarId;
+    if (calId) {
+      try {
+        await calendar.calendars.get({ calendarId: calId });
+      } catch (_) {
+        calId = null; // stale — recreate
+      }
+    }
+    if (!calId) {
+      const list = await calendar.calendarList.list({ maxResults: 250 });
+      const found = (list.data.items || []).find(
+        (c) => (c.summaryOverride || c.summary) === CALORI_WORLD_NAME);
+      calId = found ? found.id : null;
+    }
+    if (!calId) {
+      const created = await calendar.calendars.insert({
+        requestBody: { summary: CALORI_WORLD_NAME, timeZone: 'Asia/Jerusalem' },
+      });
+      calId = created.data.id;
+    }
+
+    // Make it the write target and ensure it's in the read set.
+    const readIds = Array.from(new Set([...settings.readCalendarIds, calId]));
+    await settingsRef(uid).set({
+      caloriWorldCalendarId: calId,
+      writeCalendarId: calId,
+      readCalendarIds: readIds,
+    }, { merge: true });
+
+    res.status(200).json({ calendarId: calId });
+  } catch (error) {
+    console.error("Error ensuring Calori World calendar:", error);
+    res.status(500).json({ error: "Failed to create Calori World calendar" });
+  }
+});
+
+// Build a Google Calendar event resource from our client payload.
+const toGoogleEvent = (uid, body) => {
+  const ev = {
+    summary: body.title || 'Calori',
+    description: body.notes || body.description || '',
+    location: body.location || undefined,
+    extendedProperties: {
+      private: {
+        calori_event_id: body.caloriEventId || '',
+        calori_uid: uid,
+        calori_source: body.source || 'calori_life',
+      },
+    },
+  };
+  if (body.allDay) {
+    // All-day events use date (YYYY-MM-DD), end-exclusive.
+    const startDate = String(body.start).slice(0, 10);
+    const endSrc = body.end ? String(body.end).slice(0, 10) : startDate;
+    const endDate = new Date(`${endSrc}T00:00:00`);
+    endDate.setDate(endDate.getDate() + 1);
+    ev.start = { date: startDate };
+    ev.end = { date: endDate.toISOString().slice(0, 10) };
+  } else {
+    ev.start = { dateTime: new Date(body.start).toISOString() };
+    const end = body.end ? new Date(body.end)
+      : new Date(new Date(body.start).getTime() + 60 * 60 * 1000);
+    ev.end = { dateTime: end.toISOString() };
+  }
+  return ev;
+};
+
 // Milestone 3.1.3: Fetch Calendar Events (Secured with validateFirebaseIdToken middleware)
 app.get("/api/calendar/events", validateFirebaseIdToken, async (req, res) => {
   const uid = req.user.uid;
@@ -122,57 +318,62 @@ app.get("/api/calendar/events", validateFirebaseIdToken, async (req, res) => {
   }
 
   try {
-    // Retrieve tokens from Firestore
-    const doc = await admin.firestore()
-      .collection("users")
-      .doc(uid)
-      .collection("integrations")
-      .doc("google")
-      .get();
-
-    if (!doc.exists) {
+    const calendar = await getCalendarForUid(uid, req);
+    if (!calendar) {
       return res.status(401).json({ error: "Google Calendar not connected" });
     }
 
-    const tokens = doc.data();
-    const oauth2Client = getOAuth2Client(req);
-    oauth2Client.setCredentials(tokens);
+    // Which calendars to read: explicit ?calendarIds=a,b override, else settings.
+    const settings = await getSettings(uid);
+    const calendarIds = req.query.calendarIds
+      ? String(req.query.calendarIds).split(',').map((s) => s.trim()).filter(Boolean)
+      : settings.readCalendarIds;
 
-    // If refresh token exists, googleapis will auto-refresh.
-    // If we want to persist the newly refreshed token, we'd listen to 'tokens' event on oauth2Client,
-    // but for simplicity, we rely on googleapis doing it in memory for this request.
+    const roles = await accessRoleMap(calendar);
 
-    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
-    const response = await calendar.events.list({
-      calendarId: 'primary',
-      timeMin: timeMin ? new Date(timeMin).toISOString() : undefined,
-      timeMax: timeMax ? new Date(timeMax).toISOString() : undefined,
-      singleEvents: true,
-      orderBy: 'startTime',
-    });
-
-    const items = response.data.items || [];
-    
-    // Map events
-    const mappedEvents = items.map(item => {
-      let start = item.start.dateTime;
-      let end = item.end.dateTime;
-      
-      if (!start && item.start.date) {
-        start = `${item.start.date}T00:00:00`;
-        end = `${item.end.date}T23:59:59`;
+    const mappedEvents = [];
+    await Promise.all(calendarIds.map(async (calId) => {
+      try {
+        const response = await calendar.events.list({
+          calendarId: calId,
+          timeMin: timeMin ? new Date(timeMin).toISOString() : undefined,
+          timeMax: timeMax ? new Date(timeMax).toISOString() : undefined,
+          singleEvents: true,
+          orderBy: 'startTime',
+        });
+        const role = calId === 'primary' ? 'owner' : (roles[calId] || 'reader');
+        const writable = role === 'owner' || role === 'writer';
+        for (const item of response.data.items || []) {
+          let start = item.start.dateTime;
+          let end = item.end.dateTime;
+          if (!start && item.start.date) {
+            start = `${item.start.date}T00:00:00`;
+            end = `${item.end.date}T23:59:59`;
+          }
+          const priv = (item.extendedProperties && item.extendedProperties.private) || {};
+          const caloriEventId = priv.calori_event_id || null;
+          mappedEvents.push({
+            id: `gcal-${item.id}`,
+            googleEventId: item.id,
+            calendarId: calId,
+            caloriEventId,                  // set => one of our own mirrored events
+            type: 'event',
+            title: item.summary || 'Google Calendar Event',
+            start: new Date(start).toISOString(),
+            end: new Date(end).toISOString(),
+            allDay: !item.start.dateTime,
+            location: item.location || '',
+            notes: item.description || '',
+            source: caloriEventId ? 'calori' : 'google',
+            writable,
+            // Editable in-app when the user can write to that calendar.
+            isLocked: !writable,
+          });
+        }
+      } catch (e) {
+        console.error(`Failed to read calendar ${calId}:`, e.message);
       }
-
-      return {
-        id: `gcal-${item.id}`,
-        type: 'event',
-        title: item.summary || 'Google Calendar Event',
-        start: new Date(start).toISOString(),
-        end: new Date(end).toISOString(),
-        source: 'google',
-        isLocked: true
-      };
-    });
+    }));
 
     res.status(200).json({ events: mappedEvents });
   } catch (error) {
@@ -181,7 +382,87 @@ app.get("/api/calendar/events", validateFirebaseIdToken, async (req, res) => {
   }
 });
 
-exports.api = onRequest({ cors: true }, app);
+// ── Create an event on the user's primary calendar ──────────────────────────
+app.post("/api/calendar/events", validateFirebaseIdToken, async (req, res) => {
+  const uid = req.user.uid;
+  if (!req.body || !req.body.start) {
+    return res.status(400).json({ error: "Missing event start" });
+  }
+  try {
+    const calendar = await getCalendarForUid(uid, req);
+    if (!calendar) return res.status(401).json({ error: "Google Calendar not connected" });
+    const settings = await getSettings(uid);
+    const calendarId = req.body.calendarId || settings.writeCalendarId;
+    const created = await calendar.events.insert({
+      calendarId,
+      requestBody: toGoogleEvent(uid, req.body),
+    });
+    res.status(200).json({ googleEventId: created.data.id, calendarId });
+  } catch (error) {
+    console.error("Error creating Google Calendar event:", error);
+    res.status(500).json({ error: "Failed to create event" });
+  }
+});
+
+// ── Update an existing event ─────────────────────────────────────────────────
+app.patch("/api/calendar/events/:googleEventId", validateFirebaseIdToken, async (req, res) => {
+  const uid = req.user.uid;
+  const googleEventId = req.params.googleEventId;
+  try {
+    const calendar = await getCalendarForUid(uid, req);
+    if (!calendar) return res.status(401).json({ error: "Google Calendar not connected" });
+    const settings = await getSettings(uid);
+    const calendarId = req.body.calendarId || req.query.calendarId || settings.writeCalendarId;
+    try {
+      await calendar.events.patch({
+        calendarId,
+        eventId: googleEventId,
+        requestBody: toGoogleEvent(uid, req.body),
+      });
+      res.status(200).json({ googleEventId, calendarId });
+    } catch (e) {
+      // Event was removed from the calendar — recreate it so state converges.
+      if (e.code === 404 || e.code === 410) {
+        const created = await calendar.events.insert({
+          calendarId,
+          requestBody: toGoogleEvent(uid, req.body),
+        });
+        return res.status(200).json({ googleEventId: created.data.id, calendarId, recreated: true });
+      }
+      throw e;
+    }
+  } catch (error) {
+    console.error("Error updating Google Calendar event:", error);
+    res.status(500).json({ error: "Failed to update event" });
+  }
+});
+
+// ── Delete an event ──────────────────────────────────────────────────────────
+app.delete("/api/calendar/events/:googleEventId", validateFirebaseIdToken, async (req, res) => {
+  const uid = req.user.uid;
+  const googleEventId = req.params.googleEventId;
+  try {
+    const calendar = await getCalendarForUid(uid, req);
+    if (!calendar) return res.status(401).json({ error: "Google Calendar not connected" });
+    const settings = await getSettings(uid);
+    const calendarId = req.body.calendarId || req.query.calendarId || settings.writeCalendarId;
+    try {
+      await calendar.events.delete({ calendarId, eventId: googleEventId });
+    } catch (e) {
+      // Already gone — treat as success.
+      if (e.code !== 404 && e.code !== 410) throw e;
+    }
+    res.status(200).json({ ok: true });
+  } catch (error) {
+    console.error("Error deleting Google Calendar event:", error);
+    res.status(500).json({ error: "Failed to delete event" });
+  }
+});
+
+exports.api = onRequest(
+  { cors: true, secrets: [GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET] },
+  app,
+);
 
 exports.aiManager = onSchedule({ schedule: "0 7,21 * * *", timeZone: "Asia/Jerusalem" }, async () => {
   const db = admin.firestore();

@@ -4,6 +4,9 @@ import { X, Send, Bot, Check, ArrowLeft, ArrowRight, Sparkles } from 'lucide-rea
 import { useStore, getCourseProgressSummary } from '../../store/useStore';
 import { useTranslation } from '../../hooks/useTranslation';
 import { chatWithCoach } from '../../lib/coachAiService';
+import { generateWeeklyPlan } from '../../lib/gemini';
+import { setWeeklyPlan } from '../../lib/firestoreRepo';
+import { connectGoogleCalendar, ensureCaloriWorldCalendar } from '../../lib/googleCalendar';
 import { cn } from '../../lib/utils';
 import { toast } from '../../store/useToast';
 
@@ -408,6 +411,58 @@ export const CoachChatDrawer = ({ isOpen, onClose, dateStr, shabbatTimes, onRepl
         if (payload.moedB) patch.moedB = payload.moedB;
         updateCourse(payload.courseId, patch);
         toast.success('הקורס עודכן');
+
+      // ── Weekly planning ────────────────────────────────────────────────
+      } else if (type === 'plan_week') {
+        toast.info('בונה תוכנית שבועית...');
+        const uid = useStore.getState().uid;
+        const start = new Date(); start.setHours(0, 0, 0, 0);
+        const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        const heWeekday = (d) => d.toLocaleDateString('he-IL', { weekday: 'long' });
+        const weekDays = Array.from({ length: 7 }, (_, i) => {
+          const d = new Date(start); d.setDate(start.getDate() + i);
+          return { date: ymd(d), weekday: heWeekday(d) };
+        });
+        const exams = [];
+        (data?.courses || []).forEach((c) => {
+          ['moedA', 'moedB', 'moedC'].forEach((m) => {
+            const raw = c[m] || c.exams?.[m];
+            if (!raw) return;
+            const dt = new Date(raw);
+            if (Number.isNaN(dt.getTime())) return;
+            const days = Math.round((new Date(`${String(raw).slice(0, 10)}T00:00:00`) - start) / 86400000);
+            if (days >= 0 && days <= 21) exams.push({ course: c.name, date: String(raw).slice(0, 10), inDays: days });
+          });
+        });
+        const res = await generateWeeklyPlan({
+          weekDays,
+          wakeTime: data?.profile?.wakeTime,
+          sleepTime: data?.profile?.sleepTime,
+          studyHoursPerDay: payload.studyHoursPerDay,
+          studyWeekdays: payload.studyWeekdays || [0, 1, 2, 3, 4],
+          courses: (data?.courses || []).map((c) => ({ name: c.name })),
+          exams,
+          note: payload.note || '',
+          workoutDays: [],
+        });
+        if (res?.days?.length) {
+          await setWeeklyPlan(uid, { weekStart: weekDays[0].date, generatedAt: new Date().toISOString(), days: res.days });
+          toast.success('תוכנית השבוע נבנתה — היכנס ללו"ז כדי לדייק כל יום');
+          setActiveCategory('commandCenter');
+        } else {
+          toast.error('בניית תוכנית השבוע נכשלה');
+        }
+
+      // ── Google Calendar ────────────────────────────────────────────────
+      } else if (type === 'connect_calendar') {
+        toast.info('מפנה לחיבור Google Calendar...');
+        await connectGoogleCalendar(); // redirects the browser to Google
+        return;
+      } else if (type === 'create_calori_world') {
+        toast.info('יוצר יומן Calori World...');
+        const id = await ensureCaloriWorldCalendar();
+        if (id) toast.success('יומן Calori World מוכן — האירועים החדשים ייכתבו אליו');
+        else toast.error('צריך לחבר קודם את היומן (חיבור Google Calendar)');
       }
 
       // Mark action as executed in UI

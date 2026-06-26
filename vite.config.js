@@ -144,6 +144,11 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         skipWaiting: true,
         clientsClaim: true,
+        // The SPA navigation fallback serves index.html for client navigations.
+        // Exclude the Cloud Function routes (/auth/** OAuth redirect, /api/**) so
+        // those navigations reach the server instead of being hijacked by the SW.
+        navigateFallback: 'index.html',
+        navigateFallbackDenylist: [/^\/auth\//, /^\/api\//],
       }
     })
   ],

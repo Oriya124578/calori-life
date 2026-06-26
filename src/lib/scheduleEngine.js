@@ -423,8 +423,22 @@ export const validateAndRepair = (blocksIn, bounds, originalBlocks = []) => {
       continue;
     }
 
-    // Try to relocate
-    const otherAnchors = anchors.filter((a) => !(a.start === s && a.end === e));
+    // Graceful degradation: a block that STARTS inside the window but overruns
+    // its end (e.g. a study block running past the pre-Shabbat cutoff) is
+    // SHORTENED to fit rather than dropped — keeping the user's study time.
+    if (!inForbidden && !overlapsAnchor && s >= wake && s < sleep && e > sleep && (sleep - s) >= 15) {
+      repaired.push(withTimes(b, s, sleep - s));
+      repairs.push({ kind: 'clamped_end', id: b.id });
+      continue;
+    }
+
+    // Try to relocate. Include blocks already placed in THIS pass as anchors so
+    // several relocated blocks pack sequentially instead of stacking on the same
+    // earliest slot (which previously caused later ones to be trayed).
+    const placedAnchors = repaired
+      .filter((rb) => rb.type !== 'sleep')
+      .map((rb) => ({ start: timeToMin(rb.startTime), end: timeToMin(rb.endTime) }));
+    const otherAnchors = [...anchors, ...placedAnchors].filter((a) => !(a.start === s && a.end === e));
     const placed = nextLegalStart(wake, dur, otherAnchors, bounds);
     if (placed === NO_FIT) {
       tray.push({ ...b, trayReason: inForbidden ? 'shabbat' : inBounds ? 'overlap' : 'oob' });

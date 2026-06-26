@@ -3,7 +3,7 @@ import {
   Calendar as CalendarIcon, Clock, Sparkles, Trash2, Save,
   AlertTriangle, Plus, MapPin,
   Dumbbell, Utensils, ChevronLeft, ChevronRight, X,
-  Lock, Unlock, Moon, Sun, MoreVertical, Bell, ListTodo
+  Lock, Unlock, Moon, Sun, MoreVertical, Bell, ListTodo, CalendarRange
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore, getCourseProgressSummary } from '../../store/useStore';
@@ -20,6 +20,8 @@ import { format, parseISO, isValid, isSameDay, addDays, subDays } from 'date-fns
 import { he } from 'date-fns/locale';
 import { toast } from '../../store/useToast';
 import { MorningCoachOverlay } from './MorningCoachOverlay';
+import { WeekPlanner } from './WeekPlanner';
+import { getWeeklyPlan } from '../../lib/firestoreRepo';
 import { SmartClarifier } from './SmartClarifier';
 import { BlockActionSheet } from './BlockActionSheet';
 import { BlockEditModal } from './BlockEditModal';
@@ -99,6 +101,10 @@ export const CommandCenterView = () => {
   const [activeTaskTab, setActiveTaskTab] = useState('all'); // 'all' | 'high' | 'med' | 'low'
   const [timePickerModal, setTimePickerModal] = useState(null); // { taskId, title, hourStr } for manual slot assign
   const [showMorningCoach, setShowMorningCoach] = useState(false);
+  const [showWeekPlanner, setShowWeekPlanner] = useState(false);
+  const [weeklyPlan, setWeeklyPlan] = useState(null);
+  // When the user picks a day from the week plan, its directive seeds the coach.
+  const [weeklySeed, setWeeklySeed] = useState(null); // { date, directive }
   const [clarifierText, setClarifierText] = useState(null);
   const [activeActionBlock, setActiveActionBlock] = useState(null);
   const [editingBlock, setEditingBlock] = useState(null);
@@ -113,6 +119,29 @@ export const CommandCenterView = () => {
   useEffect(() => () => {
     useStore.getState().setScheduleDate(dateKey());
   }, []);
+
+  // Load the saved weekly plan (reloads after the planner closes so a freshly
+  // generated plan seeds the per-day coach).
+  useEffect(() => {
+    const uid = useStore.getState().uid;
+    if (!uid) return;
+    getWeeklyPlan(uid).then(setWeeklyPlan).catch(() => {});
+  }, [showWeekPlanner]);
+
+  // Directive that seeds the Morning Coach for the viewed day: an explicit pick
+  // from the week plan wins, else the saved weekly plan's row for this date.
+  const morningSeed =
+    (weeklySeed?.date === dateStr ? weeklySeed.directive : null) ||
+    weeklyPlan?.days?.find((d) => d.date === dateStr)?.directive ||
+    '';
+
+  const handlePickWeekDay = (date, directive) => {
+    setShowWeekPlanner(false);
+    setWeeklySeed({ date, directive });
+    const dt = parseISO(date);
+    if (isValid(dt)) setCurrentDate(dt);
+    setShowMorningCoach(true);
+  };
 
   // dnd-kit sensors (iOS style long press ~500ms)
   const sensors = useSensors(
@@ -371,19 +400,32 @@ export const CommandCenterView = () => {
     let sleepMin = 23 * 60;
     try { wakeMin = timeToMin(data?.profile?.wakeTime || '07:00'); } catch { /* default */ }
     try { sleepMin = timeToMin(data?.profile?.sleepTime || '23:00'); } catch { /* default */ }
-    let shabbat = null;
+    // A bedtime at/after midnight (e.g. 00:00, 01:30) means the END of the
+    // waking day — NOT 00:00 this morning. Without this, sleepMin=0 collapses the
+    // window and EVERY block is dropped as out-of-bounds.
+    if (sleepMin <= wakeMin) sleepMin += 24 * 60;
+    // Planning TODAY mid-day → the window starts NOW, not at the morning wake time.
+    if (isSameDay(currentDate, new Date())) {
+      const n = new Date();
+      const nowMin = n.getHours() * 60 + Math.ceil(n.getMinutes() / 15) * 15;
+      if (nowMin > wakeMin && nowMin < sleepMin) wakeMin = nowMin;
+    }
+    // Treat Shabbat as a SHORTENED normal day (clamp wake/sleep), NOT as a
+    // separate "forbidden interval". The forbidden-interval path trayed every
+    // study block on Friday instead of relocating it into the morning; folding
+    // the cutoff into sleepMin/wakeMin lets the standard relocation pack them.
     if (data?.profile?.shabbatMode && shabbatTimes) {
       const startObj = new Date(shabbatTimes.start);
       const endObj = new Date(shabbatTimes.end);
       if (isValid(startObj) && isSameDay(currentDate, startObj)) {
-        const blockStart = new Date(startObj.getTime() - 60 * 60 * 1000);
-        shabbat = { blockStartMin: blockStart.getHours() * 60 + blockStart.getMinutes() };
+        const cutoff = new Date(startObj.getTime() - 60 * 60 * 1000);
+        sleepMin = Math.min(sleepMin, cutoff.getHours() * 60 + cutoff.getMinutes());
       } else if (isValid(endObj) && isSameDay(currentDate, endObj)) {
-        const blockEnd = new Date(endObj.getTime() + 60 * 60 * 1000);
-        shabbat = { blockEndMin: blockEnd.getHours() * 60 + blockEnd.getMinutes() };
+        const startAfter = new Date(endObj.getTime() + 60 * 60 * 1000);
+        wakeMin = Math.max(wakeMin, startAfter.getHours() * 60 + startAfter.getMinutes());
       }
     }
-    return { wakeMin, sleepMin, shabbat };
+    return { wakeMin, sleepMin, shabbat: null };
   }, [data?.profile?.wakeTime, data?.profile?.sleepTime, data?.profile?.shabbatMode, shabbatTimes, currentDate]);
 
   // Normalize AI output: drop sleep/leisure/break noise, ensure ids, then
@@ -402,11 +444,42 @@ export const CommandCenterView = () => {
   // Call Gemini to Auto-Plan. When autoSave is true (the day questionnaire /
   // "build my day" flow) the generated plan is persisted to cl_schedule
   // immediately instead of left as an unsaved draft the user might lose.
-  const handleAutoPlan = useCallback(async (dayProfile = null, autoSave = false) => {
+  const handleAutoPlan = useCallback(async (dayProfile = null, autoSave = false, extras = {}) => {
     setLoading(true);
     try {
       const fixedEvents = [];
       const meals = [];
+
+      // Trip from the questionnaire: compute the REAL drive time from the user's
+      // current location to the named destination (Google Maps / OSRM) and add it
+      // as a located fixed event so the generator places travel blocks around it
+      // (rule 4 inserts a travel leg of travelTimeMinutes before/after).
+      if (extras?.destination) {
+        let travelMin = 0;
+        try {
+          const origin = extras.origin || gpsLocation || data?.profile?.selectedCity || 'Tel Aviv';
+          travelMin = await Promise.race([
+            calculateTravelTime(origin, extras.destination),
+            new Promise((res) => setTimeout(() => res(0), 6000)),
+          ]);
+        } catch { travelMin = 0; }
+        const depart = extras.departTime || '12:00';
+        const dur = travelMin > 0 ? travelMin : 30; // fallback estimate
+        const [dh, dm] = depart.split(':').map(Number);
+        const endTotal = (dh * 60 + dm + dur);
+        const departEnd = `${String(Math.floor(endTotal / 60) % 24).padStart(2, '0')}:${String(endTotal % 60).padStart(2, '0')}`;
+        // ONE locked travel block of the REAL drive time. We bake the duration
+        // into start/end and intentionally omit `location` + `travelTimeMinutes`
+        // so the generator does NOT add a second (duplicate) travel leg around it.
+        fixedEvents.push({
+          id: `trip-${Date.now()}`,
+          title: `נסיעה ל${extras.destination}`,
+          type: 'travel',
+          start: depart,
+          end: departEnd,
+          isLocked: true,
+        });
+      }
 
       // Collect fixed events
       (data?.events || []).forEach((ev) => {
@@ -420,6 +493,30 @@ export const CommandCenterView = () => {
           });
         }
       });
+
+      // Live awareness: pull the day's Google Calendar events (from the user's
+      // selected calendars) so the plan is built around them even if they were
+      // never imported into cl_events. Best-effort — never blocks planning.
+      try {
+        const gEvents = await fetchGoogleEvents(`${dateStr}T12:00:00`);
+        const seen = new Set(fixedEvents.map((e) => `${e.title}-${e.start}`));
+        for (const gev of gEvents || []) {
+          const start = parseToLocalTime(gev.start);
+          const key = `${gev.title}-${start}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          fixedEvents.push({
+            id: gev.googleEventId || gev.id,
+            title: gev.title,
+            start,
+            end: gev.end ? parseToLocalTime(gev.end) : '23:59',
+            location: gev.location || '',
+          });
+        }
+      } catch (e) {
+        // Not connected / offline — plan from local data only.
+        console.debug('Live Google Calendar fetch skipped:', e?.message);
+      }
 
       // Calori data
       if (dateStr === dateKey()) {
@@ -484,15 +581,27 @@ export const CommandCenterView = () => {
           };
         });
 
-      // Calculate travel times dynamically if Google key is present
-
-      for (const ev of fixedEvents) {
-        if (ev.location) {
-          // simple estimate or actual api call
-          const travelDuration = await calculateTravelTime(gpsLocation || 'Tel Aviv', ev.location);
-          fixedEvents.find(e => e.id === ev.id).travelTimeMinutes = travelDuration;
-        }
-      }
+      // Calculate travel times dynamically (best-effort). These hit external
+      // geocoding/routing services with no built-in timeout, so we cap each call
+      // and run them in parallel — a slow/hanging maps lookup must never freeze
+      // schedule generation (this was the "stuck, no schedule" bug, now that
+      // imported Google Calendar events carry a location).
+      const withTimeout = (p, ms) =>
+        Promise.race([p, new Promise((res) => setTimeout(() => res(0), ms))]);
+      await Promise.all(
+        fixedEvents
+          .filter((ev) => ev.location)
+          .map(async (ev) => {
+            try {
+              ev.travelTimeMinutes = await withTimeout(
+                calculateTravelTime(gpsLocation || 'Tel Aviv', ev.location),
+                4000,
+              );
+            } catch {
+              ev.travelTimeMinutes = 0;
+            }
+          }),
+      );
 
       // Shabbat is only relevant when the PLANNED day is Friday or Saturday.
       // On any other weekday we must NOT send Shabbat context — otherwise the AI
@@ -501,13 +610,51 @@ export const CommandCenterView = () => {
       const plannedDow = currentDate.getDay(); // 0=Sun … 5=Fri, 6=Sat
       const shabbatRelevant = plannedDow === 5 || plannedDow === 6;
       const courseProgress = getCourseProgressSummary(data?.courses || [], data?.tasks || {});
+
+      // Reframe the planning window around Shabbat so the model never proposes
+      // blocks that the repair step would later drop (the "outside free hours"
+      // failure). On Friday the day ENDS 1h before Shabbat; on Saturday it
+      // STARTS 1h after Shabbat ends.
+      const hhmmToMin = (s) => { const [h, m] = (s || '').split(':').map(Number); return (h || 0) * 60 + (m || 0); };
+      const minToHhmm = (t) => `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
+      let wakeTime = data?.profile?.wakeTime || '07:00';
+      let sleepTime = data?.profile?.sleepTime || '23:00';
+      // A midnight/after-midnight bedtime ("00:00") means end of the waking day —
+      // send a late evening time to the model instead of 00:00 (which it reads as
+      // the start of the day and then has no room to plan).
+      if (hhmmToMin(sleepTime) <= hhmmToMin(wakeTime)) sleepTime = '23:59';
+
+      // Current-time awareness: when building TODAY mid-day, the day starts NOW —
+      // there's no point planning from the morning that already passed. (Future
+      // days keep the normal wake time.)
+      const isToday = dateStr === dateKey();
+      let nowTime = null;
+      if (isToday) {
+        const n = new Date();
+        const nowMin = n.getHours() * 60 + Math.ceil(n.getMinutes() / 15) * 15;
+        nowTime = minToHhmm(Math.min(nowMin, 23 * 60 + 45));
+        if (nowMin > hhmmToMin(wakeTime)) {
+          wakeTime = minToHhmm(Math.min(nowMin, hhmmToMin(sleepTime) - 15));
+        }
+      }
+      if (shabbatRelevant && shabbatTimes) {
+        const sStart = shabbatTimes.start.substring(11, 16);
+        const sEnd = shabbatTimes.end.substring(11, 16);
+        if (plannedDow === 5) {
+          sleepTime = minToHhmm(Math.max(0, Math.min(hhmmToMin(sleepTime), hhmmToMin(sStart) - 60)));
+        } else if (plannedDow === 6) {
+          wakeTime = minToHhmm(Math.max(hhmmToMin(wakeTime), hhmmToMin(sEnd) + 60));
+        }
+      }
+
       const context = {
         todayDate: dateStr,
         dayOfWeek: format(currentDate, 'EEEE', { locale }),
+        currentTime: nowTime, // when planning today: the first block must start at/after this
         dayProfile: typeof dayProfile === 'string' && dayProfile.trim() ? dayProfile : null,
         settings: {
-          wakeTime: data?.profile?.wakeTime || '07:00',
-          sleepTime: data?.profile?.sleepTime || '23:00',
+          wakeTime,
+          sleepTime,
           studyBlockDuration: data?.profile?.studyBlockDuration || 90,
           shabbatMode: !!data?.profile?.shabbatMode && shabbatRelevant,
           studyPreferences: data?.profile?.studyPreferences || {},
@@ -537,14 +684,30 @@ export const CommandCenterView = () => {
       const processedBlocks = sanitizeAiBlocks(result?.blocks);
       // Never overwrite the day with an empty plan (malformed/empty AI response).
       if (!processedBlocks || processedBlocks.length === 0) {
-        toast.error(t('ccPlanError'));
+        // The model DID return blocks but they were all dropped by repair — almost
+        // always because they fell outside the usable window (e.g. the pre-Shabbat
+        // cutoff on Friday). Give a specific, actionable message, not a generic one.
+        const hadRaw = Array.isArray(result?.blocks) && result.blocks.length > 0;
+        toast.error(
+          hadRaw
+            ? 'הלוז שנבנה יצא מחוץ לשעות הפנויות (למשל לפני כניסת שבת) — נסה פחות שעות או יום אחר'
+            : t('ccPlanError'),
+        );
         return;
       }
 
       if (autoSave) {
         // Questionnaire / "build my day": persist straight to cl_schedule so it
         // survives reloads and shows on the home timeline — no separate Save tap.
-        await saveDraftSchedule(dateStr, processedBlocks, result.coachNote);
+        try {
+          await saveDraftSchedule(dateStr, processedBlocks, result.coachNote);
+        } catch (saveErr) {
+          console.error('saveDraftSchedule failed:', saveErr, processedBlocks);
+          // Keep the work as an unsaved draft so it isn't lost.
+          setDraftSchedule({ date: dateStr, blocks: processedBlocks, coachNote: result.coachNote });
+          toast.error(t('ccPlanError'));
+          return;
+        }
         setDraftSchedule({ date: null, blocks: [], coachNote: '' });
         toast.success(t('ccScheduleBuiltSaved', 'הלו"ז נבנה ונשמר ✓'));
       } else {
@@ -555,6 +718,7 @@ export const CommandCenterView = () => {
       if (err.message === 'MISSING_GEMINI_KEY') {
         toast.error(t('ccMissingGeminiKey'));
       } else {
+        console.error('handleAutoPlan failed:', err);
         toast.error(t('ccPlanError'));
       }
     } finally {
@@ -626,9 +790,9 @@ export const CommandCenterView = () => {
     setProfile({ coachOverlayDismissedDate: todayLocal });
     setShowMorningCoach(false);
   };
-  const handleCoachSubmit = (dayProfile) => {
+  const handleCoachSubmit = (dayProfile, extras = {}) => {
     setShowMorningCoach(false);
-    handleAutoPlan(dayProfile, true); // questionnaire → build & save immediately
+    handleAutoPlan(dayProfile, true, extras); // questionnaire → build & save immediately
   };
 
   // Tune schedule with input query
@@ -637,12 +801,60 @@ export const CommandCenterView = () => {
     if (!cmd || !cmd.trim()) return;
     setLoading(true);
     try {
+      const hhmmToMin = (s) => { const [h, m] = (s || '').split(':').map(Number); return (h || 0) * 60 + (m || 0); };
+      const minToHhmm = (t) => `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
+      let tWake = data?.profile?.wakeTime || '07:00';
+      let tSleep = data?.profile?.sleepTime || '23:00';
+      if (hhmmToMin(tSleep) <= hhmmToMin(tWake)) tSleep = '23:59';
+
+      // Reframe around Shabbat (Friday ends 1h before; Saturday starts 1h after).
+      const plannedDow = currentDate.getDay();
+      const shabbatRelevant = plannedDow === 5 || plannedDow === 6;
+      if (shabbatRelevant && shabbatTimes) {
+        const sStart = shabbatTimes.start.substring(11, 16);
+        const sEnd = shabbatTimes.end.substring(11, 16);
+        if (plannedDow === 5) tSleep = minToHhmm(Math.max(0, Math.min(hhmmToMin(tSleep), hhmmToMin(sStart) - 60)));
+        else if (plannedDow === 6) tWake = minToHhmm(Math.max(hhmmToMin(tWake), hhmmToMin(sEnd) + 60));
+      }
+
+      // Current-time awareness — tuning TODAY mid-day starts from now.
+      const tIsToday = dateStr === dateKey();
+      const tNow = tIsToday ? new Date().toTimeString().slice(0, 5) : null;
+      if (tIsToday) {
+        const n = new Date();
+        const nowMin = n.getHours() * 60 + Math.ceil(n.getMinutes() / 15) * 15;
+        if (nowMin > hhmmToMin(tWake)) tWake = minToHhmm(Math.min(nowMin, hhmmToMin(tSleep) - 15));
+      }
+
+      // Full data context, so commands like "תוסיף משימות" / "תוסיף בלוק למבחן"
+      // act on the user's real tasks and exams (not just the visible blocks).
+      const unscheduledTasks = (data?.personalTasks || [])
+        .filter((tk) => !tk.done && tk.scheduledDate !== dateStr)
+        .map((tk) => {
+          const due = (tk.dueDate || '').slice(0, 10);
+          return {
+            id: tk.id, title: tk.title, priority: tk.priority || 'medium',
+            dueToday: due === dateStr || tk.list === 'today',
+            overdue: !!due && due < dateStr,
+            duration: tk.duration ?? null,
+          };
+        });
+      const upcomingExams = [];
+      (data?.courses || []).forEach((course) => {
+        ['moedA', 'moedB', 'moedC'].forEach((moed) => {
+          const e = course[moed] || course.exams?.[moed];
+          if (e && String(e).slice(0, 10) >= dateStr) {
+            upcomingExams.push({ course: course.name, moed: moed.replace('moed', ''), date: String(e).slice(0, 10) });
+          }
+        });
+      });
+
       const context = {
-        settings: {
-          wakeTime: data?.profile?.wakeTime || '07:00',
-          sleepTime: data?.profile?.sleepTime || '23:00',
-        },
-        shabbatTimes: shabbatTimes ? {
+        settings: { wakeTime: tWake, sleepTime: tSleep },
+        currentTime: tNow, // keep existing/new blocks at or after now when tuning today
+        tasks: unscheduledTasks,
+        upcomingExams,
+        shabbatTimes: (shabbatTimes && shabbatRelevant) ? {
           start: shabbatTimes.start.substring(11, 16),
           end: shabbatTimes.end.substring(11, 16)
         } : null,
@@ -1052,7 +1264,11 @@ export const CommandCenterView = () => {
   const hoursRange = useMemo(() => {
     const hours = [];
     const startHour = parseInt((data?.profile?.wakeTime || '07:00').split(':')[0]);
-    const endHour = parseInt((data?.profile?.sleepTime || '23:00').split(':')[0]);
+    let endHour = parseInt((data?.profile?.sleepTime || '23:00').split(':')[0]);
+    // A bedtime at/after midnight (00:00 → 0, 01:00 → 1) means END of the day,
+    // not early morning. Without this the loop never runs and the timeline shows
+    // NO hour rows (an empty schedule even when blocks exist).
+    if (endHour <= startHour) endHour = 23;
 
     for (let i = startHour; i <= endHour; i++) {
       hours.push(String(i).padStart(2, '0') + ':00');
@@ -1192,6 +1408,9 @@ export const CommandCenterView = () => {
                     {/* Opens the day questionnaire — the answers become the AI directive */}
                     <button onClick={() => setShowMorningCoach(true)} disabled={loading} className="px-3 py-1.5 flex items-center gap-1 active:scale-95 transition-all cursor-pointer" style={{ borderRadius: 11, background: '#7C3AED', color: '#fff', fontSize: 11, fontWeight: 700, border: 'none' }}>
                       <Sparkles className="w-3.5 h-3.5" /> {loading ? t('ccPlanning') : t('ccOrganizeWithAi')}
+                    </button>
+                    <button onClick={() => setShowWeekPlanner(true)} disabled={loading} className="px-3 py-1.5 flex items-center gap-1 active:scale-95 transition-all cursor-pointer" style={{ borderRadius: 11, background: '#fff', color: '#7C3AED', fontSize: 11, fontWeight: 700, border: '1px solid rgba(124,58,237,.3)' }}>
+                      <CalendarRange className="w-3.5 h-3.5" /> תכנן שבוע
                     </button>
                     {timelineBlocks.length > 0 && (
                       <button onClick={handleClearSchedule} className="p-1.5 active:scale-95 transition-all cursor-pointer" style={{ borderRadius: 8, background: '#F5F0E8', border: 'none', color: '#8A7A6A' }} title={t('ccClearDaySchedule')}>
@@ -1611,9 +1830,16 @@ export const CommandCenterView = () => {
         isOpen={showMorningCoach}
         isShabbat={isNowDuringShabbat}
         dateStr={dateStr}
+        seedText={morningSeed}
         onSubmit={handleCoachSubmit}
         onDismissSession={handleCoachDismissSession}
         onDismissToday={handleCoachDismissToday}
+      />
+
+      <WeekPlanner
+        isOpen={showWeekPlanner}
+        onClose={() => setShowWeekPlanner(false)}
+        onPickDay={handlePickWeekDay}
       />
 
       <AnimatePresence>

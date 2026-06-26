@@ -68,6 +68,10 @@ Scheduling Rules:
 15. Study volume: there is NO fixed cap on the number of study blocks — schedule as many as the requested study load (and the day's tasks) require, each at the preferred duration with short gaps. Order by what the user asked and by task priority, NOT by exam dates (unless the user explicitly asked to focus on an exam). Place demanding study in the user's preferred study hours when available.
 16. Keep every existing/locked item exactly where it is — never duplicate it, never re-time it, never invent fixed events that were not provided.
 17. coachNote must be personal and concrete (reference the actual plan: nearest exam, workout timing, load level) — not a generic motivational phrase.
+18. ALWAYS FIT THE WINDOW — NEVER FAIL OR RETURN AN EMPTY DAY. Everything you schedule MUST fit inside the waking window (wake time → bedtime); on Shabbat eve that window already ends 1h before Shabbat. If what the user asked for does not fit (e.g. they requested more study hours than the window holds, or a very short Friday), do NOT overflow past the window and do NOT give up — instead ADAPT by scaling DOWN the flexible parts:
+   - Priority order, highest first: fixed events / travel / appointments / locked items (MANDATORY — keep exactly, never shorten or drop) > a planned workout with a set time > due/overdue tasks > requested study blocks > optional tasks.
+   - To make things fit, reduce the NUMBER of study blocks, then their length, then drop optional tasks — in that order. Keep at least the mandatory items plus as much study as genuinely fits.
+   - The result MUST be a non-empty, valid, non-overlapping schedule fully inside the window. Returning zero blocks (or blocks outside the window) is a FAILURE. If you had to cut the user's request to fit, say so briefly and kindly in the coachNote.
 `;
 
 export const extractJSONFromMarkdown = (text) => {
@@ -103,6 +107,97 @@ const parseGeminiJSON = (text) => {
 };
 
 /**
+ * AI-driven clarifier. Reads the user's free-text request + the full day context
+ * and decides which (if any) follow-up questions are genuinely needed before
+ * building the schedule. Study is the primary goal, so it ensures study volume,
+ * sleep window, and any unknown commitments are pinned down — but only asks what
+ * the user's text + context didn't already answer.
+ *
+ * @returns {{questions: Array, note: string}} questions: [{id,label,type,options?,optional?}]
+ */
+export const clarifyDayRequest = async (userText, context) => {
+  try {
+    const genAI = getAIClient();
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-2.5-flash',
+      generationConfig: {
+        responseMimeType: 'application/json',
+        thinkingConfig: { thinkingBudget: 0 },
+      },
+    });
+
+    const prompt = `
+You are the intake assistant for a Hebrew-first daily planner for an Israeli
+university student. Studying is the PRIMARY purpose of this planner.
+
+The user wrote this free-text request for their day (may be empty):
+"${userText || ''}"
+
+Known context (do NOT ask about anything already answered here or in the text):
+- Wake time (profile default): ${context?.wakeTime || '07:00'}
+- Bedtime (profile default): ${context?.sleepTime || '23:00'}
+- Preferred study block length: ${context?.studyBlockDuration || 90} min
+- Fixed events already on the calendar today: ${context?.eventsToday ?? 0}
+- Planned Calori workout today: ${context?.hasWorkout ? 'yes' : 'no'}
+- Courses: ${JSON.stringify((context?.courses || []).map((c) => c.name))}
+- Nearest exam: ${context?.nearestExam ? `${context.nearestExam.name} in ${context.nearestExam.days} days` : 'none'}
+- openTaskCount (open unscheduled tasks in the pool): ${context?.openTaskCount ?? 0}
+- Current time now: ${context?.nowTime || 'n/a'}${context?.isToday ? ' (planning TODAY — plan from now, not the morning)' : ''}
+
+Decide the MINIMUM set of follow-up questions needed to build a great day.
+Rules:
+- Ask AT MOST 3 questions. Fewer is better. If the text already makes the day
+  clear, return an empty questions array.
+- ALWAYS make sure we know the study volume for the day, UNLESS the user clearly
+  stated it or asked for no studying. If unknown, ask it (id "study_hours",
+  type "chips", options ["שעתיים","4 שעות","6 שעות","כל היום","בלי לימודים"]).
+- Only ask about sleep/wake if the user hinted at an unusual schedule (late
+  night, early start, tired). Otherwise assume the profile defaults — do NOT ask.
+- If a workout is planned or the user mentioned one and its timing is unknown,
+  ask "workout_time" (chips: ["בוקר","צהריים","ערב","תחליט אתה"]).
+- If the user mentions a trip / drive / going somewhere / an appointment at another
+  location (נסיעה, נוסע, לנסוע, תור, פגישה ב..., ל...), and the destination is not a
+  concrete city/address, ALWAYS ask "travel_destination" (type "text", label
+  "לאן אתה נוסע? (עיר או כתובת מדויקת לחישוב זמן הנסיעה)"). If the departure time
+  is unknown, also ask "travel_time" (type "time"). These let us compute the real
+  drive time from the user's current location via Google Maps.
+  - Additionally, when relevant — the user implies they start the trip from somewhere
+    OTHER than their current location, or there are MULTIPLE trips/transitions in the
+    day — ask "travel_origin" (type "text", optional true, label
+    "מאיפה אתה יוצא? (השאר ריק = מהמיקום הנוכחי)"). For a single simple trip from home,
+    do NOT ask origin (we default to the current location).
+- If there are open tasks in the pool (openTaskCount > 0), ask "include_tasks"
+  (type "chips", options ["כן, מלא משימות פתוחות","רק הדחופות","לא, רק מה שביקשתי"]) —
+  whether to also pull additional open tasks from the task pool into the day's free time.
+- If the user named studying but not which course AND there are courses, you may
+  ask "study_subject" (chips: course names + "כללי — בלי קורס מסוים").
+- Never ask about things already in the context (fixed events, known exam).
+- Questions must be in Hebrew, concise.
+
+Return STRICTLY this JSON:
+{
+  "questions": [
+    { "id": "string", "label": "Hebrew question", "type": "chips" | "time" | "text",
+      "options": ["he", ...], "optional": false }
+  ],
+  "note": "one short Hebrew sentence on what you'll assume (defaults used)"
+}`;
+
+    const result = await model.generateContent([{ text: prompt }]);
+    const parsed = parseGeminiJSON(result.response.text());
+    return {
+      questions: Array.isArray(parsed?.questions) ? parsed.questions.slice(0, 3) : [],
+      note: typeof parsed?.note === 'string' ? parsed.note : '',
+    };
+  } catch (error) {
+    if (error.message === 'MISSING_GEMINI_KEY') return { error: 'MISSING_KEY', questions: [], note: '' };
+    console.error('[Gemini Service] Error clarifying request:', error);
+    // Fail open — no questions, let the generator work from the free text alone.
+    return { questions: [], note: '' };
+  }
+};
+
+/**
  * Generate a new daily schedule from scratch based on user data.
  * @param {Object} context - The user preferences, fixed events, tasks, workouts, and Shabbat times.
  */
@@ -120,6 +215,7 @@ export const generateDailySchedule = async (context) => {
     const prompt = `
 Generate today's schedule.
 Today's date is: ${context.todayDate} (Day of week: ${context.dayOfWeek}).
+${context.currentTime ? `IMPORTANT — it is currently ${context.currentTime} and the user is planning the rest of TODAY. Do NOT schedule anything before ${context.currentTime}; the FIRST block must start at or after ${context.currentTime}. Plan only the remaining hours of the day (from now until bedtime).` : ''}
 
 User settings:
 - Wake up time: ${context.settings?.wakeTime || '07:00'}
@@ -128,6 +224,11 @@ User settings:
 - Preferred study block duration: ${context.settings?.studyBlockDuration || 90} minutes
 - Shabbat Mode: ${context.settings?.shabbatMode ? 'ON' : 'OFF'}
 - Shabbat times (if applicable): ${context.shabbatTimes ? `Starts ${context.shabbatTimes.start}, Ends ${context.shabbatTimes.end}` : 'None'}
+${context.shabbatTimes ? `
+CRITICAL — SHABBAT EVE (today is Friday and Shabbat starts at ${context.shabbatTimes.start}):
+- The usable window today is wake time (${context.settings?.wakeTime || '07:00'}) until ONE HOUR BEFORE Shabbat (i.e. treat that as today's hard end-of-day, NOT bedtime).
+- Place EVERY block — including all study — INSIDE the daytime window above. Do NOT schedule anything in the evening or after that cutoff. "High energy / long blocks / full study day" all still apply but must fit BEFORE the cutoff.
+- It is INVALID to leave the daytime empty and put study in the evening. Front-load the study into the morning/early-afternoon.` : ''}
 
 Input data:
 - Pre-scheduled fixed events for today (do not move, lock them):
@@ -175,6 +276,73 @@ Interpretation rules for the directive:
 };
 
 /**
+ * Generate a GENERAL week plan in one shot. Produces a coarse per-day directive
+ * (focus + study hours + one-line summary) the user can later refine into a full
+ * daily schedule. Studying is the primary objective.
+ *
+ * @param {Object} context - { weekDays:[{date,weekday}], wakeTime, sleepTime,
+ *   studyHoursPerDay, studyWeekdays:[...], courses, exams, note, workoutDays }
+ * @returns {{days: Array}} days: [{date, weekday, focus, studyHours, summary, directive}]
+ */
+export const generateWeeklyPlan = async (context) => {
+  try {
+    const genAI = getAIClient();
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-2.5-flash',
+      generationConfig: { responseMimeType: 'application/json', thinkingConfig: { thinkingBudget: 0 } },
+    });
+
+    const prompt = `
+You are planning a STUDENT's week at a high level. Studying is the PRIMARY goal.
+Produce a general plan for each day — not a minute-by-minute schedule (that is
+refined per-day later). Hebrew output.
+
+The week (plan a row for EACH of these dates, in order):
+${JSON.stringify(context.weekDays)}
+
+User preferences:
+- Default study target: ${context.studyHoursPerDay || 'לא צויין'} hours per study day
+- Preferred study weekdays (0=Sun..6=Sat): ${JSON.stringify(context.studyWeekdays || [])}
+- Wake/Bedtime: ${context.wakeTime || '07:00'} – ${context.sleepTime || '23:00'}
+- Fill open tasks this week: ${context.fillTasks || 'כן'} (open tasks in pool: ${context.openTaskCount ?? 0})
+- Per-day trips / fixed events / emphases (free text, Hebrew): "${context.note || ''}"
+- Courses: ${JSON.stringify((context.courses || []).map((c) => c.name))}
+- Upcoming exams: ${JSON.stringify(context.exams || [])}
+- Days with a planned workout (0=Sun..6=Sat): ${JSON.stringify(context.workoutDays || [])}
+
+Rules:
+- For each date decide a "focus": one of "study" | "exam-prep" | "light" | "rest".
+- PARSE the per-day note: map each mentioned trip / appointment / workout / rest /
+  exam to the RIGHT weekday and fold it into that day's "directive" and "summary"
+  (e.g. "ראשון נסיעה לאוניברסיטה 8:00" → Sunday's directive must include that trip).
+- As an exam approaches, ramp up exam-prep for that course on the days before it.
+- Spread study load across the preferred study weekdays; lighten days right after
+  an exam; keep a rest/light day when sensible.
+- Tasks: if "Fill open tasks" is "כן", spread the pool's open tasks across the week's
+  study/light days; if "רק דחופות", only on days near their due dates; if "לא", do not
+  add tasks. Reflect this in each day's directive.
+- "studyHours": integer hours of study you allocate that day (0 for rest/light).
+- "summary": ONE short Hebrew line describing the day (e.g. "4ש׳ אינפי + אימון ערב").
+- "directive": a SELF-CONTAINED Hebrew instruction (1-2 sentences) the per-day
+  scheduler consumes to build the full day — concrete about study hours, course
+  focus, any trip (with destination + time), workout, and whether to pull tasks.
+  This directive is the BASE that each daily build starts from, so include everything
+  that day needs.
+
+Return STRICTLY:
+{ "days": [ { "date":"yyyy-MM-dd", "weekday":"Hebrew", "focus":"study", "studyHours":4, "summary":"...", "directive":"...", "trip": "OPTIONAL destination if a trip that day, else omit" } ] }`;
+
+    const result = await model.generateContent([{ text: prompt }]);
+    const parsed = parseGeminiJSON(result.response.text());
+    return { days: Array.isArray(parsed?.days) ? parsed.days : [] };
+  } catch (error) {
+    if (error.message === 'MISSING_GEMINI_KEY') return { error: 'MISSING_KEY', days: [] };
+    console.error('[Gemini Service] Error generating weekly plan:', error);
+    throw error;
+  }
+};
+
+/**
  * Modify an existing schedule based on a user's natural language tuning command.
  * @param {Array} currentBlocks - The current scheduled blocks.
  * @param {string} command - The user instruction (e.g. "היום אני עייף, תקל עליי").
@@ -201,14 +369,21 @@ User tuning command (Hebrew):
 
 User settings:
 - Wake time: ${context.settings?.wakeTime || '07:00'}
-- Bedtime: ${context.settings?.sleepTime || '23:00'}
+- Bedtime: ${context.settings?.sleepTime || '23:00'} (this window already accounts for Shabbat when relevant — never schedule outside it)
+${context.currentTime ? `- It is currently ${context.currentTime} (tuning TODAY). Do NOT place any block before ${context.currentTime}; keep/move blocks to start at or after now.` : ''}
 - Shabbat times (if applicable): ${context.shabbatTimes ? `Starts ${context.shabbatTimes.start}, Ends ${context.shabbatTimes.end}` : 'None'}
 
+The user's real data (use it when the command refers to tasks or exams):
+- Open tasks in the pool: ${JSON.stringify(context.tasks || [])}
+- Upcoming exams: ${JSON.stringify(context.upcomingExams || [])}
+
 Please modify the schedule to satisfy the user's command.
-- You can resize, move, add, or delete 'study', 'meal', 'workout', and 'travel' blocks. NEVER add, suggest, or include any 'leisure' or break blocks.
+- You can resize, move, add, or delete 'study', 'task', 'reminder', 'meal', 'workout', and 'travel' blocks. NEVER add 'leisure' or break blocks.
+- If the command asks to ADD TASKS ("תוסיף לי משימות", "תכניס את המשימות הפתוחות"), pull items from the open-tasks pool into free time: a task WITH a duration → a 'task' block (refId = the task id) of that length; WITHOUT a duration → a 'reminder' point (startTime === endTime, refId = the task id). Order by priority then due date.
 - If the command mentions a NEW commitment — a trip ("נסיעה"), appointment ("תור"), meeting, or event with a time — ADD it as a new locked block ('event' or 'travel') at the stated time, and move conflicting non-locked blocks out of its way.
-- If the command mentions an exam ("יש לי מחר מבחן ב..."), restructure the study blocks to focus on that course — replace other study blocks if needed.
-- DO NOT move any 'isLocked': true blocks (like lectures, exams, or doctor appointments) unless the user's command explicitly requests changing/deleting that specific locked item.
+- If the command mentions an exam, restructure the study blocks to focus on that course's exam from the list above.
+- EVERYTHING must stay inside the wake→bedtime window. If a change does not fit, scale DOWN the flexible parts (shorten/drop study or optional tasks) — keep fixed events, trips and locked items. Never overflow the window and never return an empty schedule.
+- DO NOT move any 'isLocked': true blocks unless the command explicitly asks to change that specific locked item.
 - Keep all unchanged blocks EXACTLY as they are (same id, times, titles) — return the FULL schedule, not just the changed blocks.
 - Provide a new coachNote explaining the adjustments made in Hebrew.
 `;

@@ -44,9 +44,16 @@ Supported action types and their payload fields (ALL ids must be matched from th
 - "add_workout": { "title": "Hebrew workout name", "date": "yyyy-MM-dd (default today)", "time": "HH:MM", "durationMinutes": "OPTIONAL number (default 60)" }   // adds a planned workout block (NOT logged to Calori; Calori nutrition/fitness data is read-only)
 
 — DAILY SCHEDULE (לו"ז) —
-- "replan": { "tuneCommand": "Hebrew instruction" }   // create or adjust today's AI schedule ("סדר לי את היום", "אני עייף תקל עליי", "פנה שעתיים בבוקר")
+- "replan": { "tuneCommand": "Hebrew instruction" }   // create or adjust today's AI schedule. It is FULLY context-aware: it already sees the day's Google Calendar events, Calori workouts, tasks, exams, meals and recent habits — so just pass the user's intent ("סדר לי את היום", "אני עייף תקל עליי", "פנה שעתיים בבוקר", "תכנן לי 5 שעות אינפי")
 - "clear_schedule": { "date": "OPTIONAL yyyy-MM-dd (default today)" }   // remove the day's schedule ("תוריד/תמחק לי את הלו""ז")
 - "lock_block": { "blockId": "id", "locked": true|false }
+
+— WEEKLY PLANNING (תכנון שבוע) —
+- "plan_week": { "studyHoursPerDay": "OPTIONAL number — hours of study per study day", "studyWeekdays": "OPTIONAL array of weekday numbers 0=Sun..6=Sat", "note": "OPTIONAL Hebrew note (exam focus, a rest day, etc.)" }   // build ONE general plan for the whole upcoming week; the user then refines each day in the schedule screen. Use for "תכנן לי את השבוע", "סדר לי שבוע לימודים", "בנה לי לו""ז לשבוע".
+
+— GOOGLE CALENDAR —
+- "connect_calendar": { }   // begin linking the user's Google Calendar (this redirects them to Google). Use when they ask to connect / sync their Google calendar.
+- "create_calori_world": { }   // create the dedicated "Calori World" Google calendar and make it the target where app events (schedule, workouts, meals) are written. Use when they want a separate calendar for the app instead of cluttering their main one.
 
 — COURSES —
 - "add_course": { "name": "Hebrew course name", "weeksCount": "OPTIONAL number (default 14)", "moedA": "OPTIONAL yyyy-MM-dd exam date" }

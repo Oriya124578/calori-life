@@ -332,6 +332,10 @@ export const useStore = create((set, get) => ({
 
   // Google Calendar Integration
   googleCalendarToken: null,
+  // When true, local cl_events are mirrored to the user's Google Calendar.
+  googleSyncEnabled:
+    typeof localStorage !== 'undefined' &&
+    localStorage.getItem('cl_googleSyncEnabled') === '1',
 
   // ---------- Subscriptions lifecycle -----------------------------------
 
@@ -704,6 +708,12 @@ export const useStore = create((set, get) => ({
   setShowPomodoroModal: (isOpen) => set({ showPomodoroModal: isOpen }),
   setIsUploading: (status) => set({ isUploading: status }),
   setGoogleCalendarToken: (token) => set({ googleCalendarToken: token }),
+  setGoogleSyncEnabled: (enabled) => {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('cl_googleSyncEnabled', enabled ? '1' : '0');
+    }
+    set({ googleSyncEnabled: enabled });
+  },
   setTheme: (theme) => {
     try {
       localStorage.setItem('theme', theme);
@@ -1542,20 +1552,68 @@ export const useStore = create((set, get) => ({
       updatedAt: now,
     };
     await fsSetEvent(uid, id, event).catch(console.error);
+    // Mirror to Google Calendar (best-effort, non-blocking).
+    if (get().googleSyncEnabled && event.start) {
+      import('../lib/googleCalendar.js').then(async ({ createGoogleEvent }) => {
+        try {
+          const gid = await createGoogleEvent(id, event);
+          if (gid) await fsSetEvent(uid, id, { googleEventId: gid });
+        } catch (e) {
+          console.error('GCal mirror create failed', e);
+        }
+      });
+    }
     return id;
   },
 
   updateEvent: (id, updates) => {
     const { uid } = get();
-    if (uid)
-      fsSetEvent(uid, id, { ...updates, updatedAt: new Date().toISOString() }).catch(
-        console.error,
-      );
+    if (!uid) return;
+    const merged = {
+      ...(get().data.events.find((e) => e.id === id) || {}),
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    };
+    fsSetEvent(uid, id, { ...updates, updatedAt: merged.updatedAt }).catch(console.error);
+    // Mirror to Google. Events already linked to Google (imported or previously
+    // pushed) sync back to their own calendar regardless of the mirror flag;
+    // brand-new local events only push when mirroring is enabled.
+    const linked = !!merged.googleEventId;
+    if ((linked || get().googleSyncEnabled) && merged.start) {
+      import('../lib/googleCalendar.js').then(async ({ createGoogleEvent, updateGoogleEvent }) => {
+        try {
+          if (merged.googleEventId) {
+            const gid = await updateGoogleEvent(merged.googleEventId, id, merged, merged.calendarId);
+            if (gid && gid !== merged.googleEventId) {
+              await fsSetEvent(uid, id, { googleEventId: gid });
+            }
+          } else {
+            const gid = await createGoogleEvent(id, merged);
+            if (gid) await fsSetEvent(uid, id, { googleEventId: gid });
+          }
+        } catch (e) {
+          console.error('GCal mirror update failed', e);
+        }
+      });
+    }
   },
 
   deleteEvent: (id) => {
     const { uid } = get();
-    if (uid) fsDeleteEvent(uid, id).catch(console.error);
+    if (!uid) return;
+    const existing = get().data.events.find((e) => e.id === id);
+    fsDeleteEvent(uid, id).catch(console.error);
+    // Linked events are removed from their Google calendar even if the mirror
+    // flag is off — deleting in-app should delete in Google too.
+    if (existing?.googleEventId) {
+      import('../lib/googleCalendar.js').then(async ({ deleteGoogleEvent }) => {
+        try {
+          await deleteGoogleEvent(existing.googleEventId, existing.calendarId);
+        } catch (e) {
+          console.error('GCal mirror delete failed', e);
+        }
+      });
+    }
   },
 
   // ---------- Personal tasks (cl_personalTasks) -------------------------
@@ -1805,6 +1863,7 @@ export const useStore = create((set, get) => ({
     if (!uid) return;
 
     const taskIds = new Set((data.personalTasks || []).map((t) => t.id));
+    const eventIds = new Set((data.events || []).map((e) => e.id));
     const blocks = (draftBlocks || [])
       .filter((b) => b.type !== 'sleep' && b.type !== 'leisure')
       .map((b) => {
@@ -1816,8 +1875,23 @@ export const useStore = create((set, get) => ({
         if (!isPoint && !duration && b.startTime && b.endTime) {
           try { duration = timeToMin(b.endTime) - timeToMin(b.startTime); } catch { duration = 60; }
         }
-        const source = b.source || (b.refId && taskIds.has(b.refId) ? 'task' : 'schedule');
-        return { ...b, duration: isPoint ? 0 : (duration || 60), source };
+        // Resolve the source AUTHORITATIVELY. AI-generated blocks often carry a
+        // source/refId that points at no real task or event; if we trust it,
+        // buildTimeline drops the block on read (it expects the referenced record
+        // to exist) → an empty timeline even though the plan "saved". Keep refId
+        // only when it actually resolves; otherwise treat the block as a
+        // standalone scheduled item that always renders.
+        let source;
+        let refId = b.refId;
+        if (refId && taskIds.has(refId)) source = 'task';
+        else if (refId && eventIds.has(refId)) source = 'event';
+        else { source = 'schedule'; refId = undefined; }
+        const merged = { ...b, refId, duration: isPoint ? 0 : (duration || 60), source };
+        // Firestore rejects the ENTIRE write if any field is `undefined`. AI/repair
+        // blocks can carry undefined optionals (refId, notes…) — strip them.
+        return Object.fromEntries(
+          Object.entries(merged).filter(([, v]) => v !== undefined),
+        );
       });
 
     await get().saveSchedule(dateStr, blocks, coachNote || '');
