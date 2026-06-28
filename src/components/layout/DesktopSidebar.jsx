@@ -66,10 +66,10 @@ export const DesktopSidebar = () => {
               className="flex items-baseline gap-1 cursor-pointer whitespace-nowrap"
               aria-label={t('navHome')}
             >
-              <span className="text-[19px] font-extrabold tracking-tight leading-none" style={{ color: 'var(--cream-text)', letterSpacing: '-.02em' }}>
+              <span className="text-[24px] font-extrabold tracking-tight leading-none" style={{ color: 'var(--cream-text)', letterSpacing: '-.02em' }}>
                 calori
               </span>
-              <span className="text-[20px] leading-none" style={{ color: '#059669', fontFamily: "'Instrument Serif', serif", fontWeight: 400 }}>
+              <span className="text-[25px] leading-none" style={{ color: '#059669', fontFamily: "'Instrument Serif', serif", fontWeight: 400 }}>
                 life
               </span>
             </motion.button>

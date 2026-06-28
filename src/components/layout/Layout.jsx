@@ -177,8 +177,8 @@ export const Layout = () => {
             tabIndex={0}
             onKeyDown={(e) => { if (e.key === 'Enter') setActiveCategory('overview'); }}
           >
-            <span className="text-[19px] font-extrabold tracking-tight leading-none" style={{ color: 'var(--cream-text)', letterSpacing: '-.02em' }}>
-              calori<span style={{ color: '#059669', fontFamily: "'Instrument Serif', serif", fontStyle: 'normal', fontWeight: 400, fontSize: '21px' }}> life</span>
+            <span className="text-[23px] font-extrabold tracking-tight leading-none" style={{ color: 'var(--cream-text)', letterSpacing: '-.02em' }}>
+              calori<span style={{ color: '#059669', fontFamily: "'Instrument Serif', serif", fontStyle: 'normal', fontWeight: 400, fontSize: '25px' }}> life</span>
             </span>
           </div>
         </div>
