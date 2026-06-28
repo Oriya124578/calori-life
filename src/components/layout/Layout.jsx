@@ -261,8 +261,9 @@ export const Layout = () => {
               className="fixed inset-0 bg-background/30 backdrop-blur-md z-40"
             />
 
-            {/* Speed Dial Menu Container */}
-            <div className="fixed right-6 bottom-40 sm:right-8 sm:bottom-44 z-40 flex flex-col-reverse items-end gap-4 pointer-events-auto">
+            {/* Speed Dial Menu Container — logical start/end so it springs from
+                the trigger FAB correctly in both RTL and LTR. */}
+            <div className="fixed start-6 bottom-40 sm:start-8 sm:bottom-44 z-40 flex flex-col-reverse items-start gap-4 pointer-events-auto">
               
               {/* 1. Add Button */}
               <motion.div
