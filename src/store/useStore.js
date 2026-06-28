@@ -627,6 +627,27 @@ export const useStore = create((set, get) => ({
       generatedAt: now,
       source: 'mixed',
     });
+
+    // Auto-sync the saved schedule to Google Calendar (Calori World write target).
+    // Idempotent on the server — re-plans update/remove events.
+    // ALWAYS surface a clear message so the user knows what happened: success,
+    // not-connected, nothing-to-sync, or failure with the reason.
+    try {
+      const { syncScheduleToCalendar } = await import('../lib/googleCalendar.js');
+      const r = await syncScheduleToCalendar(dateStr, blocks);
+      if (!r) {
+        toast.info('היומן לא מחובר — היכנס להגדרות → אינטגרציות וחבר את Google Calendar');
+      } else if (r.error) {
+        toast.error(`סנכרון ליומן נכשל: ${r.detail || r.error}`);
+      } else if (r.synced === 0) {
+        toast.info(`הלוז נשמר. אין בלוקים לסנכרון (${r.totalBlocks || 0} בלוקים בלוז, אבל רק לימוד/אימון/נסיעה/משימה מסונכרנים)`);
+      } else {
+        toast.success(`✅ ${r.synced} בלוקים סונכרנו ליומן Google`);
+      }
+    } catch (e) {
+      console.error('Schedule → Google Calendar sync failed', e);
+      toast.error(`סנכרון ליומן נכשל: ${String(e?.message || e).slice(0, 100)}`);
+    }
     // Mirror task placement (one-way: schedule -> task).
     for (const b of blocks) {
       if (b.source === 'task' && b.refId) {

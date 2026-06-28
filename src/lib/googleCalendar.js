@@ -84,6 +84,11 @@ const authedFetch = async (path, options = {}) => {
     return { notConnected: true };
   }
   if (!response.ok) {
+    // Try to return the JSON body so the caller can show the real reason
+    // ({error, detail}) instead of a generic statusText.
+    let body = null;
+    try { body = await response.json(); } catch { /* not JSON */ }
+    if (body) return { error: body.error || `HTTP ${response.status}`, detail: body.detail || '' };
     throw new Error(`Cloud Function error: ${response.statusText}`);
   }
   return response.json();
@@ -156,6 +161,16 @@ export const saveCalendarSettings = async ({ writeCalendarId, readCalendarIds })
 export const ensureCaloriWorldCalendar = async () => {
   const res = await authedFetch('/api/calendar/calori-world', { method: 'POST', body: '{}' });
   return res?.notConnected ? null : (res?.calendarId || null);
+};
+
+// Pushes a whole day's schedule (cl_schedule blocks) to the write-target
+// calendar (Calori World). Idempotent — re-saving converges the day's events.
+export const syncScheduleToCalendar = async (date, blocks) => {
+  const res = await authedFetch('/api/calendar/sync-schedule', {
+    method: 'POST',
+    body: JSON.stringify({ date, blocks }),
+  });
+  return res?.notConnected ? null : res;
 };
 
 // True once the user has linked their Google account (token doc persisted).

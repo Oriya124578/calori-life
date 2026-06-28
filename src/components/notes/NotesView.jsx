@@ -320,7 +320,7 @@ export const NotesView = () => {
 
   return (
     <div
-      className="max-w-2xl mx-auto w-full px-4 py-5 sm:px-6 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-400"
+      className="max-w-2xl mx-auto w-full px-4 py-5 sm:px-6 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-400 min-[900px]:max-w-none"
       dir={isRTL ? 'rtl' : 'ltr'}
     >
       {/* ── Cream v3 Categories Strip ── */}
@@ -429,7 +429,7 @@ export const NotesView = () => {
                   {pinnedNotes.length} {t('items', 'פריטים')}
                 </span>
               </div>
-              <motion.div layout className="grid grid-cols-2 gap-2.5">
+              <motion.div layout className="grid grid-cols-2 gap-2.5 min-[900px]:grid-cols-3 min-[1280px]:grid-cols-4">
                 <AnimatePresence mode="popLayout">
                   {pinnedNotes.map((n) => (
                     <motion.div
@@ -461,7 +461,7 @@ export const NotesView = () => {
                   </span>
                 </div>
               )}
-              <motion.div layout className="grid grid-cols-2 gap-2.5">
+              <motion.div layout className="grid grid-cols-2 gap-2.5 min-[900px]:grid-cols-3 min-[1280px]:grid-cols-4">
                 <AnimatePresence mode="popLayout">
                   {regularNotes.map((n) => (
                     <motion.div

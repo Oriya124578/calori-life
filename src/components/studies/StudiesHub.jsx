@@ -91,7 +91,7 @@ export const StudiesHub = () => {
 
   return (
     <div
-      className="max-w-2xl mx-auto w-full px-4 py-5 sm:px-6 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500"
+      className="max-w-2xl mx-auto w-full px-4 py-5 sm:px-6 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500 min-[900px]:max-w-none"
       dir={isRTL ? 'rtl' : 'ltr'}
     >
       {/* Editorial Hero Card */}
@@ -219,7 +219,7 @@ export const StudiesHub = () => {
       </div>
 
       {/* 2-Column Course Grid */}
-      <Stagger className="grid grid-cols-2 gap-2.5">
+      <Stagger className="grid grid-cols-2 gap-2.5 min-[900px]:grid-cols-3 min-[1280px]:grid-cols-4">
         {courses.map((course, idx) => {
           const color = COURSE_COLORS[idx % COURSE_COLORS.length];
           const taskCount = Object.values(data.tasks[course.id] || {}).reduce(

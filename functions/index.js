@@ -459,6 +459,98 @@ app.delete("/api/calendar/events/:googleEventId", validateFirebaseIdToken, async
   }
 });
 
+// ── Sync a whole day's schedule (cl_schedule blocks) to the write calendar ───
+// Idempotent: events are tagged with calori_block_id + calori_schedule_day, so a
+// re-plan updates existing events and removes ones no longer in the schedule.
+app.post("/api/calendar/sync-schedule", validateFirebaseIdToken, async (req, res) => {
+  const uid = req.user.uid;
+  const date = req.body && req.body.date;
+  const blocks = (req.body && req.body.blocks) || [];
+  console.log(`[sync-schedule] uid=${uid} date=${date} blocks=${blocks.length}`);
+  if (!date) return res.status(400).json({ error: "Missing date" });
+  try {
+    const calendar = await getCalendarForUid(uid, req);
+    if (!calendar) {
+      console.log(`[sync-schedule] uid=${uid} not connected to Google`);
+      return res.status(401).json({ error: "Google Calendar not connected" });
+    }
+    const settings = await getSettings(uid);
+    const calendarId = settings.writeCalendarId;
+    console.log(`[sync-schedule] uid=${uid} writeCalendarId=${calendarId} caloriWorldId=${settings.caloriWorldCalendarId}`);
+
+    // Make sure the target calendar is VISIBLE in the user's Google Calendar —
+    // a freshly created secondary calendar can be unselected/hidden, so its
+    // events exist but never show up. Idempotent + cheap.
+    if (calendarId && calendarId !== 'primary') {
+      try {
+        await calendar.calendarList.patch({ calendarId, requestBody: { selected: true, hidden: false } });
+      } catch (e) {
+        console.log(`[sync-schedule] visibility patch skipped: ${e.message}`);
+      }
+    }
+
+    const dayStart = new Date(`${date}T00:00:00`);
+    const dayEnd = new Date(`${date}T23:59:59`);
+
+    // Existing schedule events we previously pushed for this day.
+    const existingResp = await calendar.events.list({
+      calendarId,
+      privateExtendedProperty: [`calori_schedule_day=${date}`],
+      timeMin: dayStart.toISOString(),
+      timeMax: dayEnd.toISOString(),
+      singleEvents: true,
+      maxResults: 250,
+    });
+    const existingByBlock = {};
+    for (const ev of existingResp.data.items || []) {
+      const bid = ev.extendedProperties && ev.extendedProperties.private &&
+        ev.extendedProperties.private.calori_block_id;
+      if (bid) existingByBlock[bid] = ev;
+    }
+
+    const emoji = { study: '📚', workout: '💪', travel: '🚗', meal: '🍽️', task: '✅', event: '📌' };
+    // Sync only the plan blocks the app generates (study/workout/travel/task).
+    // Fixed 'event' blocks are skipped — they already live in the user's Google
+    // calendar or are mirrored via cl_events, so re-pushing would duplicate them.
+    const SYNC_TYPES = ['study', 'workout', 'travel', 'task'];
+    const timed = blocks.filter((b) =>
+      b && b.startTime && b.endTime && b.startTime !== b.endTime && SYNC_TYPES.includes(b.type));
+    console.log(`[sync-schedule] uid=${uid} timed-blocks=${timed.length} existing=${Object.keys(existingByBlock).length}`);
+
+    const keep = new Set();
+    for (const b of timed) {
+      keep.add(b.id);
+      const body = {
+        summary: `${emoji[b.type] || '📌'} ${b.title || 'בלוק'}`,
+        description: b.notes || 'מהלו"ז של Calori Life',
+        start: { dateTime: `${date}T${b.startTime}:00`, timeZone: 'Asia/Jerusalem' },
+        end: { dateTime: `${date}T${b.endTime}:00`, timeZone: 'Asia/Jerusalem' },
+        extendedProperties: { private: { calori_schedule_day: date, calori_block_id: String(b.id), calori_app: 'life_schedule' } },
+      };
+      try {
+        const prior = existingByBlock[b.id];
+        if (prior && prior.id) await calendar.events.patch({ calendarId, eventId: prior.id, requestBody: body });
+        else await calendar.events.insert({ calendarId, requestBody: body });
+      } catch (e) {
+        console.error(`sync-schedule block ${b.id} failed:`, e.message);
+      }
+    }
+
+    // Delete events for blocks that are no longer in the schedule.
+    for (const [bid, ev] of Object.entries(existingByBlock)) {
+      if (keep.has(bid) || !ev.id) continue;
+      try { await calendar.events.delete({ calendarId, eventId: ev.id }); }
+      catch (e) { if (e.code !== 404 && e.code !== 410) console.error('sync-schedule delete failed:', e.message); }
+    }
+
+    console.log(`[sync-schedule] uid=${uid} DONE synced=${timed.length} → ${calendarId}`);
+    res.status(200).json({ ok: true, synced: timed.length, calendarId, totalBlocks: blocks.length });
+  } catch (error) {
+    console.error(`[sync-schedule] uid=${uid} FAILED:`, error?.message, error?.code, error?.errors);
+    res.status(500).json({ error: "Failed to sync schedule", detail: String(error?.message || error) });
+  }
+});
+
 exports.api = onRequest(
   { cors: true, secrets: [GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET] },
   app,

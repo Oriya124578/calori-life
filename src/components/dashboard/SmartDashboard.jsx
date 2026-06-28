@@ -181,11 +181,11 @@ export const SmartDashboard = () => {
   }, [data, t]);
 
   return (
-    <div className="max-w-lg mx-auto w-full px-3.5 py-3 space-y-2.5 rise-in-stagger" dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className="max-w-lg mx-auto w-full px-3.5 py-3 space-y-2.5 rise-in-stagger min-[900px]:max-w-none min-[900px]:space-y-0 min-[900px]:grid min-[900px]:grid-cols-2 min-[900px]:gap-4 min-[900px]:items-start" dir={isRTL ? 'rtl' : 'ltr'}>
 
       {/* ══════ HERO CARD — cream v3 unified ══════ */}
       <div
-        className="rounded-[22px] p-5 pb-4 relative overflow-hidden"
+        className="rounded-[22px] p-5 pb-4 relative overflow-hidden min-[900px]:col-span-2"
         style={{
           background: 'var(--color-card)',
           border: '1px solid var(--cream-border)',
@@ -310,7 +310,7 @@ export const SmartDashboard = () => {
       </div>
 
       {/* ══════ QA PILLS — cream v3 ══════ */}
-      <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+      <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar min-[900px]:col-span-2">
         <button
           onClick={() => openAddSheet('task')}
           className="shrink-0 flex items-center gap-2 rounded-[14px] px-4 py-2.5 active:scale-95 transition-transform"

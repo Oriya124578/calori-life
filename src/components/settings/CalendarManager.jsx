@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Button } from '../ui/button';
 import { toast } from '../../store/useToast';
+import { useStore } from '../../store/useStore';
 import {
   listGoogleCalendars,
   getCalendarSettings,
@@ -31,6 +32,10 @@ export default function CalendarManager() {
     }
     const settings = await getCalendarSettings();
     setConnected(true);
+    // If the account is actually linked, make sure auto-sync (schedule + events)
+    // is ON — it would otherwise stay off if the user connected in a prior session
+    // or only created the Calori World calendar without clicking "Connect".
+    useStore.getState().setGoogleSyncEnabled(true);
     setCalendars(cals);
     setReadIds(new Set(settings?.readCalendarIds || ['primary']));
     setWriteId(settings?.writeCalendarId || 'primary');
@@ -111,6 +116,26 @@ export default function CalendarManager() {
         >
           {caloriWorldId ? 'יומן Calori World פעיל' : 'צור יומן "Calori World" ייעודי'}
         </Button>
+      </div>
+
+      {/* How it works — explainer */}
+      <div className="rounded-xl border bg-muted/30 p-3 space-y-2 text-xs leading-relaxed" dir="rtl">
+        <p className="font-semibold text-foreground">איך זה עובד:</p>
+        <p className="text-muted-foreground">
+          <span className="font-semibold text-foreground">📥 הצג (קריאה)</span> — סמן יומנים שאתה רוצה ש-Calori
+          יכיר, כמו <span className="text-foreground">חגים</span> או <span className="text-foreground">הרצאות/לימודים</span>.
+          כשתבנה לוז יומי, המאמן יראה את האירועים האלה ויתכנן <span className="text-foreground">סביבם</span> (לא יקבע לימוד על גבי הרצאה).
+        </p>
+        <p className="text-muted-foreground">
+          <span className="font-semibold text-foreground">📤 יעד כתיבה</span> — בחר את
+          <span className="text-primary"> Calori World</span>. לשם ייכתבו אוטומטית
+          <span className="text-foreground"> הלוז שתבנה</span> (לימוד 📚, אימון 💪, נסיעה 🚗, משימות ✅)
+          וכל <span className="text-foreground">אירוע שתיצור באפליקציה</span> — כולל עדכון ומחיקה.
+        </p>
+        <p className="text-muted-foreground">
+          הסנכרון <span className="font-semibold text-foreground">אוטומטי לחלוטין</span> — אין צורך ב-"Sync Now" בכל פעם.
+          אירועים קבועים שכבר ביומן שלך לא משוכפלים.
+        </p>
       </div>
 
       <div className="rounded-xl border bg-card divide-y">

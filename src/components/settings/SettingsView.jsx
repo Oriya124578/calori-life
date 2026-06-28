@@ -372,7 +372,7 @@ export const SettingsView = () => {
         title: t('data', 'נתונים'),
         items: [
           { id: 'data', iconEl: <Database className="w-4 h-4" />, ic: 'gr', title: t('exportData', 'ייצוא וגיבוי'), sub: 'קובץ JSON, איפוס סמסטר' },
-          { id: 'about', iconEl: <Info className="w-4 h-4" />, ic: 'gr', title: t('aboutTitle', 'אודות'), sub: 'גרסה, רישיון, פרטיות', val: 'v6.26.1' },
+          { id: 'about', iconEl: <Info className="w-4 h-4" />, ic: 'gr', title: t('aboutTitle', 'אודות'), sub: 'גרסה, רישיון, פרטיות', val: 'v6.28.0' },
         ]
       }
     ];
@@ -462,7 +462,7 @@ export const SettingsView = () => {
           textAlign: 'center', fontFamily: "'Instrument Serif', serif",
           fontStyle: 'italic', fontSize: 13, color: 'rgba(138,122,106,.5)', padding: '14px 0 4px',
         }}>
-          Calori Life &middot; <em style={{ color: '#059669' }}>v6.26.1</em>
+          Calori Life &middot; <em style={{ color: '#059669' }}>v6.28.0</em>
         </div>
       </div>
     );
@@ -1020,7 +1020,7 @@ export const SettingsView = () => {
       <CardContent className="space-y-3">
         <div className="flex items-center justify-between p-4 rounded-xl border bg-card">
           <span className="font-semibold text-foreground">Calori Life</span>
-          <span className="text-sm font-mono text-primary">v6.26.1</span>
+          <span className="text-sm font-mono text-primary">v6.28.0</span>
         </div>
         <a href="/privacy" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-4 rounded-xl border bg-card hover:bg-muted/40 transition-colors">
           <span className="font-semibold text-foreground flex items-center gap-2"><Lock className="w-4 h-4" /> מדיניות פרטיות</span>
@@ -1066,17 +1066,47 @@ export const SettingsView = () => {
 
     const handleSync = async () => {
       try {
-        const { fetchGoogleEvents } = await import('../../lib/googleCalendar.js');
-        const events = await fetchGoogleEvents(new Date().toISOString());
+        const { fetchGoogleEvents, syncScheduleToCalendar } = await import('../../lib/googleCalendar.js');
         const store = useStore.getState();
+
+        // 1) Pull Google → app (so today's external events appear locally)
+        const events = await fetchGoogleEvents(new Date().toISOString());
         const { setEvent } = await import('../../lib/firestoreRepo.js');
-        for (const ev of events) {
+        for (const ev of events || []) {
           await setEvent(store.uid, ev.id, ev);
         }
+
+        // 2) Push every saved schedule for the next 8 days → Calori World.
+        // (The auto-sync already runs on save; this is a manual catch-all that
+        // also covers schedules built for future days like tomorrow.)
+        const { getDoc, doc } = await import('firebase/firestore');
+        const { db } = await import('../../lib/firebase');
+        let totalSynced = 0;
+        let days = 0;
+        let notConnected = false;
+        let lastErr = null;
+        for (let i = 0; i < 8; i++) {
+          const d = new Date();
+          d.setDate(d.getDate() + i);
+          const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          const snap = await getDoc(doc(db, 'users', store.uid, 'cl_schedule', ymd));
+          if (!snap.exists()) continue;
+          const r = await syncScheduleToCalendar(ymd, snap.data().blocks || []);
+          if (!r) { notConnected = true; break; }
+          if (r.error) { lastErr = r.detail || r.error; continue; }
+          totalSynced += (r.synced || 0);
+          days += 1;
+        }
+        if (notConnected) toast.info('היומן לא מחובר — לחץ Connect Google Calendar');
+        else if (lastErr) toast.error(`סנכרון נכשל: ${lastErr}`);
+        else if (days === 0) toast.info('אין לוז שמור בימים הקרובים לסנכרן');
+        else toast.success(`✅ סונכרנו ${totalSynced} בלוקים מ-${days} ימים ליומן Calori World`);
+
         setStatus('Calendar Connected');
-        toast.success("Sync successful");
-      } catch {
-        setStatus('Failed to sync events');
+      } catch (e) {
+        console.error('Manual sync failed:', e);
+        setStatus(`שגיאה: ${String(e?.message || e).slice(0, 80)}`);
+        toast.error(`סנכרון נכשל: ${String(e?.message || e).slice(0, 100)}`);
       }
     };
 

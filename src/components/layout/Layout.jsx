@@ -1,5 +1,6 @@
 import React, { Suspense, lazy, useState } from 'react';
 import { BottomNav } from './BottomNav';
+import { DesktopSidebar } from './DesktopSidebar';
 import { useStore } from '../../store/useStore';
 // SmartDashboard stays eager: it's the default landing view, so we don't want the
 // home screen to flash a Suspense fallback on first paint.
@@ -115,10 +116,13 @@ export const Layout = () => {
       : t('navHome');
 
   return (
-    <div className="flex flex-col min-h-[100dvh] w-full bg-background selection:bg-primary/20">
+    <div className="flex flex-col min-[900px]:flex-row min-h-[100dvh] w-full bg-background selection:bg-primary/20">
+      <DesktopSidebar />
+      {/* Content column — on desktop, takes remaining space and centers content */}
+      <div className="flex flex-col flex-1 min-w-0">
       {/* Top header — cream v3: warm blur, avatar→settings, serif title, wordmark */}
       <header
-        className="flex items-center justify-between px-5 py-3 border-b z-20 shrink-0 sticky top-0 transition-all pt-[max(env(safe-area-inset-top),14px)]"
+        className="flex items-center justify-between px-5 py-3 border-b z-20 shrink-0 sticky top-0 transition-all pt-[max(env(safe-area-inset-top),14px)] min-[900px]:max-w-[1120px] min-[900px]:mx-auto min-[900px]:w-full min-[900px]:px-8"
         style={{
           background: 'var(--header-bg)',
           backdropFilter: 'blur(22px)',
@@ -183,7 +187,7 @@ export const Layout = () => {
       {/* Main content — keyed motion wrapper gives every tab/page switch a
           gentle rise+fade entrance (enter-only: no AnimatePresence around
           Suspense, which is glitch-prone with lazy chunks). */}
-      <main className="flex-1 relative scroll-smooth min-w-0 pb-28 pt-2">
+      <main className="flex-1 relative scroll-smooth min-w-0 pb-28 pt-2 min-[900px]:max-w-[1120px] min-[900px]:mx-auto min-[900px]:w-full min-[900px]:px-8">
         <ErrorBoundary resetKey={activeCategory}>
           <Suspense fallback={<ViewFallback />}>
             <motion.div
@@ -202,7 +206,7 @@ export const Layout = () => {
           so it always floats clearly above the nav and is never clipped by it. */}
       <button
         onClick={() => setIsFanMenuOpen(!isFanMenuOpen)}
-        className="fixed start-4 bottom-[calc(92px+env(safe-area-inset-bottom))] w-[52px] h-[52px] rounded-full text-white shadow-lg hover:scale-105 active:scale-95 transition-all duration-200 flex items-center justify-center z-50 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:outline-none"
+        className="fixed start-4 bottom-[calc(92px+env(safe-area-inset-bottom))] min-[900px]:bottom-6 w-[52px] h-[52px] rounded-full text-white shadow-lg hover:scale-105 active:scale-95 transition-all duration-200 flex items-center justify-center z-50 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:outline-none"
         style={{ background: '#065F46', boxShadow: '0 6px 20px rgba(6,95,70,.35)', transform: 'translateZ(0)', willChange: 'transform' }}
         aria-label={isFanMenuOpen ? t('close') : t('navMore')}
       >
@@ -219,7 +223,7 @@ export const Layout = () => {
           from any screen. Mirrors the right FAB's safe-area-aware bottom offset. */}
       <button
         onClick={openCoachChat}
-        className="fixed end-4 bottom-[calc(92px+env(safe-area-inset-bottom))] w-[52px] h-[52px] rounded-full text-white shadow-lg hover:scale-105 active:scale-95 transition-all duration-200 flex items-center justify-center z-50 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:outline-none"
+        className="fixed end-4 bottom-[calc(92px+env(safe-area-inset-bottom))] min-[900px]:bottom-6 w-[52px] h-[52px] rounded-full text-white shadow-lg hover:scale-105 active:scale-95 transition-all duration-200 flex items-center justify-center z-50 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:outline-none"
         style={{ background: 'linear-gradient(135deg,#7C3AED,#5B21B6)', boxShadow: '0 6px 20px rgba(124,58,237,.4)', transform: 'translateZ(0)', willChange: 'transform' }}
         aria-label={t('personalManager', 'המנהל האישי')}
       >
@@ -325,6 +329,7 @@ export const Layout = () => {
         )}
       </AnimatePresence>
 
+      </div>{/* end content column */}
       <BottomNav />
       <AddItemSheet />
       <GlobalLoadingOverlay />

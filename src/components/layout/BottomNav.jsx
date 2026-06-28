@@ -26,7 +26,7 @@ export const BottomNav = () => {
 
   return (
     <nav
-      className="fixed z-50 left-1/2 bottom-[calc(14px+env(safe-area-inset-bottom))] flex items-center gap-0.5 px-1.5 py-1.5"
+      className="fixed z-50 left-1/2 bottom-[calc(14px+env(safe-area-inset-bottom))] flex items-center gap-0.5 px-1.5 py-1.5 min-[900px]:hidden"
       style={{
         background: 'var(--bottom-nav-bg)',
         backdropFilter: 'blur(22px)',
