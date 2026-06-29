@@ -201,10 +201,11 @@ export const Layout = () => {
       </main>
 
       {/* FAB — cream v3: dark green (#065F46). Bottom tracks the safe-area inset
-          so it always floats clearly above the nav and is never clipped by it. */}
+          so it always floats clearly above the nav and is never clipped by it.
+          On desktop, relocated to end-4 and stacked above the purple AI Coach FAB. */}
       <button
         onClick={() => setIsFanMenuOpen(!isFanMenuOpen)}
-        className="fixed start-4 bottom-[calc(92px+env(safe-area-inset-bottom))] min-[900px]:bottom-6 w-[52px] h-[52px] rounded-full text-white shadow-lg hover:scale-105 active:scale-95 transition-all duration-200 flex items-center justify-center z-50 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:outline-none"
+        className="fixed start-4 min-[900px]:start-auto min-[900px]:end-4 bottom-[calc(92px+env(safe-area-inset-bottom))] min-[900px]:bottom-[84px] w-[52px] h-[52px] rounded-full text-white shadow-lg hover:scale-105 active:scale-95 transition-all duration-200 flex items-center justify-center z-50 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:outline-none"
         style={{ background: '#065F46', boxShadow: '0 6px 20px rgba(6,95,70,.35)', transform: 'translateZ(0)', willChange: 'transform' }}
         aria-label={isFanMenuOpen ? t('close') : t('navMore')}
       >
@@ -218,7 +219,8 @@ export const Layout = () => {
       </button>
 
       {/* Left FAB — "המנהל האישי" AI chat. Sparkles circle, opens the chat full-screen
-          from any screen. Mirrors the right FAB's safe-area-aware bottom offset. */}
+          from any screen. Mirrors the right FAB's safe-area-aware bottom offset.
+          On desktop, positioned at end-4 bottom-6 below the green FAB. */}
       <button
         onClick={openCoachChat}
         className="fixed end-4 bottom-[calc(92px+env(safe-area-inset-bottom))] min-[900px]:bottom-6 w-[52px] h-[52px] rounded-full text-white shadow-lg hover:scale-105 active:scale-95 transition-all duration-200 flex items-center justify-center z-50 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:outline-none"
@@ -259,9 +261,9 @@ export const Layout = () => {
               className="fixed inset-0 bg-background/30 backdrop-blur-md z-40"
             />
 
-            {/* Speed Dial Menu Container — logical start/end so it springs from
-                the trigger FAB correctly in both RTL and LTR. */}
-            <div className="fixed start-6 bottom-40 sm:start-8 sm:bottom-44 z-40 flex flex-col-reverse items-start gap-4 pointer-events-auto">
+            {/* Speed Dial Menu Container — logical start/end fanning out correctly.
+                On desktop, placed on end-6 bottom-[148px], aligning items-end to prevent label zig-zag. */}
+            <div className="fixed start-6 bottom-40 sm:start-8 sm:bottom-44 min-[900px]:start-auto min-[900px]:end-6 min-[900px]:bottom-[148px] z-40 flex flex-col-reverse items-start min-[900px]:items-end gap-4 pointer-events-auto">
               
               {/* 1. Add Button */}
               <motion.div
@@ -269,11 +271,8 @@ export const Layout = () => {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 20, scale: 0.9 }}
                 transition={{ type: 'spring', stiffness: 480, damping: 28 }}
-                className="flex items-center gap-3"
+                className="flex items-center gap-3 flex-row min-[900px]:flex-row-reverse"
               >
-                <span className="whitespace-nowrap bg-background border text-foreground text-xs font-bold px-3 py-1 rounded-full shadow-sm">
-                  {t('addNewItem')}
-                </span>
                 <button
                   onClick={() => { setIsFanMenuOpen(false); openAddSheet('task'); }}
                   className="w-12 h-12 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:scale-110 active:scale-95 transition-transform cursor-pointer"
@@ -281,6 +280,9 @@ export const Layout = () => {
                 >
                   <Plus className="w-5 h-5" strokeWidth={2.5} />
                 </button>
+                <span className="whitespace-nowrap bg-background border text-foreground text-xs font-bold px-3 py-1 rounded-full shadow-sm">
+                  {t('addNewItem')}
+                </span>
               </motion.div>
 
               {/* 2. Tasks Button */}
@@ -289,11 +291,8 @@ export const Layout = () => {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 20, scale: 0.9 }}
                 transition={{ type: 'spring', stiffness: 480, damping: 28, delay: 0.04 }}
-                className="flex items-center gap-3"
+                className="flex items-center gap-3 flex-row min-[900px]:flex-row-reverse"
               >
-                <span className="whitespace-nowrap bg-background border text-foreground text-xs font-bold px-3 py-1 rounded-full shadow-sm">
-                  {t('tasksHubCard', 'משימות')}
-                </span>
                 <button
                   onClick={() => { setIsFanMenuOpen(false); setActiveCategory('tasks'); }}
                   className="w-12 h-12 rounded-full bg-blue-500 text-white shadow-lg flex items-center justify-center hover:scale-110 active:scale-95 transition-transform cursor-pointer"
@@ -301,6 +300,9 @@ export const Layout = () => {
                 >
                   <CheckSquare className="w-5 h-5" />
                 </button>
+                <span className="whitespace-nowrap bg-background border text-foreground text-xs font-bold px-3 py-1 rounded-full shadow-sm">
+                  {t('tasksHubCard', 'משימות')}
+                </span>
               </motion.div>
 
               {/* 3. Notes Button */}
@@ -309,11 +311,8 @@ export const Layout = () => {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 20, scale: 0.9 }}
                 transition={{ type: 'spring', stiffness: 480, damping: 28, delay: 0.08 }}
-                className="flex items-center gap-3"
+                className="flex items-center gap-3 flex-row min-[900px]:flex-row-reverse"
               >
-                <span className="whitespace-nowrap bg-background border text-foreground text-xs font-bold px-3 py-1 rounded-full shadow-sm">
-                  {t('notesHubCard', 'פתקים')}
-                </span>
                 <button
                   onClick={() => { setIsFanMenuOpen(false); setActiveCategory('notes'); }}
                   className="w-12 h-12 rounded-full bg-amber-500 text-white shadow-lg flex items-center justify-center hover:scale-110 active:scale-95 transition-transform cursor-pointer"
@@ -321,6 +320,9 @@ export const Layout = () => {
                 >
                   <StickyNote className="w-5 h-5" />
                 </button>
+                <span className="whitespace-nowrap bg-background border text-foreground text-xs font-bold px-3 py-1 rounded-full shadow-sm">
+                  {t('notesHubCard', 'פתקים')}
+                </span>
               </motion.div>
 
             </div>

@@ -128,7 +128,7 @@ export const DesktopSidebar = () => {
         width: expanded ? EXPANDED : COLLAPSED, 
         boxShadow: hovering && !pinned ? '8px 0 32px rgba(40,20,0,.08)' : '0 0 0 rgba(0,0,0,0)' 
       }}
-      transition={{ type: 'spring', stiffness: 380, damping: 34 }}
+      transition={{ ease: [0.22, 1, 0.36, 1], duration: 0.22 }}
       onMouseEnter={() => setHovering(true)}
       onMouseLeave={() => setHovering(false)}
     >
