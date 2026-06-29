@@ -30,7 +30,6 @@ const NotesView = lazy(() => import('../notes/NotesView').then((m) => ({ default
 
 const CaloriView = lazy(() => import('../calori/CaloriView').then((m) => ({ default: m.CaloriView })));
 const CommandCenterView = lazy(() => import('../command-center/CommandCenterView').then((m) => ({ default: m.CommandCenterView })));
-const FocusHub = lazy(() => import('../focus/FocusHub').then((m) => ({ default: m.FocusHub })));
 const ShoppingListView = lazy(() => import('../shopping/ShoppingListView').then((m) => ({ default: m.ShoppingListView })));
 // The personal-manager chat is reachable from every screen via the floating left
 // FAB, so it lives here. Lazy so its Gemini SDK chunk only loads when first opened.
@@ -81,8 +80,6 @@ export const Layout = () => {
         return <CaloriView />;
       case 'commandCenter':
         return <CommandCenterView />;
-      case 'focus':
-        return <FocusHub />;
       case 'shopping':
         return <ShoppingListView />;
       default:
@@ -109,17 +106,18 @@ export const Layout = () => {
       ? t('caloriTitle')
       : activeCategory === 'commandCenter'
       ? t('navCommandCenter')
-      : activeCategory === 'focus'
-      ? t('navFocus', 'פוקוס')
       : activeCategory === 'shopping'
       ? t('shoppingTitle')
       : t('navHome');
 
   return (
-    <div className="flex flex-col min-[900px]:flex-row min-h-[100dvh] w-full bg-background selection:bg-primary/20">
+    <div className="flex flex-col min-[900px]:flex-row h-[100dvh] overflow-hidden w-full bg-background selection:bg-primary/20">
       <DesktopSidebar />
-      {/* Content column — on desktop, takes remaining space and centers content */}
-      <div className="flex flex-col flex-1 min-w-0">
+      {/* Content column — on desktop, takes remaining space and centers content.
+          min-h-0 lets <main> own the scroll (app-shell): the body itself never
+          scrolls, so the mobile browser chrome — and the fixed bottom nav — stay
+          put instead of jumping as the URL bar shows/hides. */}
+      <div className="flex flex-col flex-1 min-w-0 min-h-0">
       {/* Top header — cream v3: warm blur, avatar→settings, serif title, wordmark */}
       <header
         className="flex items-center justify-between px-5 py-3 border-b z-20 shrink-0 sticky top-0 transition-all pt-[max(env(safe-area-inset-top),14px)] min-[900px]:max-w-[1120px] min-[900px]:mx-auto min-[900px]:w-full min-[900px]:px-8"
@@ -148,7 +146,7 @@ export const Layout = () => {
             <button
               onClick={() => setActiveCategory('settings')}
               className={cn(
-                "rounded-full transition-all hover:scale-105 active:scale-95 duration-200 cursor-pointer shrink-0",
+                "rounded-full transition-all hover:scale-105 active:scale-95 duration-200 cursor-pointer shrink-0 min-[900px]:hidden",
                 activeCategory.startsWith('settings') && "ring-2 ring-primary ring-offset-2 ring-offset-background"
               )}
               title={t('navSettings', 'הגדרות')}
@@ -169,7 +167,7 @@ export const Layout = () => {
             {headerTitle}
           </h1>
         </div>
-        <div className="flex items-center gap-3 shrink-0" dir="ltr">
+        <div className="flex items-center gap-3 shrink-0 min-[900px]:hidden" dir="ltr">
           <div
             className="flex flex-col items-end select-none cursor-pointer"
             onClick={() => setActiveCategory('overview')}
@@ -187,7 +185,7 @@ export const Layout = () => {
       {/* Main content — keyed motion wrapper gives every tab/page switch a
           gentle rise+fade entrance (enter-only: no AnimatePresence around
           Suspense, which is glitch-prone with lazy chunks). */}
-      <main className="flex-1 relative scroll-smooth min-w-0 pb-28 pt-2 min-[900px]:max-w-[1120px] min-[900px]:mx-auto min-[900px]:w-full min-[900px]:px-8">
+      <main className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain relative scroll-smooth min-w-0 pb-28 pt-2 min-[900px]:max-w-[1120px] min-[900px]:mx-auto min-[900px]:w-full min-[900px]:px-8">
         <ErrorBoundary resetKey={activeCategory}>
           <Suspense fallback={<ViewFallback />}>
             <motion.div

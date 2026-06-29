@@ -82,7 +82,6 @@ export const generateInitialState = () => {
     links: {},
     notes: {},
     globalTasks: {},
-    pomodoroSessions: [], // Array of { id, courseId, date, minutes }
     profile: { displayName: "", academicYear: "שנה א'", semester: "סמסטר א'" },
     // Phase 2: unified life-manager item types
     events: [],         // { id, title, start, end, allDay, location, notes, color, source }

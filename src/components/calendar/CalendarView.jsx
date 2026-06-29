@@ -146,19 +146,6 @@ export const CalendarView = () => {
       });
     });
 
-    (data?.pomodoroSessions || []).forEach((s) => {
-      const dt = safeParse(s.date);
-      if (!dt) return;
-      const course = data.courses?.find((c) => c.id === s.courseId);
-      items.push({
-        id: s.id,
-        kind: 'workout',
-        title: `${s.minutes} דק׳${course ? ` — ${course.name}` : ''}`,
-        date: dt,
-        allDay: true,
-      });
-    });
-
     items.sort((a, b) => a.date - b.date);
     return items;
   }, [data]);
@@ -249,7 +236,7 @@ export const CalendarView = () => {
   const getEventClass = (kind) => {
     if (kind === 'exam') return styles.exam;
     if (kind === 'study' || kind === 'lec') return styles.lec;
-    if (kind === 'workout' || kind === 'pomodoro') return styles.workout;
+    if (kind === 'workout') return styles.workout;
     if (kind === 'meal') return styles.meal;
     if (kind === 'task') return styles.task;
     return styles.event;
@@ -258,7 +245,7 @@ export const CalendarView = () => {
   const getDotClass = (kind) => {
     if (kind === 'exam') return styles.r;
     if (kind === 'study' || kind === 'lec') return styles.b;
-    if (kind === 'workout' || kind === 'pomodoro') return styles.p;
+    if (kind === 'workout') return styles.p;
     if (kind === 'meal') return styles.g;
     return styles.a;
   };
@@ -266,7 +253,7 @@ export const CalendarView = () => {
   const getTagClass = (kind) => {
     if (kind === 'exam') return styles.r;
     if (kind === 'study' || kind === 'lec') return styles.b;
-    if (kind === 'workout' || kind === 'pomodoro') return styles.p;
+    if (kind === 'workout') return styles.p;
     if (kind === 'meal') return styles.g;
     return '';
   };

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Star, Pin, Lock, Repeat } from 'lucide-react';
+import { Star, Pin, Lock } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { useTranslation } from '../../hooks/useTranslation';
 import { toast } from '../../store/useToast';
@@ -652,7 +652,7 @@ export const AddItemSheet = () => {
                     onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(); } }}
                   />
 
-                  {/* Star + Recurring flags */}
+                  {/* Favorite flag */}
                   <div className="flex gap-2">
                     <FlagButton
                       active={starred}
@@ -662,15 +662,6 @@ export const AddItemSheet = () => {
                       activeColor="#B45309"
                       activeBg="#FFFBEB"
                       activeBorder="#F59E0B"
-                    />
-                    <FlagButton
-                      active={false}
-                      onClick={() => {}}
-                      icon={<Repeat className="w-[18px] h-[18px]" />}
-                      label={t('recurrence', 'Recurring')}
-                      activeColor="#6D28D9"
-                      activeBg="#F5F3FF"
-                      activeBorder="#7C3AED"
                     />
                   </div>
 

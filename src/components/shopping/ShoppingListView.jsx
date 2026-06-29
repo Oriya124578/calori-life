@@ -2,9 +2,10 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import {
-  ShoppingCart, Plus, ClipboardPaste, Wand2, Check, Trash2, Edit3,
+  ShoppingCart, Plus, Minus, ClipboardPaste, Wand2, Check, Trash2, Edit3,
   ChevronDown, X, ArrowRight, Loader2, Sparkles, Share2, GripVertical,
   ArrowUpDown, MoreVertical, Copy, Star, RotateCcw, ListChecks, ChefHat,
+  Search, ChevronsDownUp, ChevronsUpDown, SlidersHorizontal, Store,
 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -12,7 +13,7 @@ import { toast } from '../../store/useToast';
 import { cn } from '../../lib/utils';
 import {
   parseShoppingText, categorizeWithAI, groupByCategory, getCategoryMeta, parseQuantity,
-  getAllCategories, learnCategory,
+  getAllCategories, learnCategory, setShoppingCatConfig, isCustomCategory,
 } from '../../lib/groceryCategories';
 import { fetchSavedRecipes } from '../../lib/caloriRepo';
 import { format, parseISO, isValid } from 'date-fns';
@@ -149,8 +150,26 @@ const isJustAdded = (item) => {
   return Number.isFinite(ts) && Date.now() - ts < 2500;
 };
 
+/* ── Inline quantity stepper (− N +) — bump qty without opening edit ─── */
+const QtyStepper = ({ item, onBump, t }) => {
+  const n = parseInt(item.qty, 10);
+  const display = Number.isFinite(n) ? n : 1;
+  const unit = item.unit ? ` ${item.unit}` : '';
+  return (
+    <div className="flex items-center shrink-0 rounded-[10px] overflow-hidden" style={{ border: `1px solid ${CREAM.borderLight}` }} onClick={(e) => e.stopPropagation()}>
+      <button onClick={() => onBump(-1)} disabled={display <= 1} aria-label={t('decrease', 'הפחת')} className="w-7 h-7 flex items-center justify-center transition-colors disabled:opacity-30 hover:bg-[rgba(180,140,80,.07)]" style={{ color: CREAM.muted }}>
+        <Minus className="w-3.5 h-3.5" strokeWidth={2.5} />
+      </button>
+      <span className="min-w-[22px] text-center text-[12px] font-bold tabular-nums" style={{ color: CREAM.ink }}>{display}{unit}</span>
+      <button onClick={() => onBump(1)} aria-label={t('increase', 'הוסף')} className="w-7 h-7 flex items-center justify-center transition-colors hover:bg-[rgba(5,150,105,.08)]" style={{ color: CREAM.green }}>
+        <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
+      </button>
+    </div>
+  );
+};
+
 /* ── Item Row (normal mode: tap-check + swipe-delete) ─────── */
-const ItemRow = ({ item, onToggle, onEdit, onDelete, onMoveCat, t, isRTL, highlight = false }) => {
+const ItemRow = ({ item, onToggle, onEdit, onDelete, onMoveCat, onBumpQty, t, isRTL, highlight = false }) => {
   const meta = item.qty ? `${item.qty}${item.unit ? ' ' + item.unit : ''}` : null;
   const dragElastic = isRTL ? { left: 0, right: 0.6 } : { left: 0.6, right: 0 };
   const passedThreshold = (x) => (isRTL ? x > 90 : x < -90);
@@ -183,8 +202,10 @@ const ItemRow = ({ item, onToggle, onEdit, onDelete, onMoveCat, t, isRTL, highli
           <span className="text-sm transition-all" style={{ color: item.checked ? CREAM.muted : CREAM.ink, textDecoration: item.checked ? 'line-through' : 'none' }}>
             {item.name}
           </span>
-          {meta && <span className="text-[11px] font-medium" style={{ color: CREAM.muted }}>{meta}</span>}
+          {item.unit && meta && <span className="text-[11px] font-medium" style={{ color: CREAM.muted }}>{meta}</span>}
         </div>
+        {/* Inline quantity stepper */}
+        {onBumpQty && !item.checked && <QtyStepper item={item} onBump={onBumpQty} t={t} />}
         {/* One-tap category move — always visible so it works on touch too */}
         <button onClick={(e) => { e.stopPropagation(); onMoveCat(); }} aria-label={t('moveCategory', 'העבר קטגוריה')} className="w-8 h-8 rounded-[10px] flex items-center justify-center shrink-0 text-base transition-transform active:scale-90 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none" style={{ background: 'rgba(180,140,80,.07)' }}>
           {getCategoryMeta(item.category).emoji}
@@ -453,7 +474,7 @@ const EmptyDropChip = ({ cat, language }) => {
 };
 
 /* ── Category Accordion ───────────────────────────────────── */
-const CategorySection = ({ group, isOpen, onToggleOpen, onToggleItem, onEditItem, onMoveItem, onDeleteItem, onAddItem, t, language, isRTL, sinkChecked }) => {
+const CategorySection = ({ group, isOpen, onToggleOpen, onToggleItem, onEditItem, onMoveItem, onDeleteItem, onAddItem, onBumpQty, t, language, isRTL, sinkChecked }) => {
   const meta = getCategoryMeta(group.key);
   const done = group.items.filter((i) => i.checked).length;
   const total = group.items.length;
@@ -510,7 +531,7 @@ const CategorySection = ({ group, isOpen, onToggleOpen, onToggleItem, onEditItem
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   transition={{ type: 'spring', stiffness: 380, damping: 26 }}
                 >
-                  <ItemRow item={item} highlight={fresh} onToggle={() => onToggleItem(item.id)} onEdit={() => onEditItem(item)} onMoveCat={() => onMoveItem(item)} onDelete={() => onDeleteItem(item.id)} t={t} isRTL={isRTL} />
+                  <ItemRow item={item} highlight={fresh} onToggle={() => onToggleItem(item.id)} onEdit={() => onEditItem(item)} onMoveCat={() => onMoveItem(item)} onDelete={() => onDeleteItem(item.id)} onBumpQty={(d) => onBumpQty(item.id, d)} t={t} isRTL={isRTL} />
                 </motion.div>
               );
             })}
@@ -839,6 +860,219 @@ const RecipePickerSheet = ({ uid, onClose, onPick, busyId, t, isRTL }) => {
   );
 };
 
+/* ── Category jump bar — sticky chips, tap to scroll to a section ─────── */
+const CategoryJumpBar = ({ groups, onJump, language }) => {
+  if (groups.length <= 1) return null;
+  return (
+    <div className="sticky z-20 -mx-4 px-4 py-1.5" style={{ top: 62, background: 'linear-gradient(180deg, rgba(250,247,242,.96), rgba(250,247,242,.82))', backdropFilter: 'blur(8px)' }}>
+      <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
+        {groups.map((g) => {
+          const left = g.items.filter((i) => !i.checked).length;
+          const done = left === 0;
+          return (
+            <button
+              key={g.key}
+              onClick={() => onJump(g.key)}
+              className="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-full transition-transform active:scale-95"
+              style={{ background: done ? 'rgba(180,140,80,.06)' : '#fff', border: `1px solid ${done ? CREAM.borderLight : 'rgba(5,150,105,.22)'}`, opacity: done ? 0.55 : 1 }}
+            >
+              <span className="text-sm">{g.emoji}</span>
+              <span className="text-[12px] font-semibold whitespace-nowrap" style={{ color: done ? CREAM.muted : CREAM.ink }}>{language === 'he' ? g.he : g.en}</span>
+              {!done && <span className="text-[10px] font-bold tabular-nums" style={{ color: CREAM.green }}>{left}</span>}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+/* ── Category manager — reorder to match store aisles + add/remove custom ─ */
+const CategoryManagerSheet = ({ allCats, onReorder, onAddCustom, onRemoveCustom, onClose, language, isRTL, t }) => {
+  const [cats, setCats] = useState(allCats);
+  const [newName, setNewName] = useState('');
+  const [newEmoji, setNewEmoji] = useState('🏷️');
+  // Re-sync the local list only when categories are added/removed (length
+  // change); a reorder keeps the user's in-flight order intact.
+  useEffect(() => { setCats(allCats); }, [allCats.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleDragEnd = (r) => {
+    if (!r.destination || r.destination.index === r.source.index) return;
+    const next = [...cats];
+    const [moved] = next.splice(r.source.index, 1);
+    next.splice(r.destination.index, 0, moved);
+    setCats(next);
+    onReorder(next.map((c) => c.key));
+  };
+
+  const addCustom = () => {
+    const name = newName.trim();
+    if (!name) return;
+    onAddCustom({ he: name, en: name, emoji: newEmoji.trim() || '🏷️' });
+    setNewName('');
+    setNewEmoji('🏷️');
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end justify-center" role="dialog" aria-modal="true" aria-label={t('categoryOrderTitle', 'סדר קטגוריות')}>
+      <motion.div className="fixed inset-0 bg-black/45 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} />
+      <motion.div
+        className="relative w-full max-w-xl z-10 p-5 pb-8"
+        style={{ background: '#fff', borderRadius: '24px 24px 0 0', border: `1px solid ${CREAM.border}`, boxShadow: '0 -8px 40px rgba(40,20,0,.18)', maxHeight: '82vh', overflowY: 'auto' }}
+        initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+        dir={isRTL ? 'rtl' : 'ltr'}
+      >
+        <div className="w-10 h-1 rounded-full mx-auto mb-4" style={{ background: 'rgba(180,140,80,.25)' }} />
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-lg flex items-center gap-2" style={{ fontFamily: serif, color: CREAM.ink }}>
+            <SlidersHorizontal className="w-5 h-5" style={{ color: CREAM.green }} />
+            {t('categoryOrderTitle', 'סדר קטגוריות')}
+          </h3>
+          <button onClick={onClose} aria-label={t('cancel')} className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 hover:bg-[rgba(180,140,80,.08)]">
+            <X className="w-4 h-4" style={{ color: CREAM.muted }} />
+          </button>
+        </div>
+        <p className="text-xs mb-4 px-0.5" style={{ color: CREAM.muted }}>{t('categoryOrderSub', 'גרור כדי לסדר לפי סדר המעברים בסופר שלך. הסדר נשמר ומסונכרן.')}</p>
+
+        <DragDropContext onDragEnd={handleDragEnd}>
+          <Droppable droppableId="catorder">
+            {(provided) => (
+              <div ref={provided.innerRef} {...provided.droppableProps} className="flex flex-col gap-1.5">
+                {cats.map((c, index) => (
+                  <Draggable key={c.key} draggableId={c.key} index={index}>
+                    {(prov, snap) => (
+                      <div
+                        ref={prov.innerRef}
+                        {...prov.draggableProps}
+                        className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl"
+                        style={{ border: `1px solid ${CREAM.borderLight}`, background: '#fff', boxShadow: snap.isDragging ? '0 8px 24px rgba(40,20,0,.15)' : 'none', ...prov.draggableProps.style }}
+                      >
+                        <span {...prov.dragHandleProps} className="flex items-center justify-center shrink-0" style={{ color: CREAM.muted, touchAction: 'none' }}>
+                          <GripVertical className="w-[18px] h-[18px]" />
+                        </span>
+                        <span className="text-lg shrink-0">{c.emoji}</span>
+                        <span className="flex-1 min-w-0 text-sm truncate" style={{ color: CREAM.ink }}>{language === 'he' ? c.he : c.en}</span>
+                        {isCustomCategory(c.key) ? (
+                          <button onClick={() => onRemoveCustom(c.key)} aria-label={t('delete')} className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: CREAM.redSoft, color: CREAM.red }}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0" style={{ background: 'rgba(180,140,80,.07)', color: CREAM.muted }}>{t('builtIn', 'מובנה')}</span>
+                        )}
+                      </div>
+                    )}
+                  </Draggable>
+                ))}
+                {provided.placeholder}
+              </div>
+            )}
+          </Droppable>
+        </DragDropContext>
+
+        {/* Add custom category */}
+        <div className="mt-4 pt-4 flex items-center gap-2" style={{ borderTop: `1px solid ${CREAM.borderLight}` }}>
+          <input value={newEmoji} onChange={(e) => setNewEmoji(e.target.value)} aria-label={t('emoji', 'אייקון')} maxLength={2} className="w-12 text-center px-2 py-2.5 rounded-xl outline-none text-lg" style={{ border: `1.5px solid ${CREAM.border}`, background: 'rgba(250,247,242,.5)' }} />
+          <input value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addCustom(); }} placeholder={t('newCategoryName', 'שם קטגוריה חדשה')} className="flex-1 min-w-0 px-3.5 py-2.5 rounded-xl outline-none text-sm" style={{ border: `1.5px solid ${CREAM.border}`, color: CREAM.ink, background: 'rgba(250,247,242,.5)' }} />
+          <button onClick={addCustom} disabled={!newName.trim()} className="shrink-0 flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-50" style={{ background: CREAM.green }}>
+            <Plus className="w-4 h-4" strokeWidth={2.5} />{t('add')}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+/* ── Supermarket mode — focused, big-target shopping run; hides bought,
+      keeps the screen awake ─────────────────────────────────────────── */
+const SupermarketMode = ({ list, onToggle, onClose, t, language, isRTL }) => {
+  useEffect(() => {
+    let lock = null;
+    let released = false;
+    const req = async () => {
+      try { if ('wakeLock' in navigator) lock = await navigator.wakeLock.request('screen'); } catch { /* denied / unsupported */ }
+    };
+    req();
+    const onVis = () => { if (document.visibilityState === 'visible' && !released) req(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { released = true; document.removeEventListener('visibilitychange', onVis); try { lock && lock.release(); } catch { /* ignore */ } };
+  }, []);
+
+  const items = list.items || [];
+  const remaining = groupByCategory(items.filter((i) => !i.checked));
+  const done = items.filter((i) => i.checked).length;
+  const total = items.length;
+  const pct = total ? Math.round((done / total) * 100) : 0;
+  const allDone = total > 0 && done === total;
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-[70] flex flex-col"
+      style={{ background: CREAM.bg }}
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      dir={isRTL ? 'rtl' : 'ltr'}
+    >
+      {/* Header + progress */}
+      <div className="shrink-0 px-4 pt-4 pb-3" style={{ background: '#fff', borderBottom: `1px solid ${CREAM.border}` }}>
+        <div className="flex items-center gap-3 mb-3">
+          <button onClick={onClose} aria-label={t('exitSupermarket', 'צא ממצב סופר')} className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(180,140,80,.08)', color: CREAM.ink }}>
+            <X className="w-5 h-5" />
+          </button>
+          <div className="flex-1 min-w-0">
+            <div className="text-[11px] font-bold uppercase tracking-wide flex items-center gap-1" style={{ color: CREAM.green }}>
+              <Store className="w-3.5 h-3.5" />{t('supermarketMode', 'מצב סופר')}
+            </div>
+            <div className="text-lg truncate" style={{ fontFamily: serif, color: CREAM.ink }}>{list.name}</div>
+          </div>
+          <div className="text-base font-bold tabular-nums" style={{ fontFamily: display, color: CREAM.green }}>{done}/{total}</div>
+        </div>
+        <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(180,140,80,.1)' }}>
+          <motion.div className="h-full rounded-full" style={{ background: 'linear-gradient(90deg,#10B981,#059669)' }} animate={{ width: `${pct}%` }} transition={{ duration: 0.4 }} />
+        </div>
+      </div>
+
+      {/* Big-target list — only unbought items */}
+      <div className="flex-1 overflow-y-auto px-3 py-3" style={{ WebkitOverflowScrolling: 'touch' }}>
+        {allDone ? (
+          <div className="flex flex-col items-center justify-center gap-4 h-full text-center px-6">
+            <div className="w-20 h-20 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg,#10B981,#047857)' }}>
+              <Check className="w-10 h-10 text-white" strokeWidth={3} />
+            </div>
+            <div className="text-2xl" style={{ fontFamily: serif, color: CREAM.ink }}>{t('shoppingDoneTitle', 'הקנייה הושלמה 🎉')}</div>
+            <button onClick={onClose} className="px-6 py-3 rounded-2xl text-white text-[15px] font-semibold" style={{ background: CREAM.green }}>{t('done', 'סיום')}</button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3 max-w-xl mx-auto">
+            {remaining.map((g) => (
+              <div key={g.key}>
+                <div className="flex items-center gap-2 px-1 pb-1.5">
+                  <span className="text-lg">{g.emoji}</span>
+                  <span className="text-sm font-bold" style={{ color: CREAM.sub }}>{language === 'he' ? g.he : g.en}</span>
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: CREAM.greenSoft, color: CREAM.green }}>{g.items.length}</span>
+                </div>
+                <div className="flex flex-col gap-2">
+                  {g.items.map((item) => (
+                    <motion.button
+                      key={item.id}
+                      onClick={() => onToggle(item.id)}
+                      layout
+                      className="flex items-center gap-4 w-full px-4 py-4 rounded-2xl text-start transition-transform active:scale-[.98]"
+                      style={{ ...card, borderRadius: 18 }}
+                    >
+                      <span className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center" style={{ border: `2.5px solid rgba(180,140,80,.3)` }} />
+                      <span className="flex-1 min-w-0 text-[17px] font-semibold truncate" style={{ color: CREAM.ink }}>{item.name}</span>
+                      {item.qty && <span className="text-[15px] font-bold tabular-nums shrink-0" style={{ color: CREAM.green }}>{item.qty}{item.unit ? ` ${item.unit}` : ''}</span>}
+                    </motion.button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+};
+
 /* ── Main View ────────────────────────────────────────────── */
 export const ShoppingListView = () => {
   const { t, language } = useTranslation();
@@ -861,9 +1095,20 @@ export const ShoppingListView = () => {
   const learnGroceryItems = useStore((s) => s.learnGroceryItems);
   const addShoppingRegular = useStore((s) => s.addShoppingRegular);
   const removeShoppingRegular = useStore((s) => s.removeShoppingRegular);
+  const bumpShoppingItemQty = useStore((s) => s.bumpShoppingItemQty);
+  const setShoppingCategoryOrder = useStore((s) => s.setShoppingCategoryOrder);
+  const addShoppingCustomCategory = useStore((s) => s.addShoppingCustomCategory);
+  const removeShoppingCustomCategory = useStore((s) => s.removeShoppingCustomCategory);
   const shoppingRegulars = useStore((s) => s.data.profile?.shoppingRegulars);
+  const shoppingCategoryOrder = useStore((s) => s.data.profile?.shoppingCategoryOrder);
+  const shoppingCustomCategories = useStore((s) => s.data.profile?.shoppingCustomCategories);
   const regulars = useMemo(() => shoppingRegulars || [], [shoppingRegulars]);
   const uid = useStore((s) => s.uid);
+
+  // Push the user's aisle order + custom categories into the grocery engine so
+  // every pure helper (getCategoryMeta / getAllCategories / groupByCategory)
+  // below reflects it. Synchronous so the very first render is already correct.
+  setShoppingCatConfig({ custom: shoppingCustomCategories || [], order: shoppingCategoryOrder || null });
 
   const [mode, setMode] = useState('lists'); // 'lists' | 'paste'
   const [recipePicker, setRecipePicker] = useState(false);
@@ -878,10 +1123,28 @@ export const ShoppingListView = () => {
   const [sinkChecked, setSinkChecked] = useState(() => {
     try { return localStorage.getItem('cl_shop_sink') === '1'; } catch { return false; }
   });
+  const [query, setQuery] = useState('');
+  const [showCatManager, setShowCatManager] = useState(false);
+  const [supermarketOpen, setSupermarketOpen] = useState(false);
 
   const activeList = useMemo(() => shoppingLists.find((l) => l.isActive), [shoppingLists]);
   const viewingList = useMemo(() => shoppingLists.find((l) => l.id === viewingListId), [shoppingLists, viewingListId]);
-  const groups = useMemo(() => (viewingList ? groupByCategory(viewingList.items || []) : []), [viewingList]);
+  // groupByCategory/getAllCategories read the aisle config set via
+  // setShoppingCatConfig above, so these must recompute when the profile config
+  // changes even though the callbacks don't name those vars directly.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const groups = useMemo(() => (viewingList ? groupByCategory(viewingList.items || []) : []), [viewingList, shoppingCategoryOrder, shoppingCustomCategories]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const allCats = useMemo(() => getAllCategories(), [shoppingCategoryOrder, shoppingCustomCategories]);
+
+  // Search filter within the open list.
+  const q = query.trim().toLowerCase();
+  const visibleGroups = useMemo(() => {
+    if (!q) return groups;
+    return groups
+      .map((g) => ({ ...g, items: g.items.filter((i) => (i.name || '').toLowerCase().includes(q)) }))
+      .filter((g) => g.items.length);
+  }, [groups, q]);
 
   // Purchase memory across all lists + the set of names already in this list
   // (so suggestions never duplicate what's already here).
@@ -936,11 +1199,36 @@ export const ShoppingListView = () => {
   };
 
   const isCatOpen = (g) => {
+    if (q) return true; // while searching, keep every matching section open
     if (g.key in openOverrides) return openOverrides[g.key];
     const allDone = g.items.length > 0 && g.items.every((i) => i.checked);
     return !allDone;
   };
   const toggleCat = (g) => setOpenOverrides((o) => ({ ...o, [g.key]: !isCatOpen(g) }));
+
+  const anyCatOpen = groups.some((g) => isCatOpen(g));
+  const setAllCatsOpen = (open) => setOpenOverrides(() => {
+    const o = {};
+    groups.forEach((g) => { o[g.key] = open; });
+    return o;
+  });
+
+  // Jump bar → open + smooth-scroll to a category section.
+  const jumpToCategory = (key) => {
+    setOpenOverrides((o) => ({ ...o, [key]: true }));
+    requestAnimationFrame(() => {
+      const el = document.getElementById(`shopcat-wrap-${key}`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
+
+  const handleBumpQty = (itemId, delta) => bumpShoppingItemQty(viewingList.id, itemId, delta);
+
+  const handleAddCustomCat = (c) => {
+    const key = addShoppingCustomCategory(c);
+    if (key) toast.success(`${c.emoji} ${c.he}`);
+    return key;
+  };
 
   // Quick add: parse one line → name/qty/category from the dictionary.
   // Unknowns go to AI in the background so next time they're recognized.
@@ -1106,6 +1394,35 @@ export const ShoppingListView = () => {
           <div className="text-base font-semibold min-w-9 text-center" style={{ fontFamily: display, color: CREAM.green }}>{pct}%</div>
         </div>
 
+        {/* Toolbar: search · expand/collapse all · category order · supermarket */}
+        {!reorderMode && totals.total > 0 && (
+          <div className="flex items-center gap-2">
+            <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-xl min-w-0" style={{ background: '#fff', border: `1px solid ${CREAM.border}` }}>
+              <Search className="w-4 h-4 shrink-0" style={{ color: CREAM.muted }} />
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('searchInList', 'חיפוש ברשימה')} className="flex-1 min-w-0 bg-transparent outline-none text-sm" style={{ color: CREAM.ink }} />
+              {query && (
+                <button onClick={() => setQuery('')} aria-label={t('cancel')} className="shrink-0">
+                  <X className="w-4 h-4" style={{ color: CREAM.muted }} />
+                </button>
+              )}
+            </div>
+            <button onClick={() => setAllCatsOpen(!anyCatOpen)} aria-label={anyCatOpen ? t('collapseAll', 'כווץ הכל') : t('expandAll', 'פתח הכל')} className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: '#fff', border: `1px solid ${CREAM.border}`, color: CREAM.muted }}>
+              {anyCatOpen ? <ChevronsDownUp className="w-[18px] h-[18px]" /> : <ChevronsUpDown className="w-[18px] h-[18px]" />}
+            </button>
+            <button onClick={() => setShowCatManager(true)} aria-label={t('categoryOrderTitle', 'סדר קטגוריות')} className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: '#fff', border: `1px solid ${CREAM.border}`, color: CREAM.muted }}>
+              <SlidersHorizontal className="w-[18px] h-[18px]" />
+            </button>
+            <button onClick={() => setSupermarketOpen(true)} aria-label={t('supermarketMode', 'מצב סופר')} className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-white" style={{ background: CREAM.green, boxShadow: '0 2px 10px rgba(5,150,105,.28)' }}>
+              <Store className="w-[18px] h-[18px]" />
+            </button>
+          </div>
+        )}
+
+        {/* Category jump bar — tap a chip to scroll to that section */}
+        {!reorderMode && !q && (
+          <CategoryJumpBar groups={groups} onJump={jumpToCategory} language={language} />
+        )}
+
         {/* Quick add — type a product, category is auto-detected; suggests
             matches from your purchase history as you type */}
         {!reorderMode && (
@@ -1184,24 +1501,31 @@ export const ShoppingListView = () => {
               </div>
             </div>
           </DragDropContext>
+        ) : q && visibleGroups.length === 0 ? (
+          <div className="flex flex-col items-center gap-3 py-10 text-center">
+            <Search className="w-10 h-10" style={{ color: 'rgba(180,140,80,.3)' }} strokeWidth={1.5} />
+            <p className="text-sm" style={{ color: CREAM.muted }}>{t('noSearchResults', 'לא נמצאו מוצרים')}</p>
+          </div>
         ) : (
           <div className="flex flex-col gap-2.5 rise-in-stagger">
-            {groups.map((g) => (
-              <CategorySection
-                key={g.key}
-                group={g}
-                isOpen={isCatOpen(g)}
-                onToggleOpen={() => toggleCat(g)}
-                onToggleItem={(itemId) => toggleShoppingItem(viewingList.id, itemId)}
-                onEditItem={(item) => setEditItem(item)}
-                onMoveItem={(item) => setMoveItem(item)}
-                onDeleteItem={(itemId) => removeShoppingItem(viewingList.id, itemId)}
-                onAddItem={(nameVal, catKey) => addShoppingItem(viewingList.id, { name: nameVal, category: catKey })}
-                t={t}
-                language={language}
-                isRTL={isRTL}
-                sinkChecked={sinkChecked}
-              />
+            {visibleGroups.map((g) => (
+              <div key={g.key} id={`shopcat-wrap-${g.key}`} style={{ scrollMarginTop: 116 }}>
+                <CategorySection
+                  group={g}
+                  isOpen={isCatOpen(g)}
+                  onToggleOpen={() => toggleCat(g)}
+                  onToggleItem={(itemId) => toggleShoppingItem(viewingList.id, itemId)}
+                  onEditItem={(item) => setEditItem(item)}
+                  onMoveItem={(item) => setMoveItem(item)}
+                  onDeleteItem={(itemId) => removeShoppingItem(viewingList.id, itemId)}
+                  onAddItem={(nameVal, catKey) => addShoppingItem(viewingList.id, { name: nameVal, category: catKey })}
+                  onBumpQty={handleBumpQty}
+                  t={t}
+                  language={language}
+                  isRTL={isRTL}
+                  sinkChecked={sinkChecked}
+                />
+              </div>
             ))}
           </div>
         )}
@@ -1259,6 +1583,28 @@ export const ShoppingListView = () => {
               item={moveItem} t={t} isRTL={isRTL} language={language}
               onClose={() => setMoveItem(null)}
               onMove={(catKey) => handleMoveToCategory(moveItem, catKey)}
+            />
+          )}
+        </AnimatePresence>
+        <AnimatePresence>
+          {showCatManager && (
+            <CategoryManagerSheet
+              allCats={allCats}
+              onReorder={setShoppingCategoryOrder}
+              onAddCustom={handleAddCustomCat}
+              onRemoveCustom={removeShoppingCustomCategory}
+              onClose={() => setShowCatManager(false)}
+              language={language} isRTL={isRTL} t={t}
+            />
+          )}
+        </AnimatePresence>
+        <AnimatePresence>
+          {supermarketOpen && (
+            <SupermarketMode
+              list={viewingList}
+              onToggle={(itemId) => toggleShoppingItem(viewingList.id, itemId)}
+              onClose={() => setSupermarketOpen(false)}
+              t={t} language={language} isRTL={isRTL}
             />
           )}
         </AnimatePresence>

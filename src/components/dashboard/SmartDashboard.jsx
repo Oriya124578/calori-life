@@ -322,7 +322,7 @@ export const SmartDashboard = () => {
         {[
           { label: t('myNotes', 'פתקים'), icon: '📒', bg: '#ECFDF5', cat: 'notes' },
           { label: t('myTasks', 'משימות'), icon: '✓', bg: '#EFF4FF', cat: 'tasks' },
-          { label: t('navFocus', 'פומודורו'), icon: '⏱', bg: '#F3EFFB', cat: 'focus' },
+          { label: t('navShopping', 'קניות'), icon: '🛒', bg: '#ECFDF5', cat: 'shopping' },
         ].map((pill) => (
           <button
             key={pill.cat}
@@ -404,12 +404,12 @@ export const SmartDashboard = () => {
             }
           </div>
         </div>
-        <div className="flex-1 rounded-2xl px-3 py-3" style={{ background: '#fff', border: '1px solid rgba(180,140,80,.12)', boxShadow: '0 2px 10px rgba(40,20,0,.05)' }}>
-          <div style={{ fontFamily: "'Fraunces', serif", fontSize: '24px', fontWeight: 600, fontStyle: 'italic', color: '#7C3AED', letterSpacing: '-.04em', lineHeight: 1 }}>
-            {data?.pomodoroSessions?.filter(s => { const d = safeParse(s.startedAt); return d && isSameDay(d, new Date()); }).length || 0}
+        <button onClick={() => setActiveCategory('shopping')} className="flex-1 rounded-2xl px-3 py-3 text-start cursor-pointer active:scale-[0.98] transition-transform" style={{ background: '#fff', border: '1px solid rgba(180,140,80,.12)', boxShadow: '0 2px 10px rgba(40,20,0,.05)' }}>
+          <div style={{ fontFamily: "'Fraunces', serif", fontSize: '24px', fontWeight: 600, fontStyle: 'italic', color: '#059669', letterSpacing: '-.04em', lineHeight: 1 }}>
+            {(() => { const al = (data?.shoppingLists || []).find((l) => l.isActive); return al ? (al.items || []).filter((i) => !i.checked).length : 0; })()}
           </div>
-          <div className="text-[10px] font-semibold mt-1" style={{ color: '#8A7A6A' }}>{t('pomodoroSessions', 'פומודורו')}</div>
-        </div>
+          <div className="text-[10px] font-semibold mt-1" style={{ color: '#8A7A6A' }}>{t('itemsToBuy', 'לקנות')}</div>
+        </button>
         <div className="flex-1 rounded-2xl px-3 py-3" style={{ background: '#fff', border: '1px solid rgba(180,140,80,.12)', boxShadow: '0 2px 10px rgba(40,20,0,.05)' }}>
           <div style={{ fontFamily: "'Fraunces', serif", fontSize: '24px', fontWeight: 600, fontStyle: 'italic', color: '#2A1A0A', letterSpacing: '-.04em', lineHeight: 1 }}>
             {todayTasksCount}

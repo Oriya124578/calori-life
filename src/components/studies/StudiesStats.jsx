@@ -1,8 +1,7 @@
 import React, { useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 import { useStore, isTaskIncludedInProgress } from '../../store/useStore';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Clock, Calendar as CalendarIcon, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar as CalendarIcon, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { differenceInDays } from 'date-fns';
 import { useTranslation } from '../../hooks/useTranslation';
 import { Button } from '../ui/button';
@@ -78,16 +77,6 @@ export const StudiesStats = () => {
     });
     return exams.sort((a, b) => a.daysLeft - b.daysLeft);
   }, [data?.courses]);
-
-  // Pomodoro chart data
-  const chartData = useMemo(() => {
-    const agg = {};
-    (data?.pomodoroSessions || []).forEach((session) => {
-      const c = (data?.courses || []).find((c) => c.id === session.courseId);
-      if (c) agg[c.name] = (agg[c.name] || 0) + (session.duration / 60);
-    });
-    return Object.keys(agg).map((name) => ({ name, minutes: Math.round(agg[name]) }));
-  }, [data]);
 
   return (
     <div className="space-y-5">
@@ -171,43 +160,6 @@ export const StudiesStats = () => {
             <div className="h-full flex flex-col items-center justify-center text-muted-foreground py-8">
               <CalendarIcon className="w-12 h-12 mb-2 opacity-20" />
               <p>{t('noUpcomingExams')}</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Pomodoro chart */}
-      <Card className="shadow-sm border-border bg-card">
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Clock className="w-5 h-5 text-primary" />
-            {t('learningHoursPomodoro')}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {chartData.length > 0 ? (
-            <div className="h-[280px] w-full mt-4" dir="ltr">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
-                  <XAxis dataKey="name" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} angle={-45} textAnchor="end" height={60} />
-                  <YAxis tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
-                  <Tooltip
-                    cursor={{ fill: 'hsl(var(--secondary))' }}
-                    contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
-                    itemStyle={{ color: 'hsl(var(--foreground))' }}
-                  />
-                  <Bar dataKey="minutes" name={t('learningMinutes')} radius={[4, 4, 0, 0]}>
-                    {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={`hsl(${94 + (index * 15)} 21% 62%)`} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <div className="h-[280px] flex flex-col items-center justify-center text-muted-foreground text-center">
-              <Clock className="w-12 h-12 mb-2 opacity-20" />
-              <p>{t('noPomodoroYet')}</p>
             </div>
           )}
         </CardContent>

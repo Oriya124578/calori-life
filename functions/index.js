@@ -466,17 +466,12 @@ app.post("/api/calendar/sync-schedule", validateFirebaseIdToken, async (req, res
   const uid = req.user.uid;
   const date = req.body && req.body.date;
   const blocks = (req.body && req.body.blocks) || [];
-  console.log(`[sync-schedule] uid=${uid} date=${date} blocks=${blocks.length}`);
   if (!date) return res.status(400).json({ error: "Missing date" });
   try {
     const calendar = await getCalendarForUid(uid, req);
-    if (!calendar) {
-      console.log(`[sync-schedule] uid=${uid} not connected to Google`);
-      return res.status(401).json({ error: "Google Calendar not connected" });
-    }
+    if (!calendar) return res.status(401).json({ error: "Google Calendar not connected" });
     const settings = await getSettings(uid);
     const calendarId = settings.writeCalendarId;
-    console.log(`[sync-schedule] uid=${uid} writeCalendarId=${calendarId} caloriWorldId=${settings.caloriWorldCalendarId}`);
 
     // Make sure the target calendar is VISIBLE in the user's Google Calendar —
     // a freshly created secondary calendar can be unselected/hidden, so its

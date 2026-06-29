@@ -48,9 +48,6 @@ const coursesCol = (uid) => collection(db, 'users', uid, 'cl_courses');
 const courseDoc = (uid, courseId) => doc(db, 'users', uid, 'cl_courses', courseId);
 const courseTasksCol = (uid) => collection(db, 'users', uid, 'cl_courseTasks');
 const courseTaskDoc = (uid, taskId) => doc(db, 'users', uid, 'cl_courseTasks', taskId);
-const pomodoroCol = (uid) => collection(db, 'users', uid, 'cl_pomodoroSessions');
-const pomodoroDoc = (uid, sessionId) =>
-  doc(db, 'users', uid, 'cl_pomodoroSessions', sessionId);
 const eventsCol = (uid) => collection(db, 'users', uid, 'cl_events');
 const eventDoc = (uid, id) => doc(db, 'users', uid, 'cl_events', id);
 const personalTasksCol = (uid) =>
@@ -205,27 +202,6 @@ export const batchSetCourseTasks = async (uid, tasksMap) => {
     ops.push((batch) => batch.set(courseTaskDoc(uid, taskId), data, { merge: true }));
   }
   await commitInChunks(ops);
-};
-
-// --- Pomodoro sessions ----------------------------------------------------
-
-/** Subscribe to all pomodoro sessions for the user. Returns unsubscribe. */
-export const subscribePomodoroSessions = (uid, cb) =>
-  onSnapshot(pomodoroCol(uid), (snap) => cb(snapshotToArray(snap)));
-
-/**
- * Add a pomodoro session with an auto-generated id. Returns the new id.
- * Uses `doc(col)` to mint a client-side id so we can return it synchronously.
- */
-export const addPomodoroSession = async (uid, sessionData) => {
-  const ref = doc(pomodoroCol(uid));
-  await setDoc(ref, sessionData);
-  return ref.id;
-};
-
-/** Delete a pomodoro session by id. */
-export const deletePomodoroSession = async (uid, sessionId) => {
-  await deleteDoc(pomodoroDoc(uid, sessionId));
 };
 
 // --- Events (cl_events) ---------------------------------------------------

@@ -1,17 +1,15 @@
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Plus, ChevronDown, Trash2, X, Star, Edit3, Repeat, Play,
+  Plus, ChevronDown, Trash2, X, Star, Edit3,
 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
-import { generateFutureInstances } from '../../lib/recurrence';
 import { useTranslation } from '../../hooks/useTranslation';
 import { cn } from '../../lib/utils';
 import { format, isToday, isTomorrow, isPast, parseISO } from 'date-fns';
 
 // ── Cream v3 constants ──────────────────────────────────────────────────────
 const creamCard = { background: '#fff', borderRadius: 12, border: '1px solid rgba(180,140,80,.12)', boxShadow: '0 1px 3px rgba(40,20,0,.04)' };
-const creamSectionCard = { background: '#fff', borderRadius: 14, border: '1px solid rgba(180,140,80,.14)', boxShadow: '0 2px 10px rgba(40,20,0,.05)', overflow: 'hidden' };
 const serifFont = "'Instrument Serif', serif";
 const numbersFont = "'Fraunces', serif";
 
@@ -174,23 +172,42 @@ const SubtaskRow = ({ taskId, sub }) => {
 // ── Task row ─────────────────────────────────────────────────────────────────
 
 const TaskRow = ({ task }) => {
-  const { togglePersonalTask, deletePersonalTask, addSubtask, toggleStarPersonalTask, updatePersonalTask, startFocusOnTask, data } = useStore();
+  const { togglePersonalTask, deletePersonalTask, addSubtask, toggleStarPersonalTask, updatePersonalTask, data } = useStore();
   const { t, language } = useTranslation();
   const isRTL = language === 'he';
   const [expanded, setExpanded] = useState(false);
   const [newSub, setNewSub]     = useState('');
+  const [titleDraft, setTitleDraft] = useState(task.title || '');
   const subInputRef = useRef(null);
+
+  const saveTitle = () => {
+    const v = titleDraft.trim();
+    if (v && v !== task.title) updatePersonalTask(task.id, { title: v });
+    else if (!v) setTitleDraft(task.title || ''); // don't allow an empty title
+  };
 
   const dueDateInfo = useDueDate(task.dueDate, t);
   const subtasks    = task.subtasks || [];
   const doneSubs    = subtasks.filter((s) => s.done).length;
 
-  // Lists the task can be moved to (default + custom, deduped against seed).
-  const taskLists = [
+  // Targets the task can be moved between — "Today" + the default bucket + the
+  // user's custom categories. A clean dropdown (no full category list shown).
+  const customLists = (data?.taskLists || []).filter((l) => l.id !== 'personal');
+  const moveTargets = [
+    { id: 'today', name: t('todayTasksFilter', 'להיום') },
     { id: 'personal', name: t('defaultListName') },
-    ...(data?.taskLists || []).filter((l) => l.id !== 'personal'),
+    ...customLists,
   ];
-  const currentListId = task.list || 'personal';
+  const currentTarget = task.list === 'today' ? 'today' : (task.list || 'personal');
+
+  // Local today (yyyy-MM-dd) — toISOString is UTC and can roll to yesterday.
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+  const moveTo = (value) => {
+    if (value === 'today') updatePersonalTask(task.id, { list: 'today', dueDate: todayStr });
+    else updatePersonalTask(task.id, { list: value });
+  };
 
   const handleAddSub = () => {
     const label = newSub.trim();
@@ -275,11 +292,6 @@ const TaskRow = ({ task }) => {
                   </span>
                 );
               })}
-              {task.recurrence && (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 10, color: '#7C3AED', fontWeight: 700 }}>
-                  🔁 {task.recurrence.type === 'daily' ? t('freqDaily') : task.recurrence.type === 'weekly' ? t('freqWeekly') : t('freqMonthly')}
-                </span>
-              )}
               {subtasks.length > 0 && (
                 <span style={{ fontFamily: numbersFont, fontSize: 11, color: '#8A7A6A' }}>{doneSubs}/{subtasks.length}</span>
               )}
@@ -305,7 +317,7 @@ const TaskRow = ({ task }) => {
         />
       </div>
 
-      {/* ── Expanded: subtasks ── */}
+      {/* ── Expanded: subtasks + move ── */}
       <AnimatePresence initial={false}>
         {expanded && !task.done && (
           <motion.div
@@ -347,30 +359,20 @@ const TaskRow = ({ task }) => {
                 )}
               </div>
 
-              {/* Move to list */}
-              {taskLists.length > 1 && (
-                <div className="flex items-center gap-1.5 mt-2 pt-2 flex-wrap" style={{ borderTop: '1px solid rgba(180,140,80,.1)' }}>
-                  <span className="font-semibold me-1 text-xs" style={{ color: '#8A7A6A' }}>{t('moveToList', 'רשימה')}:</span>
-                  {taskLists.map((l) => {
-                    const isActive = currentListId === l.id;
-                    return (
-                      <button
-                        key={l.id}
-                        onClick={() => updatePersonalTask(task.id, { list: l.id })}
-                        className="px-2.5 py-1 font-bold text-[10px] transition-all active:scale-95"
-                        style={{
-                          borderRadius: 20,
-                          background: isActive ? '#059669' : '#F5F0E8',
-                          color: isActive ? '#fff' : '#8A7A6A',
-                          border: isActive ? 'none' : '1px solid rgba(180,140,80,.12)',
-                        }}
-                      >
-                        {l.name}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+              {/* Move between categories — compact dropdown, includes "Today" */}
+              <div className="flex items-center gap-2 mt-2 pt-2 flex-wrap" style={{ borderTop: '1px solid rgba(180,140,80,.1)' }}>
+                <span className="font-semibold me-1 text-xs" style={{ color: '#8A7A6A' }}>{t('moveToCategory', 'העבר ל')}:</span>
+                <select
+                  value={currentTarget}
+                  onChange={(e) => moveTo(e.target.value)}
+                  className="text-xs font-bold outline-none cursor-pointer"
+                  style={{ borderRadius: 10, padding: '5px 10px', background: '#F5F0E8', color: '#2A1A0A', border: '1px solid rgba(180,140,80,.15)' }}
+                >
+                  {moveTargets.map((l) => (
+                    <option key={l.id} value={l.id}>{l.name}</option>
+                  ))}
+                </select>
+              </div>
 
               {/* Priority & Delete task */}
               <div className="flex items-center justify-between mt-2 pt-2" style={{ borderTop: '1px solid rgba(180,140,80,.1)' }}>
@@ -402,14 +404,6 @@ const TaskRow = ({ task }) => {
 
                 <div className="flex items-center gap-3">
                   <button
-                    onClick={() => startFocusOnTask(task)}
-                    className="flex items-center gap-1 text-xs font-bold transition-colors"
-                    style={{ color: '#7C3AED' }}
-                  >
-                    <Play className="w-3.5 h-3.5 fill-current" />
-                    {t('focusNow', 'התחל פוקוס')}
-                  </button>
-                  <button
                     onClick={() => deletePersonalTask(task.id)}
                     className="flex items-center gap-1 text-xs transition-colors"
                     style={{ color: '#8A7A6A' }}
@@ -419,365 +413,6 @@ const TaskRow = ({ task }) => {
                   </button>
                 </div>
               </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-};
-
-// ── Recurring Tasks Section (Phase 6d) ───────────────────────────────────────
-
-const WEEKDAY_LABELS_HE = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
-const WEEKDAY_LABELS_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-const freqSummary = (rule, t, lang) => {
-  const labels = lang === 'he' ? WEEKDAY_LABELS_HE : WEEKDAY_LABELS_EN;
-  if (rule.freq === 'daily') {
-    const n = rule.interval || 1;
-    if (n === 1) return t('freqDaily');
-    return t('everyXDays').replace('{n}', n);
-  }
-  if (rule.freq === 'weekly') {
-    if (Array.isArray(rule.byWeekday) && rule.byWeekday.length > 0) {
-      const days = rule.byWeekday.slice().sort().map((d) => labels[d]).join(', ');
-      return `${t('freqWeekly')} · ${days}`;
-    }
-    return t('freqWeekly');
-  }
-  if (rule.freq === 'monthly') return t('freqMonthly');
-  return rule.freq || '';
-};
-
-const RecurringForm = ({ initial, onSave, onCancel, t, lang }) => {
-  // LOCAL date — toISOString is UTC and gives yesterday between 00:00–02:00 IL.
-  const now = new Date();
-  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  const [title, setTitle] = useState(initial?.title || '');
-  const [freq, setFreq] = useState(initial?.freq || 'daily');
-  // Interval is fixed to the initial value for now (UI keeps it minimal).
-  const interval = initial?.interval || 1;
-  const [byWeekday, setByWeekday] = useState(initial?.byWeekday || []);
-  const [time, setTime] = useState(initial?.time || '');
-  const [durationMinutes, setDuration] = useState(initial?.durationMinutes || 30);
-  const labels = lang === 'he' ? WEEKDAY_LABELS_HE : WEEKDAY_LABELS_EN;
-
-  const handleSave = () => {
-    const trimmed = title.trim();
-    if (!trimmed) return;
-    onSave({
-      title: trimmed,
-      freq,
-      interval: Math.max(1, Number(interval) || 1),
-      byWeekday: freq === 'weekly' ? byWeekday : null,
-      byMonthday: null,
-      time: time || null,
-      durationMinutes: Math.max(1, Number(durationMinutes) || 30),
-      startDate: initial?.startDate || today,
-      active: true,
-    });
-  };
-
-  const toggleWeekday = (d) => {
-    setByWeekday((prev) => prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]);
-  };
-
-  return (
-    <div className="p-4 space-y-3" style={{ ...creamSectionCard }}>
-      <input
-        type="text"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder={t('addTaskPlaceholder')}
-        className="w-full px-3 py-2 text-sm outline-none"
-        style={{ background: '#fff', border: '1px solid rgba(180,140,80,.18)', borderRadius: 12, color: '#2A1A0A' }}
-        autoFocus
-        onFocus={(e) => e.target.style.borderColor = '#059669'}
-        onBlur={(e) => e.target.style.borderColor = 'rgba(180,140,80,.18)'}
-      />
-      <div className="flex items-center gap-2 text-xs">
-        <span className="font-semibold" style={{ color: '#8A7A6A' }}>{t('recurring')}:</span>
-        {[
-          { v: 'daily',   l: t('freqDaily') },
-          { v: 'weekly',  l: t('freqWeekly') },
-          { v: 'monthly', l: t('freqMonthly') },
-        ].map((opt) => (
-          <button
-            key={opt.v}
-            onClick={() => setFreq(opt.v)}
-            className="px-2.5 py-1 font-bold text-[11px] transition"
-            style={{
-              borderRadius: 20,
-              background: freq === opt.v ? '#059669' : '#F5F0E8',
-              color: freq === opt.v ? '#fff' : '#8A7A6A',
-              border: freq === opt.v ? 'none' : '1px solid rgba(180,140,80,.12)',
-            }}
-          >
-            {opt.l}
-          </button>
-        ))}
-      </div>
-
-      {freq === 'weekly' && (
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {labels.map((lab, d) => (
-            <button
-              key={d}
-              onClick={() => toggleWeekday(d)}
-              className="text-xs font-bold transition"
-              style={{
-                width: 32, height: 32, borderRadius: '50%',
-                background: byWeekday.includes(d) ? '#059669' : '#F5F0E8',
-                color: byWeekday.includes(d) ? '#fff' : '#8A7A6A',
-                border: byWeekday.includes(d) ? 'none' : '1px solid rgba(180,140,80,.12)',
-              }}
-              aria-pressed={byWeekday.includes(d)}
-              aria-label={lab}
-            >
-              {lab}
-            </button>
-          ))}
-        </div>
-      )}
-
-      <div className="flex items-center gap-3 text-xs">
-        <label className="flex items-center gap-2 flex-1">
-          <span style={{ color: '#8A7A6A' }}>⏰</span>
-          <input
-            type="time"
-            value={time}
-            onChange={(e) => setTime(e.target.value)}
-            className="flex-1 px-2 py-1 outline-none"
-            style={{ border: '1px solid rgba(180,140,80,.15)', borderRadius: 8, background: '#fff', color: '#2A1A0A' }}
-          />
-        </label>
-        <label className="flex items-center gap-2">
-          <input
-            type="number"
-            min="5"
-            step="5"
-            value={durationMinutes}
-            onChange={(e) => setDuration(e.target.value)}
-            className="w-16 px-2 py-1 outline-none"
-            style={{ border: '1px solid rgba(180,140,80,.15)', borderRadius: 8, background: '#fff', color: '#2A1A0A' }}
-          />
-          <span style={{ color: '#8A7A6A' }}>min</span>
-        </label>
-      </div>
-
-      <div className="flex items-center justify-end gap-2 pt-1">
-        <button
-          onClick={onCancel}
-          className="px-3 py-1.5 text-xs font-bold rounded-lg"
-          style={{ color: '#8A7A6A' }}
-        >
-          {t('cancel')}
-        </button>
-        <button
-          onClick={handleSave}
-          className="px-3 py-1.5 text-xs font-bold rounded-lg active:scale-95"
-          style={{ background: '#059669', color: '#fff' }}
-        >
-          {t('save')}
-        </button>
-      </div>
-    </div>
-  );
-};
-
-const UpcomingInstancesList = ({ rule, t }) => {
-  const skipRecurringInstance = useStore((s) => s.skipRecurringInstance);
-  const editRecurringInstance = useStore((s) => s.editRecurringInstance);
-  const [editingDate, setEditingDate] = useState(null);
-  const [time, setTime] = useState('');
-  const [duration, setDuration] = useState('');
-  
-  const upcomingDates = generateFutureInstances(rule, 3); // next 3 instances
-  
-  if (upcomingDates.length === 0) return null;
-  const rec = rule.recurrence;
-  
-  return (
-    <div className="mt-2 space-y-1.5 border-t border-border/40 pt-2">
-      <div className="text-[10px] font-semibold text-muted-foreground px-1 uppercase tracking-wider">
-        Upcoming
-      </div>
-      {upcomingDates.map(dateStr => {
-        const exception = rec.exceptions?.[dateStr] || {};
-        const instTime = exception.time !== undefined ? exception.time : rec.time;
-        const instDur = exception.durationMinutes !== undefined ? exception.durationMinutes : rec.durationMinutes;
-        
-        if (editingDate === dateStr) {
-          return (
-            <div key={dateStr} className="flex items-center gap-2 text-xs bg-card p-2 rounded-lg border border-border">
-              <span className="font-medium flex-1">{dateStr}</span>
-              <input type="time" value={time} onChange={e => setTime(e.target.value)} className="w-20 px-1 py-1 border border-border rounded bg-muted/30 outline-none focus:border-primary" />
-              <input type="number" min="5" step="5" value={duration} onChange={e => setDuration(e.target.value)} className="w-12 px-1 py-1 border border-border rounded bg-muted/30 outline-none focus:border-primary" />
-              <button onClick={() => {
-                editRecurringInstance(rule.id, dateStr, { time, durationMinutes: Number(duration) });
-                setEditingDate(null);
-              }} className="text-primary font-bold px-1 active:scale-95">{t('save')}</button>
-              <button onClick={() => setEditingDate(null)} className="text-muted-foreground hover:text-foreground px-1">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          );
-        }
-        
-        return (
-          <div key={dateStr} className="flex items-center gap-2 text-xs bg-card p-1.5 rounded-lg border border-border/60">
-            <span className="font-medium text-muted-foreground w-24">{dateStr}</span>
-            <span className="text-muted-foreground font-medium flex-1">
-              {instTime ? `⏰ ${instTime}` : ''} <span className="opacity-70">{instDur ? `(${instDur}m)` : ''}</span>
-            </span>
-            <button
-              onClick={() => {
-                setTime(instTime || '');
-                setDuration(instDur || 30);
-                setEditingDate(dateStr);
-              }}
-              className="px-2 py-1 text-[10px] rounded hover:bg-muted font-medium text-foreground transition-colors"
-            >
-              Edit
-            </button>
-            <button
-              onClick={() => {
-                if (window.confirm('Skip this instance?')) skipRecurringInstance(rule.id, dateStr);
-              }}
-              className="px-2 py-1 text-[10px] rounded hover:bg-red-500/10 font-medium text-red-500 transition-colors"
-            >
-              Skip
-            </button>
-          </div>
-        );
-      })}
-    </div>
-  );
-};
-
-const RecurringTasksSection = ({ t, lang, isRTL }) => {
-  const data = useStore((s) => s.data);
-  const addPersonalTask = useStore((s) => s.addPersonalTask);
-  const updatePersonalTask = useStore((s) => s.updatePersonalTask);
-  const deletePersonalTask = useStore((s) => s.deletePersonalTask);
-  const [open, setOpen] = useState(false);
-  const [showForm, setShowForm] = useState(false);
-  const [editing, setEditing] = useState(null);
-  const rules = (data?.personalTasks || []).filter(t => t.recurrence);
-
-  const handleSave = async (payload) => {
-    // payload gives { title, freq, interval, byWeekday, time, durationMinutes, startDate }
-    const rec = {
-      type: payload.freq,
-      interval: payload.interval,
-      byWeekday: payload.byWeekday,
-      byMonthday: payload.byMonthday,
-      startDate: payload.startDate,
-      time: payload.time,
-      durationMinutes: payload.durationMinutes,
-      active: true,
-    };
-    
-    if (editing) {
-      await updatePersonalTask(editing.id, { title: payload.title, recurrence: { ...editing.recurrence, ...rec } });
-    } else {
-      await addPersonalTask({ title: payload.title, list: 'personal', recurrence: rec, priority: 'low' });
-    }
-    setShowForm(false);
-    setEditing(null);
-  };
-
-  return (
-    <div style={creamSectionCard}>
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-2 px-4 py-3 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none focus-visible:ring-inset"
-        dir={isRTL ? 'rtl' : 'ltr'}
-        aria-expanded={open}
-      >
-        <motion.div animate={{ rotate: open ? 0 : (isRTL ? 90 : -90) }} transition={{ duration: 0.18 }}>
-          <ChevronDown className="w-4 h-4" style={{ color: '#8A7A6A' }} />
-        </motion.div>
-        <Repeat className="w-4 h-4" style={{ color: '#7C3AED' }} />
-        <span className="flex-1 text-start" style={{ fontFamily: serifFont, fontSize: 16, color: '#2A1A0A' }}>
-          {t('recurringTasks')} <span style={{ fontFamily: numbersFont, fontStyle: 'italic', fontSize: 13, color: '#8A7A6A' }}>({rules.length})</span>
-        </span>
-      </button>
-
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
-          >
-            <div className="px-4 py-3 space-y-2" style={{ borderTop: '1px solid rgba(180,140,80,.1)' }}>
-              {rules.length === 0 && !showForm && (
-                <div className="text-center text-xs py-4" style={{ color: '#8A7A6A' }}>
-                  {t('noRecurring')}
-                </div>
-              )}
-
-              {rules.map((rule) => {
-                const rec = rule.recurrence;
-                return (
-                <div key={rule.id} className="flex flex-col gap-2 p-3" style={{ ...creamCard, borderRadius: 14 }}>
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm truncate" style={{ fontWeight: 600, color: '#2A1A0A' }}>{rule.title}</div>
-                    <div className="text-xs" style={{ color: '#8A7A6A' }}>
-                      {freqSummary({ freq: rec.type, interval: rec.interval, byWeekday: rec.byWeekday }, t, lang)}
-                      {rec.time ? ` · ⏰ ${rec.time}` : ''}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setEditing({ id: rule.id, title: rule.title, freq: rec.type, interval: rec.interval, byWeekday: rec.byWeekday, time: rec.time, durationMinutes: rec.durationMinutes, startDate: rec.startDate });
-                      setShowForm(true);
-                    }}
-                    className="p-1.5 rounded-lg self-start mt-1"
-                    style={{ color: '#8A7A6A' }}
-                    aria-label={t('edit')}
-                  >
-                    <Edit3 className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (window.confirm(t('delete') + '?')) deletePersonalTask(rule.id);
-                    }}
-                    className="p-1.5 rounded-lg self-start mt-1"
-                    style={{ color: '#8A7A6A' }}
-                    aria-label={t('delete')}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-                <div className="px-1">
-                  <UpcomingInstancesList rule={rule} t={t} />
-                </div>
-              </div>
-              )})}
-
-              {showForm ? (
-                <RecurringForm
-                  initial={editing}
-                  onSave={handleSave}
-                  onCancel={() => { setShowForm(false); setEditing(null); }}
-                  t={t}
-                  lang={lang}
-                />
-              ) : (
-                <button
-                  onClick={() => { setEditing(null); setShowForm(true); }}
-                  className="w-full px-3 py-2 text-xs font-bold transition"
-                  style={{ color: '#059669', border: '1px dashed rgba(5,150,105,.4)', borderRadius: 12 }}
-                >
-                  {t('addRecurring')}
-                </button>
-              )}
             </div>
           </motion.div>
         )}
@@ -823,14 +458,14 @@ export const TasksView = () => {
     return task.list === tab;
   };
 
-  // Built-in smart categories + custom lists. The store seeds a `personal` doc
-  // into cl_taskLists, so we filter it out to avoid a duplicate "המשימות שלי".
-  // Each pill carries a pending-task count badge (Google Tasks style).
+  // Order: All · Today · Favorites · everything else (default bucket + custom).
+  // The store seeds a `personal` doc into cl_taskLists, filtered out here to
+  // avoid a duplicate "המשימות שלי". Each pill carries a pending-count badge.
   const lists = [
     { id: 'all', name: t('allTasksFilter', 'הכל') },
     { id: 'today', name: t('todayTasksFilter', 'להיום') },
-    { id: 'personal', name: t('defaultListName') },
     { id: 'favorites', name: t('favorites') },
+    { id: 'personal', name: t('defaultListName') },
     ...(data?.taskLists || []).filter((l) => l.id !== 'personal'),
   ].map((l) => ({
     ...l,
@@ -862,6 +497,13 @@ export const TasksView = () => {
 
   const currentList = lists.find(l => l.id === activeTab);
   const isCustomList = !['all', 'today', 'favorites', 'personal'].includes(activeTab);
+
+  const handleDeleteList = () => {
+    if (window.confirm(t('confirmDeleteList'))) {
+      deleteTaskList(activeTab);
+      setActiveTab('all');
+    }
+  };
 
   return (
     <div
@@ -925,14 +567,24 @@ export const TasksView = () => {
           {currentList ? currentList.name : ''}
         </h2>
         {isCustomList && (
-          <button
-            onClick={() => setIsEditOpen(true)}
-            className="p-2 rounded-full transition-all active:scale-95 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
-            style={{ color: '#8A7A6A' }}
-            aria-label={t('editListName')}
-          >
-            <Edit3 className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setIsEditOpen(true)}
+              className="p-2 rounded-full transition-all active:scale-95 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
+              style={{ color: '#8A7A6A' }}
+              aria-label={t('editListName')}
+            >
+              <Edit3 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={handleDeleteList}
+              className="p-2 rounded-full transition-all active:scale-95 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
+              style={{ color: '#DC2626' }}
+              aria-label={t('confirmDeleteList', 'מחק קטגוריה')}
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
         )}
       </div>
 
@@ -973,14 +625,11 @@ export const TasksView = () => {
         )}
       </div>
 
-      {/* ── Recurring tasks (Phase 6d) ── */}
-      <RecurringTasksSection t={t} lang={language} isRTL={isRTL} />
-
       {/* ── Section header ── */}
       {(pendingTasks.length > 0 || completedTasks.length > 0) && (
         <div className="flex justify-between items-baseline" style={{ padding: '6px 2px 4px', marginTop: 4 }}>
           <div style={{ fontFamily: serifFont, fontSize: 18, fontWeight: 400, color: '#2A1A0A', letterSpacing: '-.02em' }}>
-            <em style={{ color: '#059669' }}>{t('todayLabel')}</em>
+            <em style={{ color: '#059669' }}>{currentList ? currentList.name : t('todayLabel')}</em>
           </div>
           <div style={{ fontFamily: serifFont, fontStyle: 'italic', fontSize: 13, color: '#8A7A6A' }}>
             {pendingTasks.length} {t('items', 'פריטים')}
@@ -1097,12 +746,7 @@ export const TasksView = () => {
           isEdit={true}
           initialValue={currentList?.name}
           onSave={(name) => updateTaskList(activeTab, name)}
-          onDelete={() => {
-            if (window.confirm(t('confirmDeleteList'))) {
-              deleteTaskList(activeTab);
-              setActiveTab('personal');
-            }
-          }}
+          onDelete={handleDeleteList}
           t={t}
           isRTL={isRTL}
         />

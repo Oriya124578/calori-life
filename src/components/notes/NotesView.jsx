@@ -379,13 +379,28 @@ export const NotesView = () => {
             {currentCategory ? currentCategory.name : ''}
           </h2>
           {isCustomCategory && (
-            <button
-              onClick={() => setIsEditOpen(true)}
-              className="p-2 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-all active:scale-95 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
-              aria-label={t('editCategoryName')}
-            >
-              <Edit3 className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setIsEditOpen(true)}
+                className="p-2 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-all active:scale-95 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
+                aria-label={t('editCategoryName')}
+              >
+                <Edit3 className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => {
+                  if (window.confirm(t('confirmDeleteCategory'))) {
+                    deleteNoteCategory(selectedCategoryId);
+                    setSelectedCategoryId('all');
+                  }
+                }}
+                className="p-2 rounded-full transition-all active:scale-95 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
+                style={{ color: '#DC2626' }}
+                aria-label={t('confirmDeleteCategory', 'מחק קטגוריה')}
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
           )}
         </div>
       )}

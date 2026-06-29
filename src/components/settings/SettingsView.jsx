@@ -6,7 +6,7 @@ import { Input } from '../ui/input';
 import { useStore } from '../../store/useStore';
 import { signOut } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
-import { Settings, RefreshCcw, LogOut, BookOpen, Plus, Edit2, Trash2, Globe, Archive, ArchiveRestore, User, Clock, Palette, Bot, ExternalLink, Lock } from 'lucide-react';
+import { Settings, RefreshCcw, LogOut, BookOpen, Plus, Edit2, Trash2, Globe, Archive, ArchiveRestore, User, Palette, Bot, ExternalLink, Lock } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog';
 import { useTranslation } from '../../hooks/useTranslation';
 import { toast } from '../../store/useToast';
@@ -84,7 +84,7 @@ const BackButton = ({ onClick, language }) => (
 );
 
 export const SettingsView = () => {
-  const { data, resetSemester, addCourse, updateCourse, archiveCourse, deleteCourseFully, language, setLanguage, theme, setTheme, setProfile, pomoSettings, setPomoSettings, setCategory, deleteCategory } = useStore();
+  const { data, resetSemester, addCourse, updateCourse, archiveCourse, deleteCourseFully, language, setLanguage, theme, setTheme, setProfile, setCategory, deleteCategory } = useStore();
   const { t } = useTranslation();
   // Local section navigation (the app navigates via Zustand activeCategory, NOT
   // react-router — so settings sub-screens are plain local state). null = index.
@@ -128,10 +128,6 @@ export const SettingsView = () => {
 
   const [geminiApiKey, setGeminiApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
   const [googleMapsApiKey, setGoogleMapsApiKey] = useState(() => localStorage.getItem('google_maps_api_key') || '');
-
-  // Pomodoro local state
-  const [pomoWork, setPomoWork] = useState(pomoSettings?.work || 25);
-  const [pomoBreak, setPomoBreak] = useState(pomoSettings?.break || 5);
 
   const handleSaveAISettings = () => {
     // Preferences are saved in the user profile doc
@@ -186,11 +182,6 @@ export const SettingsView = () => {
   const handleSaveProfile = () => {
     setProfile({ displayName, academicYear, semester });
     toast.success(t('profileSaved', 'פרופיל עודכן בהצלחה'));
-  };
-
-  const handleSavePomodoro = () => {
-    setPomoSettings({ work: parseInt(pomoWork) || 25, break: parseInt(pomoBreak) || 5 });
-    toast.success(t('pomodoroSaved', 'הגדרות פומודורו עודכנו'));
   };
 
   const openEditModal = (course) => {
@@ -364,7 +355,7 @@ export const SettingsView = () => {
       {
         title: t('preferences', 'העדפות'),
         items: [
-          { id: 'general', iconEl: <Palette className="w-4 h-4" />, ic: 'a', title: t('preferencesTitle', 'כללי'), sub: 'שפה, ערכת נושא, פומודורו' },
+          { id: 'general', iconEl: <Palette className="w-4 h-4" />, ic: 'a', title: t('preferencesTitle', 'כללי'), sub: 'שפה, ערכת נושא' },
           { id: 'integrations', iconEl: <Globe className="w-4 h-4" />, ic: 'b', title: 'אינטגרציות', sub: 'חיבור לשירותים חיצוניים' },
         ]
       },
@@ -372,7 +363,7 @@ export const SettingsView = () => {
         title: t('data', 'נתונים'),
         items: [
           { id: 'data', iconEl: <Database className="w-4 h-4" />, ic: 'gr', title: t('exportData', 'ייצוא וגיבוי'), sub: 'קובץ JSON, איפוס סמסטר' },
-          { id: 'about', iconEl: <Info className="w-4 h-4" />, ic: 'gr', title: t('aboutTitle', 'אודות'), sub: 'גרסה, רישיון, פרטיות', val: 'v6.28.1' },
+          { id: 'about', iconEl: <Info className="w-4 h-4" />, ic: 'gr', title: t('aboutTitle', 'אודות'), sub: 'גרסה, רישיון, פרטיות', val: 'v6.29.6' },
         ]
       }
     ];
@@ -462,7 +453,7 @@ export const SettingsView = () => {
           textAlign: 'center', fontFamily: "'Instrument Serif', serif",
           fontStyle: 'italic', fontSize: 13, color: 'rgba(138,122,106,.5)', padding: '14px 0 4px',
         }}>
-          Calori Life &middot; <em style={{ color: '#059669' }}>v6.28.1</em>
+          Calori Life &middot; <em style={{ color: '#059669' }}>v6.29.6</em>
         </div>
       </div>
     );
@@ -846,7 +837,7 @@ export const SettingsView = () => {
             <Settings className="w-5 h-5 text-primary" />
             {t('preferencesTitle', 'העדפות')}
           </CardTitle>
-          <CardDescription>{t('preferencesDesc', 'הגדרות שפה, עיצוב ופומודורו')}</CardDescription>
+          <CardDescription>{t('preferencesDesc', 'הגדרות שפה ועיצוב')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           
@@ -885,28 +876,6 @@ export const SettingsView = () => {
               <Button variant={language === 'en' ? 'default' : 'ghost'} size="sm" onClick={() => setLanguage('en')}>
                 {t('english')}
               </Button>
-            </div>
-          </div>
-
-          {/* Pomodoro */}
-          <div className="p-4 rounded-xl border bg-card space-y-4">
-            <div>
-              <h3 className="font-semibold text-foreground flex items-center gap-2">
-                <Clock className="w-4 h-4" />
-                {t('pomodoroSettings', 'הגדרות פומודורו')}
-              </h3>
-              <p className="text-sm text-muted-foreground">{t('pomodoroDesc', 'קבע את משך הזמן למיקוד ולהפסקה')}</p>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-4 items-end">
-              <div className="space-y-2 flex-1">
-                <label className="text-sm font-medium text-foreground">{t('workTime', 'זמן מיקוד (דקות)')}</label>
-                <Input type="number" min="1" max="120" value={pomoWork} onChange={(e) => setPomoWork(e.target.value)} />
-              </div>
-              <div className="space-y-2 flex-1">
-                <label className="text-sm font-medium text-foreground">{t('breakTime', 'זמן הפסקה (דקות)')}</label>
-                <Input type="number" min="1" max="60" value={pomoBreak} onChange={(e) => setPomoBreak(e.target.value)} />
-              </div>
-              <Button onClick={handleSavePomodoro} className="w-full sm:w-auto">{t('save')}</Button>
             </div>
           </div>
 
@@ -1020,7 +989,7 @@ export const SettingsView = () => {
       <CardContent className="space-y-3">
         <div className="flex items-center justify-between p-4 rounded-xl border bg-card">
           <span className="font-semibold text-foreground">Calori Life</span>
-          <span className="text-sm font-mono text-primary">v6.28.1</span>
+          <span className="text-sm font-mono text-primary">v6.29.6</span>
         </div>
         <a href="/privacy" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-4 rounded-xl border bg-card hover:bg-muted/40 transition-colors">
           <span className="font-semibold text-foreground flex items-center gap-2"><Lock className="w-4 h-4" /> מדיניות פרטיות</span>

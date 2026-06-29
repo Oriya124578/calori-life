@@ -18,7 +18,25 @@ export const CourseView = () => {
   const { activeCourse, data, updateCourse, saveLinks, setActiveCourse, saveNote } = useStore();
   const { t, language } = useTranslation();
   const [activeTab, setActiveTab] = useState('weekly');
-  const [selectedWeek, setSelectedWeek] = useState(1);
+  // Each course remembers the last week/window the user was on (localStorage),
+  // so re-entering a course lands on that week instead of always week 1.
+  const [selectedWeek, setSelectedWeek] = useState(() => {
+    const n = parseInt(localStorage.getItem(`course_week_${activeCourse?.id}`), 10);
+    return Number.isFinite(n) && n >= 1 ? n : 1;
+  });
+
+  // Switching courses (same component instance) reloads that course's week.
+  useEffect(() => {
+    if (!activeCourse?.id) return;
+    const n = parseInt(localStorage.getItem(`course_week_${activeCourse.id}`), 10);
+    const max = activeCourse.weeksCount || 14;
+    setSelectedWeek(Number.isFinite(n) ? Math.min(Math.max(n, 1), max) : 1);
+  }, [activeCourse?.id, activeCourse?.weeksCount]);
+
+  const selectWeek = (week) => {
+    setSelectedWeek(week);
+    if (activeCourse?.id) localStorage.setItem(`course_week_${activeCourse.id}`, String(week));
+  };
   const [isCourseSelectOpen, setIsCourseSelectOpen] = useState(false);
   const [isExamDialogOpen, setIsExamDialogOpen] = useState(false);
   const [editingMoedKey, setEditingMoedKey] = useState(null);
@@ -402,7 +420,7 @@ export const CourseView = () => {
                 return (
                   <button
                     key={week}
-                    onClick={() => setSelectedWeek(week)}
+                    onClick={() => selectWeek(week)}
                     className={cn(
                       "px-4 py-2 rounded-xl text-sm font-medium transition-colors flex items-center gap-2",
                       selectedWeek === week

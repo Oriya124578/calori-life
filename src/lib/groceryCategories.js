@@ -17,10 +17,51 @@ const CATEGORIES = [
   { key: 'other',    emoji: '\u{1F9C8}', he: 'אחר',               en: 'Other' },
 ];
 
-export const getCategoryMeta = (key) =>
-  CATEGORIES.find((c) => c.key === key) || CATEGORIES[CATEGORIES.length - 1];
+// ── User-configurable category layer ──────────────────────────────────────
+// The 13 built-ins above are fixed; on top of them the user can add their own
+// categories and reorder ALL of them to match their supermarket's aisle order.
+// Config is injected from the store (profile.shoppingCustomCategories / .order)
+// via setShoppingCatConfig, called synchronously during render so every pure
+// helper below (getCategoryMeta/getAllCategories/groupByCategory) sees it.
+let _customCats = [];   // [{ key, he, en, emoji }]
+let _catOrder = null;   // [key, ...] — user's aisle order, or null for default
 
-export const getAllCategories = () => CATEGORIES;
+export const setShoppingCatConfig = ({ custom, order } = {}) => {
+  _customCats = Array.isArray(custom) ? custom.filter((c) => c && c.key) : [];
+  _catOrder = Array.isArray(order) && order.length ? order : null;
+};
+
+export const isCustomCategory = (key) => _customCats.some((c) => c.key === key);
+
+export const getCategoryMeta = (key) =>
+  CATEGORIES.find((c) => c.key === key) ||
+  _customCats.find((c) => c.key === key) ||
+  CATEGORIES[CATEGORIES.length - 1];
+
+// All categories (built-in + custom) in the user's preferred order. Unknown /
+// unordered keys keep their natural order; "other" always sinks to the bottom.
+export const getAllCategories = () => {
+  const pool = [...CATEGORIES, ..._customCats];
+  const byKey = (k) => pool.find((c) => c.key === k);
+  const merged = [];
+  const seen = new Set();
+  if (_catOrder) {
+    for (const k of _catOrder) {
+      if (seen.has(k)) continue;
+      const c = byKey(k);
+      if (c) { merged.push(c); seen.add(k); }
+    }
+  }
+  for (const c of pool) {
+    if (!seen.has(c.key)) { merged.push(c); seen.add(c.key); }
+  }
+  const others = merged.filter((c) => c.key === 'other');
+  return [...merged.filter((c) => c.key !== 'other'), ...others];
+};
+
+// The default key order (built-ins + custom appended), used to seed the
+// reorder UI before the user has saved a custom order.
+export const getDefaultCategoryOrder = () => getAllCategories().map((c) => c.key);
 
 const KEYWORDS = {
   dairy: [
@@ -321,14 +362,17 @@ export const learnCategory = (itemName, category) => {
 };
 
 export const groupByCategory = (items) => {
+  const all = getAllCategories();
+  const known = new Set(all.map((c) => c.key));
   const groups = {};
   for (const item of items) {
-    const cat = item.category || 'other';
+    // Fold any unknown category (e.g. a custom one the user later deleted) into
+    // "other" so it never spawns a phantom duplicate section.
+    let cat = item.category || 'other';
+    if (!known.has(cat)) cat = 'other';
     if (!groups[cat]) groups[cat] = [];
     groups[cat].push(item);
   }
-  const ordered = CATEGORIES
-    .filter((c) => groups[c.key])
-    .map((c) => ({ ...c, items: groups[c.key] }));
-  return ordered;
+  // Order by the user's aisle order.
+  return all.filter((c) => groups[c.key]).map((c) => ({ ...c, items: groups[c.key] }));
 };

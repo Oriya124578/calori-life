@@ -80,6 +80,11 @@
 
     --radius: 1rem;
 
+    /* Theme-aware native controls (date/time/number inputs, scrollbars) +
+       brand-tinted checkboxes/radios/range/progress. */
+    color-scheme: light;
+    accent-color: hsl(var(--primary));
+
     /* Cream v3 Light custom variables */
     --cream-warm: rgba(180, 140, 80, 0.12);
     --cream-border: rgba(180, 140, 80, 0.14);
@@ -93,6 +98,7 @@
   }
 
   .dark {
+    color-scheme: dark;
     --background: 240 5% 4%;
     --foreground: 240 8% 93%;
 
@@ -142,6 +148,12 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: 'Inter', 'Rubik', 'Heebo', system-ui, sans-serif;
+    /* Crisper text rendering across the app — the classic "instantly more
+       polished" web pass. */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: 'liga' 1, 'calt' 1, 'kern' 1;
   }
 }
 
@@ -168,9 +180,20 @@
 /* ── Global interaction polish ──────────────────────────────── */
 html {
   -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+/* App-shell owns scrolling (<main>), so kill the document-level rubber-band /
+   pull-to-refresh for a native-app feel. */
+body {
+  overscroll-behavior: none;
 }
 button {
   touch-action: manipulation;
+}
+button:disabled,
+[disabled] {
+  cursor: not-allowed;
 }
 
 /* Soft rise-in entrance for cards/sections (enter-only, GPU-friendly) */

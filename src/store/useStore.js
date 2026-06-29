@@ -23,8 +23,6 @@ import {
   setCourseTask as fsSetCourseTask,
   deleteCourseTask as fsDeleteCourseTask,
   batchSetCourseTasks,
-  subscribePomodoroSessions,
-  addPomodoroSession as fsAddPomodoroSession,
   subscribeEvents,
   setEvent as fsSetEvent,
   deleteEvent as fsDeleteEvent,
@@ -276,6 +274,20 @@ const buildInitialWeeklyTasksMap = (course, lang, customSeeds = null) => {
   return out;
 };
 
+const touchRecentCourse = (courseId) => {
+  if (!courseId || typeof window === 'undefined') return;
+  try {
+    const key = 'cl_recent_courses';
+    const recent = JSON.parse(localStorage.getItem(key) ?? '[]');
+    const filtered = recent.filter(id => id !== courseId);
+    const updated = [courseId, ...filtered].slice(0, 10);
+    localStorage.setItem(key, JSON.stringify(updated));
+    window.dispatchEvent(new Event('cl_recent_courses_changed'));
+  } catch (e) {
+    console.warn('Failed to touch recent course', e);
+  }
+};
+
 // ---------- Store ----------------------------------------------------------
 
 export const useStore = create((set, get) => ({
@@ -292,11 +304,7 @@ export const useStore = create((set, get) => ({
   categoryHistory: [],
   theme: localStorage.getItem('theme') || 'light',
   language: localStorage.getItem('language') || 'he',
-  pomodoro: { active: false, timeLeft: 25 * 60, mode: 'work', courseId: null },
-  pomoSettings: { work: 25, break: 5 },
   sidebarOpen: false,
-  showPomoSettings: false,
-  showPomodoroModal: false,
   isUploading: false,
   // Phase 2 UI state
   showAddSheet: false,
@@ -399,12 +407,6 @@ export const useStore = create((set, get) => ({
       set((state) => ({ data: { ...state.data, tasks, globalTasks } }));
     });
 
-    const unsubPomodoro = subscribePomodoroSessions(uid, (sessions) => {
-      set((state) => ({
-        data: { ...state.data, pomodoroSessions: sessions },
-      }));
-    });
-
     const unsubEvents = subscribeEvents(uid, (events) => {
       set((state) => ({ data: { ...state.data, events } }));
     });
@@ -505,7 +507,6 @@ export const useStore = create((set, get) => ({
         unsubProfile,
         unsubCourses,
         unsubCourseTasks,
-        unsubPomodoro,
         unsubEvents,
         unsubPersonalTasks,
         unsubNotes,
@@ -703,7 +704,12 @@ export const useStore = create((set, get) => ({
 
   setData: (newData) => set({ data: newData }),
   setHasCompletedOnboarding: (val) => set({ hasCompletedOnboarding: val }),
-  setActiveCourse: (course) => set({ activeCourse: course }),
+  setActiveCourse: (course) => {
+    set({ activeCourse: course });
+    if (course && course.id) {
+      touchRecentCourse(course.id);
+    }
+  },
   setActiveCategory: (category) =>
     set((state) => ({
       activeCategory: category,
@@ -726,7 +732,6 @@ export const useStore = create((set, get) => ({
   closeCoachChat: () => set({ coachChatOpen: false }),
   setPendingTuneCommand: (cmd) => set({ pendingTuneCommand: cmd }),
   setSidebarOpen: (isOpen) => set({ sidebarOpen: isOpen }),
-  setShowPomodoroModal: (isOpen) => set({ showPomodoroModal: isOpen }),
   setIsUploading: (status) => set({ isUploading: status }),
   setGoogleCalendarToken: (token) => set({ googleCalendarToken: token }),
   setGoogleSyncEnabled: (enabled) => {
@@ -757,14 +762,6 @@ export const useStore = create((set, get) => ({
     }
     set({ language });
   },
-  setPomodoro: (pomoUpdater) =>
-    set((state) => ({
-      pomodoro:
-        typeof pomoUpdater === 'function' ? pomoUpdater(state.pomodoro) : pomoUpdater,
-    })),
-  setPomoSettings: (settings) => set({ pomoSettings: settings }),
-  setShowPomoSettings: (show) => set({ showPomoSettings: show }),
-
   // Phase 5: merge-update notification settings + persist to localStorage.
   // Phase 5b: also mirror to Firestore (cl_profile/main.notificationSettings)
   // so the scheduled Cloud Function can deliver pushes when the app is closed.
@@ -804,16 +801,6 @@ export const useStore = create((set, get) => ({
     });
     const { uid } = get();
     if (uid) fsSetProfile(uid, profileData).catch(console.error);
-  },
-
-  // ---------- Pomodoro sessions ------------------------------------------
-
-  addPomodoroSession: (session) => {
-    const { uid } = get();
-    if (!session.courseId) return;
-    if (!uid) return;
-    fsAddPomodoroSession(uid, session).catch(console.error);
-    // No optimistic update needed — listener will pick it up shortly.
   },
 
   // ---------- Onboarding -------------------------------------------------
@@ -936,23 +923,51 @@ export const useStore = create((set, get) => ({
       items.map((it) => (it.id === itemId ? { ...it, checked: !it.checked } : it))
     ),
 
+  // Adding an item already on the list merges into it (bumps quantity) instead
+  // of creating a duplicate line. A matching bought item is re-opened.
   addShoppingItem: (listId, item) =>
-    get()._patchShoppingItems(listId, (items) => [
-      ...items,
-      {
-        id: genItemId(),
-        name: item.name || '',
-        category: item.category || 'other',
-        checked: false,
-        qty: item.qty || null,
-        unit: item.unit || null,
-        addedAt: new Date().toISOString(),
-      },
-    ]),
+    get()._patchShoppingItems(listId, (items) => {
+      const name = (item.name || '').trim();
+      const key = name.toLowerCase();
+      const idx = key ? items.findIndex((it) => (it.name || '').trim().toLowerCase() === key) : -1;
+      if (idx !== -1) {
+        const ex = items[idx];
+        const incoming = parseInt(item.qty, 10);
+        const base = parseInt(ex.qty, 10);
+        const nextN = (Number.isFinite(base) ? base : 1) + (Number.isFinite(incoming) ? incoming : 1);
+        const copy = [...items];
+        copy[idx] = { ...ex, qty: String(nextN), unit: ex.unit || item.unit || null, checked: false };
+        return copy;
+      }
+      return [
+        ...items,
+        {
+          id: genItemId(),
+          name,
+          category: item.category || 'other',
+          checked: false,
+          qty: item.qty || null,
+          unit: item.unit || null,
+          addedAt: new Date().toISOString(),
+        },
+      ];
+    }),
 
   updateShoppingItem: (listId, itemId, patch) =>
     get()._patchShoppingItems(listId, (items) =>
       items.map((it) => (it.id === itemId ? { ...it, ...patch } : it))
+    ),
+
+  // Inline +/- quantity. An unspecified qty counts as 1; stepping below 2 with
+  // no explicit unit clears it back to a plain (implied-1) item.
+  bumpShoppingItemQty: (listId, itemId, delta) =>
+    get()._patchShoppingItems(listId, (items) =>
+      items.map((it) => {
+        if (it.id !== itemId) return it;
+        const cur = parseInt(it.qty, 10);
+        const next = Math.max(1, (Number.isFinite(cur) ? cur : 1) + delta);
+        return { ...it, qty: next === 1 && !Number.isFinite(cur) ? null : String(next) };
+      })
     ),
 
   removeShoppingItem: (listId, itemId) =>
@@ -982,6 +997,45 @@ export const useStore = create((set, get) => ({
     const next = (data.profile?.shoppingRegulars || []).filter((r) => (r.name || '').toLowerCase() !== key);
     set((state) => ({ data: { ...state.data, profile: { ...state.data.profile, shoppingRegulars: next } } }));
     if (uid) fsSetProfile(uid, { shoppingRegulars: next }).catch(console.error);
+  },
+
+  // ---------- Shopping category layout (aisle order + custom categories) ----
+  // Persisted on cl_profile/main so the user's store-aisle order and their own
+  // categories follow them across devices.
+
+  setShoppingCategoryOrder: (order) => {
+    const { uid } = get();
+    set((state) => ({ data: { ...state.data, profile: { ...state.data.profile, shoppingCategoryOrder: order } } }));
+    if (uid) fsSetProfile(uid, { shoppingCategoryOrder: order }).catch(console.error);
+  },
+
+  addShoppingCustomCategory: ({ he, en, emoji }) => {
+    const { uid, data } = get();
+    const label = (he || en || '').trim();
+    if (!label) return null;
+    const key = `custom_${Date.now().toString(36)}`;
+    const cat = { key, he: (he || label).trim(), en: (en || label).trim(), emoji: emoji || '🏷️' };
+    const next = [...(data.profile?.shoppingCustomCategories || []), cat];
+    // Slot the new category just before "other" in the saved aisle order.
+    const order = data.profile?.shoppingCategoryOrder;
+    let nextOrder = order;
+    if (Array.isArray(order) && order.length) {
+      const oi = order.indexOf('other');
+      nextOrder = oi === -1 ? [...order, key] : [...order.slice(0, oi), key, ...order.slice(oi)];
+    }
+    const patch = { shoppingCustomCategories: next, ...(nextOrder ? { shoppingCategoryOrder: nextOrder } : {}) };
+    set((state) => ({ data: { ...state.data, profile: { ...state.data.profile, ...patch } } }));
+    if (uid) fsSetProfile(uid, patch).catch(console.error);
+    return key;
+  },
+
+  removeShoppingCustomCategory: (key) => {
+    const { uid, data } = get();
+    const next = (data.profile?.shoppingCustomCategories || []).filter((c) => c.key !== key);
+    const nextOrder = (data.profile?.shoppingCategoryOrder || []).filter((k) => k !== key);
+    const patch = { shoppingCustomCategories: next, shoppingCategoryOrder: nextOrder };
+    set((state) => ({ data: { ...state.data, profile: { ...state.data.profile, ...patch } } }));
+    if (uid) fsSetProfile(uid, patch).catch(console.error);
   },
 
   clearShoppingList: (listId) => {
@@ -1213,6 +1267,7 @@ export const useStore = create((set, get) => ({
   // ---------- Weekly tasks ------------------------------------------------
 
   addWeeklyTask: (courseId, week, label, includeInProgress = true) => {
+    touchRecentCourse(courseId);
     const { uid } = get();
     const id = weeklyTaskId(courseId, week, 'custom', Date.now());
     const newTask = {
@@ -1262,6 +1317,7 @@ export const useStore = create((set, get) => ({
   },
 
   toggleTask: (courseId, week, taskId) => {
+    touchRecentCourse(courseId);
     const { uid } = get();
     let newChecked = null;
     set((state) => {
@@ -1484,6 +1540,7 @@ export const useStore = create((set, get) => ({
   // ---------- Notes & links (embedded in course doc) ---------------------
 
   saveNote: (courseId, week, note) => {
+    touchRecentCourse(courseId);
     const { uid, data } = get();
     const courseNotes = { ...(data.notes[courseId] || {}), [week]: note };
     set((state) => ({
@@ -1494,6 +1551,7 @@ export const useStore = create((set, get) => ({
   },
 
   saveLinks: (courseId, links) => {
+    touchRecentCourse(courseId);
     const { uid } = get();
     set((state) => {
       const newData = { ...state.data };
