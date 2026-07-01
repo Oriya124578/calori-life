@@ -8,10 +8,11 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { toast } from '../../store/useToast';
 import { 
-  Users, Plus, LogOut, Send, Paperclip, Clipboard, 
+  Users, Plus, LogOut, Send, Paperclip, Clipboard,
   Trash2, DollarSign, BookOpen, Clock,
   AlertTriangle, Copy, FileText, ShoppingCart, HelpCircle, FileDown, BookMarked, X,
-  Car, Coffee, TrendingUp, Award, Sparkles, Pin, Star, Info
+  Car, Coffee, TrendingUp, Award, Sparkles, Pin, Star, Info, MessageCircle,
+  Soup, ClipboardList
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { format } from 'date-fns';
@@ -21,7 +22,7 @@ const EXPENSE_CATEGORIES = {
   travel: { label: 'נסיעות ודלק 🚗', color: '#3B82F6', bg: '#EFF6FF', icon: Car },
   drinks: { label: 'בילויים וקפה ☕', color: '#F59E0B', bg: '#FEF3C7', icon: Coffee },
   studies: { label: 'לימודים וציוד 📚', color: '#8B5CF6', bg: '#F5F3FF', icon: BookOpen },
-  misc: { label: 'שונות ⚙️', color: '#6B7280', bg: '#F3F4F6', icon: HelpCircle },
+  misc: { label: 'שונות ⚙️', color: '#8A7A6A', bg: '#F5F0E8', icon: HelpCircle },
 };
 
 const HE_MONTHS = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
@@ -77,8 +78,11 @@ export const GroupsView = () => {
 
   const { language } = useTranslation();
   const isRTL = language === 'he';
-
+  // Matches the Flutter apps' shared Cream Collection theme: AlertDialog
+  // titles render in the display font (Instrument Serif), same as their
+  // default MaterialDialog headlineSmall.
   const serifFont = "'Instrument Serif', serif";
+
   const [groupFilter, setGroupFilter] = useState('all');
   const [showInfoPanel, setShowInfoPanel] = useState(true);
 
@@ -587,7 +591,7 @@ export const GroupsView = () => {
                 value={newGroupName}
                 onChange={(e) => setNewGroupName(e.target.value)}
                 placeholder={isRTL ? 'לדוגמה: לומדי אינפי מאי 2026' : 'e.g. Infi Learners May 2026'}
-                className="w-full bg-[#FAF8F5]"
+                className="w-full bg-[#FFFFFF]"
               />
               <div className="flex justify-end gap-2 text-xs font-bold pt-2">
                 <Button variant="outline" onClick={() => setIsCreateModalOpen(false)}>
@@ -630,7 +634,7 @@ export const GroupsView = () => {
                 onChange={(e) => setJoinCode(e.target.value)}
                 placeholder={isRTL ? 'לדוגמה: AB39XF' : 'e.g. AB39XF'}
                 maxLength={6}
-                className="uppercase tracking-widest text-center text-lg font-bold bg-[#FAF8F5]"
+                className="uppercase tracking-widest text-center text-lg font-bold bg-[#FFFFFF]"
               />
               <div className="flex justify-end gap-2 text-xs font-bold pt-2">
                 <Button variant="outline" onClick={() => setIsJoinModalOpen(false)}>
@@ -673,7 +677,7 @@ export const GroupsView = () => {
   };
 
   return (
-    <div className="flex h-full w-full overflow-hidden bg-[#FAF8F5] relative" dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className="flex h-full w-full overflow-hidden bg-[#FAF7F2] relative" dir={isRTL ? 'rtl' : 'ltr'}>
       {/* 1. RIGHT SIDEBAR: Chat List (On desktop: always visible. On mobile: visible only when selectedGroupId is empty) */}
       <div className={cn(
         "flex flex-col h-full bg-white border-e border-[rgba(180,140,80,.12)] shadow-sm shrink-0",
@@ -681,20 +685,20 @@ export const GroupsView = () => {
       )}>
         {/* Index Header */}
         <div className="bg-white border-b border-[rgba(180,140,80,.12)] px-4 py-4 flex items-center justify-between shrink-0 h-[65px]">
-          <h2 style={{ fontFamily: serifFont, fontSize: 20, fontWeight: 400, color: '#2A1A0A' }}>
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: '#2A1A0A' }}>
             {isRTL ? 'הקבוצות שלי' : 'My Groups'}
           </h2>
           <div className="flex items-center gap-1.5">
             <button
               onClick={() => setIsCreateModalOpen(true)}
-              className="p-2 rounded-xl text-primary hover:bg-[#FAF8F5] active:scale-95 transition-all cursor-pointer"
+              className="p-2 rounded-xl text-primary hover:bg-[#FAF7F2] active:scale-95 transition-all cursor-pointer"
               title={isRTL ? 'קבוצה חדשה' : 'New Group'}
             >
               <Plus className="w-5 h-5" />
             </button>
             <button
               onClick={() => setIsJoinModalOpen(true)}
-              className="p-2 rounded-xl text-[#8A7A6A] hover:bg-[#FAF8F5] active:scale-95 transition-all cursor-pointer"
+              className="p-2 rounded-xl text-[#8A7A6A] hover:bg-[#FAF7F2] active:scale-95 transition-all cursor-pointer"
               title={isRTL ? 'הצטרף לקבוצה' : 'Join Group'}
             >
               <Users className="w-5 h-5" />
@@ -703,7 +707,7 @@ export const GroupsView = () => {
         </div>
 
         {/* Search Bar */}
-        <div className="p-3 bg-[#FAF8F5] border-b border-[rgba(180,140,80,.06)] shrink-0">
+        <div className="p-3 bg-[#FAF7F2] border-b border-[rgba(180,140,80,.06)] shrink-0">
           <Input 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -729,7 +733,7 @@ export const GroupsView = () => {
                   "px-3 py-1 rounded-full text-[11px] font-bold shrink-0 transition-all active:scale-95 cursor-pointer border",
                   isActive 
                     ? "bg-primary border-primary text-white shadow-sm" 
-                    : "bg-[#FAF8F5] border-[rgba(180,140,80,.08)] text-[#8A7A6A] hover:bg-[#F5F0E8]"
+                    : "bg-[#FFFFFF] border-[rgba(180,140,80,.08)] text-[#8A7A6A] hover:bg-[#F5F0E8]"
                 )}
               >
                 {f.label}
@@ -766,7 +770,7 @@ export const GroupsView = () => {
                     "w-full text-start p-3 rounded-2xl flex items-center justify-between gap-3 transition-all cursor-pointer border",
                     isActive 
                       ? "bg-primary/[0.06] border-primary/10" 
-                      : "border-transparent hover:bg-[#FAF8F5]/80"
+                      : "border-transparent hover:bg-[#FAF7F2]/80"
                   )}
                 >
                   <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -807,7 +811,7 @@ export const GroupsView = () => {
 
       {/* 2. LEFT DETAIL PANE: Selected Group Content (On desktop: always visible. On mobile: visible only when selectedGroupId is NOT empty) */}
       <div className={cn(
-        "flex-1 flex flex-col h-full bg-[#FAF8F5] overflow-hidden min-w-0",
+        "flex-1 flex flex-col h-full bg-[#FAF7F2] overflow-hidden min-w-0",
         selectedGroupId ? "flex" : "hidden min-[900px]:flex"
       )}>
         {selectedGroupId && activeGroup ? (
@@ -899,7 +903,7 @@ export const GroupsView = () => {
             </div>
 
             {/* Sticky Tab Switcher */}
-            <div className="bg-[#FAF8F5] border-b border-[rgba(180,140,80,.08)] px-4 py-1.5 flex gap-2 shrink-0 overflow-x-auto select-none sticky top-[65px] z-10 min-[900px]:hidden">
+            <div className="bg-[#FFFFFF] border-b border-[rgba(180,140,80,.08)] px-4 py-1.5 flex gap-2 shrink-0 overflow-x-auto select-none sticky top-[65px] z-10 min-[900px]:hidden">
               {[
                 { id: 'chat', label: isRTL ? 'צ\'אט ועדכונים' : 'Chat', icon: Send },
                 { id: 'exams', label: isRTL ? 'לוח בחינות' : 'Exams', icon: Clock },
@@ -916,7 +920,7 @@ export const GroupsView = () => {
                       "px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-2 cursor-pointer transition-all active:scale-95",
                       isActive 
                          ? "bg-primary text-white shadow-sm font-bold" 
-                         : "bg-white text-[#8A7A6A] border border-[rgba(180,140,80,.12)] hover:bg-[#FAF8F5]"
+                         : "bg-white text-[#8A7A6A] border border-[rgba(180,140,80,.12)] hover:bg-[#FAF7F2]"
                     )}
                   >
                     <Icon className="w-3.5 h-3.5" />
@@ -927,7 +931,7 @@ export const GroupsView = () => {
             </div>
 
             {/* Tab Contents Area */}
-            <div className="flex-1 flex flex-col min-[900px]:flex-row min-h-0 overflow-hidden relative bg-[#FAF8F5]">
+            <div className="flex-1 flex flex-col min-[900px]:flex-row min-h-0 overflow-hidden relative bg-[#FAF7F2]">
         
         {/* 1. CHAT TAB */}
         {(activeTab === 'chat' || true) && (
@@ -947,7 +951,7 @@ export const GroupsView = () => {
 
                   // Support cross-app messages and legacy updates
                   const itemKind = update.kind || update.type || 'chat';
-                  const isRichCard = !!update.payload || ['workout', 'shared_workout', 'meal', 'shared_meal', 'new_recipe', 'badge_earned', 'weight_milestone', 'champion_crowned'].includes(itemKind);
+                  const isRichCard = !!update.payload || ['workout', 'shared_workout', 'meal', 'shared_meal', 'recipe', 'new_recipe', 'program', 'workout_program', 'badge_earned', 'weight_milestone', 'champion_crowned'].includes(itemKind);
                   const isSystem = !isRichCard && itemKind !== 'chat' && itemKind !== 'message';
 
                   const prevUpdate = chronoUpdates[idx - 1];
@@ -1171,44 +1175,46 @@ export const GroupsView = () => {
                             )}
 
                             {/* MEAL / RECIPE SHARED CARD */}
-                            {(itemKind === 'meal' || itemKind === 'shared_meal' || itemKind === 'new_recipe') && (
+                            {(itemKind === 'meal' || itemKind === 'shared_meal' || itemKind === 'recipe' || itemKind === 'new_recipe') && (
                               <Card className="border-l-4 border-l-emerald-500 border-border bg-white shadow-sm overflow-hidden w-64 md:w-72">
                                 <CardContent className="p-3 space-y-2.5">
-                                  {update.imageUrl && (
-                                    <img 
-                                      src={update.imageUrl} 
-                                      alt="Recipe" 
+                                  {payload.imageUrl && (
+                                    <img
+                                      src={payload.imageUrl}
+                                      alt={payload.title || payload.name || 'Recipe'}
                                       className="w-full h-24 object-cover rounded-lg border border-border/40 mb-1"
                                     />
                                   )}
                                   <div className="flex gap-2.5 items-start">
                                     <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100">
-                                      <ShoppingCart className="w-4 h-4" />
+                                      {itemKind === 'recipe' || itemKind === 'new_recipe'
+                                        ? <Soup className="w-4 h-4" />
+                                        : <ShoppingCart className="w-4 h-4" />}
                                     </div>
                                     <div className="min-w-0 flex-1">
                                       <h4 className="text-xs font-bold text-[#2A1A0A] truncate">
-                                        {update.recipe_title || (isRTL ? 'שיתף/ה ארוחה 🍽️' : 'Shared a Meal 🍽️')}
+                                        {payload.title || payload.name || (isRTL ? 'שיתף/ה ארוחה 🍽️' : 'Shared a Meal 🍽️')}
                                       </h4>
                                       <p className="text-[10px] text-muted-foreground mt-0.5 leading-relaxed">
                                         {update.message || update.summary}
                                       </p>
 
-                                      {(update.calories || update.protein || update.carbs || update.fats) && (
-                                        <div className="grid grid-cols-4 gap-1 mt-2 text-[9px] font-bold text-center text-emerald-800 bg-[#FAF8F5] p-1.5 rounded-lg border border-emerald-100/50">
+                                      {(payload.calories || payload.protein || payload.carbs || payload.fats) && (
+                                        <div className="grid grid-cols-4 gap-1 mt-2 text-[9px] font-bold text-center text-emerald-800 bg-[#FFFFFF] p-1.5 rounded-lg border border-emerald-100/50">
                                           <div>
-                                            <span className="block text-emerald-950 font-black">{update.calories || 0}</span>
+                                            <span className="block text-emerald-950 font-black">{payload.calories || 0}</span>
                                             <span>קק"ל</span>
                                           </div>
                                           <div>
-                                            <span className="block text-emerald-950 font-black">{update.protein || 0}ג</span>
+                                            <span className="block text-emerald-950 font-black">{payload.protein || 0}ג</span>
                                             <span>חלבון</span>
                                           </div>
                                           <div>
-                                            <span className="block text-emerald-950 font-black">{update.carbs || 0}ג</span>
+                                            <span className="block text-emerald-950 font-black">{payload.carbs || 0}ג</span>
                                             <span>פחממה</span>
                                           </div>
                                           <div>
-                                            <span className="block text-emerald-950 font-black">{update.fats || 0}ג</span>
+                                            <span className="block text-emerald-950 font-black">{payload.fats || 0}ג</span>
                                             <span>שומן</span>
                                           </div>
                                         </div>
@@ -1217,21 +1223,23 @@ export const GroupsView = () => {
                                   </div>
 
                                   <div className="grid grid-cols-2 gap-1.5 pt-1">
-                                    <Button 
-                                      size="sm" 
+                                    <Button
+                                      size="sm"
                                       className="text-[10px] h-7.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
                                       onClick={() => setSelectedMealDetail(update)}
                                     >
-                                      {isRTL ? 'ערכים תזונתיים' : 'View Recipe'}
+                                      {itemKind === 'recipe' || itemKind === 'new_recipe'
+                                        ? (isRTL ? 'צפה במתכון' : 'View Recipe')
+                                        : (isRTL ? 'ערכים תזונתיים' : 'View Details')}
                                     </Button>
-                                    <Button 
-                                      size="sm" 
+                                    <Button
+                                      size="sm"
                                       variant="outline"
                                       className="text-[10px] h-7.5 border-emerald-200 hover:bg-emerald-50/50 text-emerald-700 font-bold"
                                       onClick={() => {
                                         window.open('calorinutrition://open', '_blank');
-                                        toast.info(isRTL 
-                                          ? 'מנווט לקלורי נוטרישן. אם האפליקציה לא מותקנת, תוכל להוריד אותה בחנות.' 
+                                        toast.info(isRTL
+                                          ? 'מנווט לקלורי נוטרישן. אם האפליקציה לא מותקנת, תוכל להוריד אותה בחנות.'
                                           : 'Navigating to Calori Nutrition. Please download if not installed.'
                                         );
                                       }}
@@ -1239,6 +1247,58 @@ export const GroupsView = () => {
                                       {isRTL ? 'פתח נוטרישן' : 'Open Nutrition'}
                                     </Button>
                                   </div>
+                                </CardContent>
+                              </Card>
+                            )}
+
+                            {/* WORKOUT PROGRAM SHARED CARD */}
+                            {(itemKind === 'program' || itemKind === 'workout_program') && (
+                              <Card className="border-l-4 border-l-violet-500 border-border bg-white shadow-sm overflow-hidden w-64 md:w-72">
+                                <CardContent className="p-3 space-y-2.5">
+                                  <div className="flex gap-2.5 items-start">
+                                    <div className="w-8 h-8 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center shrink-0 border border-violet-100">
+                                      <ClipboardList className="w-4 h-4" />
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <h4 className="text-xs font-bold text-[#2A1A0A] truncate">
+                                        {payload.planName || (isRTL ? 'תוכנית אימונים משותפת 📋' : 'Shared Training Program 📋')}
+                                      </h4>
+                                      <p className="text-[10px] text-muted-foreground mt-0.5 leading-relaxed">
+                                        {update.message || update.summary}
+                                      </p>
+                                      <div className="flex flex-wrap gap-1.5 mt-2">
+                                        {payload.dayCount != null && (
+                                          <span className="text-[9px] font-bold text-violet-800 bg-violet-50 px-2 py-1 rounded-full border border-violet-100">
+                                            {payload.dayCount} {isRTL ? 'ימי אימון' : 'days'}
+                                          </span>
+                                        )}
+                                        {payload.weeklyFrequency != null && (
+                                          <span className="text-[9px] font-bold text-violet-800 bg-violet-50 px-2 py-1 rounded-full border border-violet-100">
+                                            {payload.weeklyFrequency}x {isRTL ? 'בשבוע' : '/week'}
+                                          </span>
+                                        )}
+                                        {payload.goal && (
+                                          <span className="text-[9px] font-bold text-violet-800 bg-violet-50 px-2 py-1 rounded-full border border-violet-100">
+                                            {payload.goal}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="w-full text-[10px] h-7.5 border-violet-200 hover:bg-violet-50/50 text-violet-700 font-bold"
+                                    onClick={() => {
+                                      window.open('calorifitness://open', '_blank');
+                                      toast.info(isRTL
+                                        ? 'מנווט לקלורי פיטנס. אם האפליקציה לא מותקנת, תוכל להוריד אותה בחנות.'
+                                        : 'Navigating to Calori Fitness. Please download if not installed.'
+                                      );
+                                    }}
+                                  >
+                                    {isRTL ? 'פתח פיטנס' : 'Open Fitness'}
+                                  </Button>
                                 </CardContent>
                               </Card>
                             )}
@@ -1310,7 +1370,7 @@ export const GroupsView = () => {
               <div className="relative">
                 <button 
                   onClick={() => setShowShareMenu(!showShareMenu)}
-                  className="p-2.5 bg-[#FAF8F5] border border-[rgba(180,140,80,.16)] rounded-xl text-[#8A7A6A] hover:bg-white hover:text-primary active:scale-95 transition-all shrink-0 cursor-pointer"
+                  className="p-2.5 bg-[#FFFFFF] border border-[rgba(180,140,80,.16)] rounded-xl text-[#8A7A6A] hover:bg-white hover:text-primary active:scale-95 transition-all shrink-0 cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
                 </button>
@@ -1322,21 +1382,21 @@ export const GroupsView = () => {
                   )}>
                     <button 
                       onClick={() => { setShowShareMenu(false); setShareType('note'); }}
-                      className="w-full text-start px-3 py-2 text-xs font-bold hover:bg-[#FAF8F5] rounded-xl flex items-center gap-2"
+                      className="w-full text-start px-3 py-2 text-xs font-bold hover:bg-[#FAF7F2] rounded-xl flex items-center gap-2"
                     >
                       <FileText className="w-4 h-4 text-amber-500" />
                       <span>{isRTL ? 'שתף פתק' : 'Share Note'}</span>
                     </button>
                     <button 
                       onClick={() => { setShowShareMenu(false); setShareType('list'); }}
-                      className="w-full text-start px-3 py-2 text-xs font-bold hover:bg-[#FAF8F5] rounded-xl flex items-center gap-2"
+                      className="w-full text-start px-3 py-2 text-xs font-bold hover:bg-[#FAF7F2] rounded-xl flex items-center gap-2"
                     >
                       <ShoppingCart className="w-4 h-4 text-emerald-500" />
                       <span>{isRTL ? 'שתף רשימת קניות' : 'Share Shopping List'}</span>
                     </button>
                     <button 
                       onClick={() => { setShowShareMenu(false); setShareType('course'); }}
-                      className="w-full text-start px-3 py-2 text-xs font-bold hover:bg-[#FAF8F5] rounded-xl flex items-center gap-2"
+                      className="w-full text-start px-3 py-2 text-xs font-bold hover:bg-[#FAF7F2] rounded-xl flex items-center gap-2"
                     >
                       <BookOpen className="w-4 h-4 text-indigo-500" />
                       <span>{isRTL ? 'שתף קורס' : 'Share Course Layout'}</span>
@@ -1344,7 +1404,7 @@ export const GroupsView = () => {
                     <hr className="border-[rgba(180,140,80,.08)]" />
                     <button 
                       onClick={() => { setShowShareMenu(false); fileInputRef.current?.click(); }}
-                      className="w-full text-start px-3 py-2 text-xs font-bold hover:bg-[#FAF8F5] rounded-xl flex items-center gap-2"
+                      className="w-full text-start px-3 py-2 text-xs font-bold hover:bg-[#FAF7F2] rounded-xl flex items-center gap-2"
                       disabled={isUploading}
                     >
                       <Paperclip className="w-4 h-4 text-blue-500" />
@@ -1367,7 +1427,7 @@ export const GroupsView = () => {
                 onChange={(e) => setChatMessage(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleSendChatMessage(); }}
                 placeholder={isRTL ? 'הקלד הודעה לקבוצה...' : 'Type group updates...'}
-                className="flex-1 bg-[#FAF8F5]"
+                className="flex-1 bg-[#FFFFFF]"
               />
 
               <Button onClick={handleSendChatMessage} className="shrink-0">
@@ -1400,7 +1460,7 @@ export const GroupsView = () => {
                           setShareType(null);
                           toast.success(isRTL ? 'הפתק שותף!' : 'Note shared!');
                         }}
-                        className="w-full text-start p-3 border border-border/80 hover:bg-[#FAF8F5] rounded-xl flex items-center justify-between transition-all"
+                        className="w-full text-start p-3 border border-border/80 hover:bg-[#FAF7F2] rounded-xl flex items-center justify-between transition-all"
                       >
                         <span className="font-bold text-xs">{note.title || (isRTL ? 'פתק ללא כותרת' : 'Untitled Note')}</span>
                         <FileText className="w-4 h-4 text-amber-500" />
@@ -1418,7 +1478,7 @@ export const GroupsView = () => {
                           setShareType(null);
                           toast.success(isRTL ? 'רשימת קניות שותפה בהצלחה!' : 'List shared!');
                         }}
-                        className="w-full text-start p-3 border border-border/80 hover:bg-[#FAF8F5] rounded-xl flex items-center justify-between transition-all"
+                        className="w-full text-start p-3 border border-border/80 hover:bg-[#FAF7F2] rounded-xl flex items-center justify-between transition-all"
                       >
                         <span className="font-bold text-xs">{list.name}</span>
                         <ShoppingCart className="w-4 h-4 text-emerald-500" />
@@ -1450,7 +1510,7 @@ export const GroupsView = () => {
                           setShareType(null);
                           toast.success(isRTL ? 'קוד שיתוף נוצר ונשלח!' : 'Course shared!');
                         }}
-                        className="w-full text-start p-3 border border-border/80 hover:bg-[#FAF8F5] rounded-xl flex items-center justify-between transition-all"
+                        className="w-full text-start p-3 border border-border/80 hover:bg-[#FAF7F2] rounded-xl flex items-center justify-between transition-all"
                       >
                         <span className="font-bold text-xs">{course.name}</span>
                         <BookOpen className="w-4 h-4 text-indigo-500" />
@@ -1726,7 +1786,7 @@ export const GroupsView = () => {
                                   "px-3 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1 shrink-0 cursor-pointer active:scale-95 transition-all",
                                   isSelected 
                                     ? "text-white shadow-sm" 
-                                    : "bg-white text-muted-foreground hover:bg-[#FAF8F5]"
+                                    : "bg-white text-muted-foreground hover:bg-[#FAF7F2]"
                                 )}
                                 style={{
                                   backgroundColor: isSelected ? cat.color : '',
@@ -1792,7 +1852,7 @@ export const GroupsView = () => {
                         {membersList.map(m => {
                           const val = expenseSplits[m.uid];
                           return (
-                            <div key={m.uid} className="flex items-center justify-between gap-3 bg-[#FAF8F5] p-2 rounded-xl border border-border/40 text-xs">
+                            <div key={m.uid} className="flex items-center justify-between gap-3 bg-[#FFFFFF] p-2 rounded-xl border border-border/40 text-xs">
                               <span className="font-bold text-muted-foreground">{m.uid === uid ? (isRTL ? 'אני' : 'Me') : m.name}</span>
                               
                               {expenseSplitMode === 'equal' && (
@@ -2087,7 +2147,7 @@ export const GroupsView = () => {
         {showInfoPanel && (
           <div className="hidden min-[900px]:flex flex-col w-[360px] xl:w-[400px] h-full bg-white border-s border-[rgba(180,140,80,.12)] overflow-y-auto shrink-0 animate-in slide-in-from-left duration-200">
             {/* Header */}
-            <div className="p-4 border-b border-[rgba(180,140,80,.08)] flex items-center justify-between shrink-0 h-[65px] bg-[#FAF8F5]">
+            <div className="p-4 border-b border-[rgba(180,140,80,.08)] flex items-center justify-between shrink-0 h-[65px] bg-[#FFFFFF]">
               <h3 className="font-bold text-xs text-[#2A1A0A]">{isRTL ? 'פרטי קבוצה' : 'Group Details'}</h3>
               <button 
                 onClick={() => setShowInfoPanel(false)}
@@ -2100,7 +2160,7 @@ export const GroupsView = () => {
             {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto p-4 space-y-6">
               {/* Section 1: Group code & Quick Actions */}
-              <div className="space-y-3 bg-[#FAF8F5] p-3.5 rounded-2xl border border-[rgba(180,140,80,.08)]">
+              <div className="space-y-3 bg-[#FFFFFF] p-3.5 rounded-2xl border border-[rgba(180,140,80,.08)]">
                 <div className="flex justify-between items-center">
                   <div>
                     <span className="text-[10px] text-muted-foreground font-bold block">{isRTL ? 'קוד הצטרפות' : 'Join Code'}</span>
@@ -2246,13 +2306,13 @@ export const GroupsView = () => {
                   return (
                     <div className="space-y-3 text-xs">
                       <div className="grid grid-cols-2 gap-2">
-                        <div className="bg-[#FAF8F5] p-2.5 rounded-xl border text-center">
+                        <div className="bg-[#FFFFFF] p-2.5 rounded-xl border text-center">
                           <span className="text-[9px] text-[#8A7A6A] font-bold block">{isRTL ? 'סך הכל' : 'Total Spent'}</span>
                           <span className="font-extrabold text-[#2A1A0A]">{totalGroupSpent.toFixed(0)} ₪</span>
                         </div>
                         <div className={cn(
                           "p-2.5 rounded-xl border text-center",
-                          myBalance > 0.5 ? "bg-emerald-50/50 border-emerald-100 text-emerald-700" : myBalance < -0.5 ? "bg-red-50/40 border-red-100 text-red-600" : "bg-[#FAF8F5]"
+                          myBalance > 0.5 ? "bg-emerald-50/50 border-emerald-100 text-emerald-700" : myBalance < -0.5 ? "bg-red-50/40 border-red-100 text-red-600" : "bg-[#FFFFFF]"
                         )}>
                           <span className="text-[9px] text-[#8A7A6A] font-bold block">{isRTL ? 'המאזן שלך' : 'Your Balance'}</span>
                           <span className="font-extrabold">{myBalance > 0.5 ? `+${myBalance.toFixed(0)}` : myBalance.toFixed(0)} ₪</span>
@@ -2272,7 +2332,7 @@ export const GroupsView = () => {
                       <Button 
                         variant="outline" 
                         size="sm" 
-                        className="w-full text-[11px] h-8 font-bold border-[rgba(180,140,80,.12)] text-[#8A7A6A] hover:bg-[#FAF8F5] hover:text-primary"
+                        className="w-full text-[11px] h-8 font-bold border-[rgba(180,140,80,.12)] text-[#8A7A6A] hover:bg-[#FAF7F2] hover:text-primary"
                         onClick={() => {
                           setActiveTab('expenses');
                         }}
@@ -2293,7 +2353,7 @@ export const GroupsView = () => {
                 </div>
                 <div className="space-y-2">
                   {members.slice(0, 5).map(member => (
-                    <div key={member.uid} className="flex items-center justify-between bg-[#FAF8F5] p-2 rounded-xl border border-[rgba(180,140,80,.06)] text-xs">
+                    <div key={member.uid} className="flex items-center justify-between bg-[#FFFFFF] p-2 rounded-xl border border-[rgba(180,140,80,.06)] text-xs">
                       <div className="flex items-center gap-2 min-w-0">
                         <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-[10px] shrink-0 border border-primary/5 overflow-hidden">
                           {member.photoUrl
@@ -2330,16 +2390,14 @@ export const GroupsView = () => {
       </div>
     </div>
   ) : (
-    /* Desktop Empty State (WhatsApp Web Style) */
-    <div className="flex-1 flex flex-col items-center justify-center p-8 bg-[#FAF8F5] text-center border-s border-[rgba(180,140,80,.04)]">
-      <div className="w-20 h-20 bg-primary/5 rounded-full flex items-center justify-center mb-5 border border-primary/10">
-        <Users className="w-10 h-10 text-primary" />
-      </div>
-      <h3 style={{ fontFamily: serifFont, fontSize: '26px', color: '#2A1A0A' }} className="font-medium">
-        {isRTL ? 'קלורי לייף - קבוצות למידה' : 'Calori Life - Study Groups'}
+    /* Desktop Empty State — matches the Flutter apps' group-detail empty state */
+    <div className="flex-1 flex flex-col items-center justify-center p-8 bg-[#FAF7F2] text-center border-s border-[rgba(180,140,80,.04)]">
+      <MessageCircle className="w-16 h-16 text-muted-foreground/30 mb-4" />
+      <h3 style={{ fontSize: 16, fontWeight: 700, color: '#2A1A0A' }}>
+        {isRTL ? 'בחר קבוצה מהרשימה' : 'Select a group from the list'}
       </h3>
       <p className="text-sm text-muted-foreground max-w-sm mt-2 leading-relaxed">
-        {isRTL 
+        {isRTL
           ? 'בחר קבוצה מהרשימה בצד כדי לצפות בצ\'אט, לשתף קבצים, לעקוב אחר מועדי הבחינות ולנהל את ההוצאות המשותפות שלכם.'
           : 'Select a group from the list to view chat, share files, track exam dates, and manage shared expenses.'}
       </p>
@@ -2384,7 +2442,7 @@ export const GroupsView = () => {
                 )}
 
                 {selectedWorkoutDetail.feeling && (
-                  <div className="text-xs text-[#8A7A6A] font-semibold bg-[#FAF8F5] px-3 py-2 rounded-xl border border-[rgba(180,140,80,.06)]">
+                  <div className="text-xs text-[#8A7A6A] font-semibold bg-[#FFFFFF] px-3 py-2 rounded-xl border border-[rgba(180,140,80,.06)]">
                     😊 {isRTL ? 'הרגשה:' : 'Feeling:'} <span className="font-bold text-foreground">{selectedWorkoutDetail.feeling}</span>
                   </div>
                 )}
@@ -2395,7 +2453,7 @@ export const GroupsView = () => {
                     <p className="text-center py-8 text-muted-foreground text-xs">{isRTL ? 'אין פירוט תרגילים זמין' : 'No exercises details available'}</p>
                   ) : (
                     exercises.map((ex, idx) => (
-                      <div key={idx} className="bg-[#FAF8F5] border border-[rgba(180,140,80,.08)] rounded-2xl p-3.5 space-y-2">
+                      <div key={idx} className="bg-[#FFFFFF] border border-[rgba(180,140,80,.08)] rounded-2xl p-3.5 space-y-2">
                         <div className="flex justify-between items-start gap-2">
                           <div className="flex items-center gap-2">
                             <span className="w-5 h-5 rounded-full bg-orange-100 text-orange-700 text-[10px] font-black flex items-center justify-center shrink-0">
@@ -2467,24 +2525,26 @@ export const GroupsView = () => {
 
       {/* Meal Detail Modal */}
       {selectedMealDetail && (() => {
+        const detail = selectedMealDetail.payload || {};
+        const detailTitle = detail.title || detail.name || (isRTL ? 'פרטי ארוחה תזונתית' : 'Meal Details');
         return (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-3xl max-w-lg w-full max-h-[85vh] overflow-hidden flex flex-col shadow-2xl border border-[rgba(180,140,80,.12)]" dir={isRTL ? 'rtl' : 'ltr'}>
               {/* Image if available */}
-              {selectedMealDetail.imageUrl && (
+              {detail.imageUrl && (
                 <div className="relative h-44 shrink-0 bg-emerald-50">
-                  <img 
-                    src={selectedMealDetail.imageUrl} 
-                    alt="Recipe Detail" 
+                  <img
+                    src={detail.imageUrl}
+                    alt="Recipe Detail"
                     className="w-full h-full object-cover"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/55 to-transparent flex items-end p-5">
                     <h3 className="text-white text-base font-black truncate leading-tight drop-shadow-md">
-                      {selectedMealDetail.recipe_title || (isRTL ? 'פרטי ארוחה תזונתית' : 'Meal Details')}
+                      {detailTitle}
                     </h3>
                   </div>
-                  <button 
-                    onClick={() => setSelectedMealDetail(null)} 
+                  <button
+                    onClick={() => setSelectedMealDetail(null)}
                     className="absolute top-4 right-4 rtl:left-4 rtl:right-auto w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm border flex items-center justify-center text-muted-foreground hover:text-foreground hover:scale-105 active:scale-95 transition-all shadow-md text-xs font-bold"
                   >
                     ✕
@@ -2493,14 +2553,14 @@ export const GroupsView = () => {
               )}
 
               {/* Header without Image */}
-              {!selectedMealDetail.imageUrl && (
+              {!detail.imageUrl && (
                 <div className="p-5 border-b border-[rgba(180,140,80,.08)] flex items-center justify-between bg-emerald-50/50">
                   <h3 className="text-base font-black text-[#2A1A0A] flex items-center gap-2">
                     <ShoppingCart className="w-5 h-5 text-emerald-600" />
-                    {selectedMealDetail.recipe_title || (isRTL ? 'פרטי ארוחה תזונתית' : 'Meal Details')}
+                    {detailTitle}
                   </h3>
-                  <button 
-                    onClick={() => setSelectedMealDetail(null)} 
+                  <button
+                    onClick={() => setSelectedMealDetail(null)}
                     className="w-8 h-8 rounded-full bg-white border flex items-center justify-center text-muted-foreground hover:text-foreground hover:scale-105 active:scale-95 transition-all text-xs font-bold"
                   >
                     ✕
@@ -2510,24 +2570,24 @@ export const GroupsView = () => {
 
               {/* Nutritional Values */}
               <div className="p-5 overflow-y-auto space-y-4 flex-1">
-                <div className="bg-[#FAF8F5] border border-[rgba(180,140,80,.08)] rounded-2xl p-4">
+                <div className="bg-[#FFFFFF] border border-[rgba(180,140,80,.08)] rounded-2xl p-4">
                   <h4 className="text-xs font-black text-muted-foreground mb-3">{isRTL ? 'ערכים תזונתיים לארוחה:' : 'Nutritional Targets:'}</h4>
-                  
+
                   <div className="grid grid-cols-4 gap-2 text-center">
                     <div className="bg-emerald-50/50 border border-emerald-100 p-2.5 rounded-2xl">
-                      <span className="block text-emerald-950 font-black text-sm">{selectedMealDetail.calories || 0}</span>
+                      <span className="block text-emerald-950 font-black text-sm">{detail.calories || 0}</span>
                       <span className="text-[9px] text-emerald-800 font-bold block mt-0.5">{isRTL ? 'קלוריות' : 'Calories'}</span>
                     </div>
                     <div className="bg-orange-50/50 border border-orange-100 p-2.5 rounded-2xl">
-                      <span className="block text-orange-950 font-black text-sm">{selectedMealDetail.protein || 0}ג</span>
+                      <span className="block text-orange-950 font-black text-sm">{detail.protein || 0}ג</span>
                       <span className="text-[9px] text-orange-800 font-bold block mt-0.5">{isRTL ? 'חלבון' : 'Protein'}</span>
                     </div>
                     <div className="bg-indigo-50/50 border border-indigo-100 p-2.5 rounded-2xl">
-                      <span className="block text-indigo-950 font-black text-sm">{selectedMealDetail.carbs || 0}ג</span>
+                      <span className="block text-indigo-950 font-black text-sm">{detail.carbs || 0}ג</span>
                       <span className="text-[9px] text-indigo-800 font-bold block mt-0.5">{isRTL ? 'פחמימות' : 'Carbs'}</span>
                     </div>
                     <div className="bg-amber-50/50 border border-amber-100 p-2.5 rounded-2xl">
-                      <span className="block text-amber-950 font-black text-sm">{selectedMealDetail.fats || 0}ג</span>
+                      <span className="block text-amber-950 font-black text-sm">{detail.fats || 0}ג</span>
                       <span className="text-[9px] text-amber-800 font-bold block mt-0.5">{isRTL ? 'שומנים' : 'Fats'}</span>
                     </div>
                   </div>
