@@ -1,8 +1,17 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
+import { registerSW } from 'virtual:pwa-register'
 import './index.css'
 import App from './App.jsx'
+
+// vite.config.js sets registerType: 'autoUpdate', but that only takes effect
+// if something actually calls registerSW() — without this, the previously
+// auto-injected registration script installs updates in the background but
+// never tells the open tab to reload, so users kept seeing the old build
+// until they refreshed several times. This closes the loop: check for
+// updates immediately and reload as soon as a new version activates.
+registerSW({ immediate: true })
 
 // Self-heal stale code-split chunks after a deploy. When an already-open client
 // tries to lazy-load a chunk whose hashed filename no longer exists on the
