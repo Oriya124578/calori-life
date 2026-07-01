@@ -459,8 +459,9 @@ export const GroupsView = () => {
 
   // Handle copying join code
   const copyJoinCode = () => {
-    if (activeGroup?.join_code) {
-      navigator.clipboard.writeText(activeGroup.join_code);
+    const code = activeGroup?.join_code || activeGroup?.code;
+    if (code) {
+      navigator.clipboard.writeText(code);
       toast.success(isRTL ? 'הקוד הועתק!' : 'Code copied!');
     }
   };
@@ -957,7 +958,7 @@ export const GroupsView = () => {
                 <div className="min-w-0">
                   <h3 className="font-bold text-sm md:text-base text-foreground truncate leading-tight">{activeGroup.name}</h3>
                   <span className="text-[10px] text-muted-foreground font-semibold block">
-                    {isRTL ? 'קוד קבוצה:' : 'Group Code:'} <code className="font-bold text-primary select-all">{activeGroup.join_code}</code>
+                    {isRTL ? 'קוד קבוצה:' : 'Group Code:'} <code className="font-bold text-primary select-all">{activeGroup.join_code || activeGroup.code}</code>
                   </span>
                 </div>
               </div>
@@ -2316,7 +2317,7 @@ export const GroupsView = () => {
                 <div className="flex justify-between items-center">
                   <div>
                     <span className="text-[10px] text-muted-foreground font-bold block">{isRTL ? 'קוד הצטרפות' : 'Join Code'}</span>
-                    <code className="text-sm font-black text-primary select-all tracking-wider">{activeGroup.join_code}</code>
+                    <code className="text-sm font-black text-primary select-all tracking-wider">{activeGroup.join_code || activeGroup.code}</code>
                   </div>
                   <button 
                     onClick={copyJoinCode}
