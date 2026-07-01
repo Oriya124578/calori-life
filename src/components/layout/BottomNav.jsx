@@ -3,6 +3,7 @@ import { Home, BookOpen, Sparkles, ShoppingCart, Users } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useStore } from '../../store/useStore';
 import { useTranslation } from '../../hooks/useTranslation';
+import { cn } from '../../lib/utils';
 
 // v3 cream redesign — floating pill nav (Instagram-style), 5 tabs. RTL right→left:
 // ✨ Manager · 🛒 Shopping · 🏠 Home · 👥 Groups · 📚 Studies
@@ -16,7 +17,7 @@ const NAV_ITEMS = [
 ];
 
 export const BottomNav = () => {
-  const { activeCategory, setActiveCategory, setActiveCourse, data } = useStore();
+  const { activeCategory, setActiveCategory, setActiveCourse, data, groupChatMobileOpen } = useStore();
   const { t } = useTranslation();
 
   const handleNavClick = (key) => {
@@ -39,7 +40,10 @@ export const BottomNav = () => {
 
   return (
     <nav
-      className="fixed z-50 left-1/2 bottom-[calc(14px+env(safe-area-inset-bottom))] flex items-center gap-0.5 px-1.5 py-1.5 min-[900px]:hidden"
+      className={cn(
+        "fixed z-50 left-1/2 bottom-[calc(14px+env(safe-area-inset-bottom))] flex items-center gap-0.5 px-1.5 py-1.5 min-[900px]:hidden",
+        groupChatMobileOpen && "hidden"
+      )}
       style={{
         background: 'var(--bottom-nav-bg)',
         backdropFilter: 'blur(22px)',

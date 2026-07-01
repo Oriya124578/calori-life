@@ -12,7 +12,7 @@ import {
   Trash2, DollarSign, BookOpen, Clock,
   AlertTriangle, Copy, FileText, ShoppingCart, HelpCircle, FileDown, BookMarked, X,
   Car, Coffee, TrendingUp, Award, Sparkles, Pin, Star, Info, MessageCircle,
-  Soup, ClipboardList
+  Soup, ClipboardList, SmilePlus
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { format } from 'date-fns';
@@ -89,7 +89,7 @@ export const GroupsView = () => {
     shareShoppingListToGroup, shareNoteToGroup, 
     shareFileToGroup, addSharedExpense, deleteSharedExpense, shareCourse,
     importCourseFromCode, previewSharedCourse, copySharedNoteToPersonal, markGroupAsRead,
-    setProfile, toggleGroupMute
+    setProfile, toggleGroupMute, setGroupChatMobileOpen
   } = useStore();
 
   const { language } = useTranslation();
@@ -100,7 +100,7 @@ export const GroupsView = () => {
   const serifFont = "'Instrument Serif', serif";
 
   const [groupFilter, setGroupFilter] = useState('all');
-  const [showInfoPanel, setShowInfoPanel] = useState(true);
+  const [showInfoPanel, setShowInfoPanel] = useState(false);
 
   // Desktop: draggable dividers let the user resize the group list and info
   // panel panes. Widths persist across sessions; mobile ignores all of this
@@ -243,6 +243,10 @@ export const GroupsView = () => {
   const [shareType, setShareType] = useState(null); // 'note' | 'list' | 'course'
   const [selectedWorkoutDetail, setSelectedWorkoutDetail] = useState(null);
   const [selectedMealDetail, setSelectedMealDetail] = useState(null);
+  // Which message's react-picker popover is open (matches the Flutter apps'
+  // "הגב" button + emoji sheet, instead of showing all reaction emojis
+  // permanently under every message).
+  const [reactPickerFor, setReactPickerFor] = useState(null);
   // Shared-course "adapt to me" preview: { code, course, tasks } once fetched,
   // plus the editable overrides the importer picks before committing.
   const [pendingImport, setPendingImport] = useState(null);
@@ -258,6 +262,14 @@ export const GroupsView = () => {
 
   const activeGroupId = activeGroup?.id;
   const activeGroupMemberCount = activeGroup?.member_count;
+
+  // Tell Layout to hide the mobile BottomNav/FAB while a group chat is open —
+  // a fixed nav bar floating over a full-height composer just gets in the
+  // way. Reset on unmount so leaving the Groups tab restores normal nav.
+  useEffect(() => {
+    setGroupChatMobileOpen(!!selectedGroupId);
+    return () => setGroupChatMobileOpen(false);
+  }, [selectedGroupId, setGroupChatMobileOpen]);
 
   // Sync group members and active group changes
   useEffect(() => {
@@ -1443,9 +1455,9 @@ export const GroupsView = () => {
                           </div>
                         )}
 
-                        <div className={cn("flex gap-1 mt-1", isMe ? "justify-end" : "justify-start")}>
-                          {['👍', '🔥', '💪', '🎓'].map((emoji) => {
-                            const list = update.reactions?.[emoji] || [];
+                        <div className={cn("flex items-center gap-1 mt-1 relative", isMe ? "justify-end" : "justify-start")}>
+                          {/* Only existing reactions show as pills — tapping one toggles your own reaction on that emoji. */}
+                          {Object.entries(update.reactions || {}).filter(([, list]) => list?.length > 0).map(([emoji, list]) => {
                             const active = list.includes(uid);
                             return (
                               <button
@@ -1453,16 +1465,42 @@ export const GroupsView = () => {
                                 onClick={() => reactToGroupUpdate(selectedGroupId, update.id, emoji)}
                                 className={cn(
                                   "px-2 py-0.5 rounded-full text-xs border transition-all active:scale-90",
-                                  active 
-                                    ? "bg-primary/10 border-primary/20 text-primary font-bold" 
+                                  active
+                                    ? "bg-primary/10 border-primary/20 text-primary font-bold"
                                     : "bg-white/60 border-border/40 text-muted-foreground hover:bg-white"
                                 )}
                               >
                                 <span>{emoji}</span>
-                                {list.length > 0 && <span className="ms-1 font-bold">{list.length}</span>}
+                                <span className="ms-1 font-bold">{list.length}</span>
                               </button>
                             );
                           })}
+                          <button
+                            onClick={() => setReactPickerFor(reactPickerFor === update.id ? null : update.id)}
+                            className="px-2 py-0.5 rounded-full text-[11px] text-muted-foreground/70 hover:bg-[#FAF7F2] hover:text-primary transition-all flex items-center gap-1"
+                          >
+                            <SmilePlus className="w-3.5 h-3.5" />
+                            <span>{isRTL ? 'הגב' : 'React'}</span>
+                          </button>
+                          {reactPickerFor === update.id && (
+                            <div className={cn(
+                              "absolute bottom-full mb-1 bg-white rounded-full border border-[rgba(180,140,80,.16)] shadow-lg p-1.5 flex gap-1 z-30",
+                              isRTL ? "right-0" : "left-0"
+                            )}>
+                              {['👍', '🔥', '💪', '🎓'].map((emoji) => (
+                                <button
+                                  key={emoji}
+                                  onClick={() => {
+                                    reactToGroupUpdate(selectedGroupId, update.id, emoji);
+                                    setReactPickerFor(null);
+                                  }}
+                                  className="w-8 h-8 flex items-center justify-center text-lg rounded-full hover:bg-[#FAF7F2] hover:scale-110 active:scale-95 transition-all"
+                                >
+                                  {emoji}
+                                </button>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                       </div>
@@ -1472,10 +1510,10 @@ export const GroupsView = () => {
               )}
             </div>
 
-            {/* Bottom padding clears the fixed mobile BottomNav + FAB (both
-                float over the viewport regardless of this pane's height) —
-                desktop has neither, so it resets to a normal p-3. */}
-            <div className="bg-white border-t border-[rgba(180,140,80,.12)] p-3 pb-[calc(160px+env(safe-area-inset-bottom))] min-[900px]:pb-3 shrink-0 flex items-center gap-2.5">
+            {/* BottomNav/FAB are hidden while a group chat is open (see
+                groupChatMobileOpen), so this just needs the normal safe-area
+                clearance, not extra room to dodge them. */}
+            <div className="bg-white border-t border-[rgba(180,140,80,.12)] p-3 pb-[calc(12px+env(safe-area-inset-bottom))] min-[900px]:pb-3 shrink-0 flex items-center gap-2.5">
               <div className="relative">
                 <button
                   onClick={() => setShowShareMenu(!showShareMenu)}

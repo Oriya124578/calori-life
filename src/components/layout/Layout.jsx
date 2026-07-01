@@ -48,7 +48,7 @@ const NAV_TABS = ['overview', 'courses', 'commandCenter', 'shopping', 'groups'];
 
 export const Layout = () => {
   const { data, activeCategory, activeCourse, openAddSheet, setActiveCategory, goBack,
-    coachChatOpen, openCoachChat, closeCoachChat, setPendingTuneCommand } = useStore();
+    coachChatOpen, openCoachChat, closeCoachChat, setPendingTuneCommand, groupChatMobileOpen } = useStore();
   const displayName = data?.profile?.displayName || '';
   const { t, language } = useTranslation();
   const isRTL = language === 'he';
@@ -223,7 +223,10 @@ export const Layout = () => {
           On desktop, relocated to end-4 and stacked above the purple AI Coach FAB. */}
       <button
         onClick={() => setIsFanMenuOpen(!isFanMenuOpen)}
-        className="fixed start-4 min-[900px]:start-auto min-[900px]:end-4 bottom-[calc(92px+env(safe-area-inset-bottom))] min-[900px]:bottom-[84px] w-[52px] h-[52px] rounded-full text-white shadow-lg hover:scale-105 active:scale-95 transition-all duration-200 flex items-center justify-center z-50 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:outline-none"
+        className={cn(
+          "fixed start-4 min-[900px]:start-auto min-[900px]:end-4 bottom-[calc(92px+env(safe-area-inset-bottom))] min-[900px]:bottom-[84px] w-[52px] h-[52px] rounded-full text-white shadow-lg hover:scale-105 active:scale-95 transition-all duration-200 flex items-center justify-center z-50 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:outline-none",
+          groupChatMobileOpen && "hidden min-[900px]:flex"
+        )}
         style={{ background: '#065F46', boxShadow: '0 6px 20px rgba(6,95,70,.35)', transform: 'translateZ(0)', willChange: 'transform' }}
         aria-label={isFanMenuOpen ? t('close') : t('navMore')}
       >
@@ -241,7 +244,10 @@ export const Layout = () => {
           On desktop, positioned at end-4 bottom-6 below the green FAB. */}
       <button
         onClick={openCoachChat}
-        className="fixed end-4 bottom-[calc(92px+env(safe-area-inset-bottom))] min-[900px]:bottom-6 w-[52px] h-[52px] rounded-full text-white shadow-lg hover:scale-105 active:scale-95 transition-all duration-200 flex items-center justify-center z-50 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:outline-none"
+        className={cn(
+          "fixed end-4 bottom-[calc(92px+env(safe-area-inset-bottom))] min-[900px]:bottom-6 w-[52px] h-[52px] rounded-full text-white shadow-lg hover:scale-105 active:scale-95 transition-all duration-200 flex items-center justify-center z-50 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:outline-none",
+          groupChatMobileOpen && "hidden min-[900px]:flex"
+        )}
         style={{ background: 'linear-gradient(135deg,#7C3AED,#5B21B6)', boxShadow: '0 6px 20px rgba(124,58,237,.4)', transform: 'translateZ(0)', willChange: 'transform' }}
         aria-label={t('personalManager', 'המנהל האישי')}
       >

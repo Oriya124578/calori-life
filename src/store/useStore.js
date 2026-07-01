@@ -335,6 +335,10 @@ export const useStore = create((set, get) => ({
   language: localStorage.getItem('language') || 'he',
   desktopModeForced: localStorage.getItem('desktopModeForced') === '1',
   sidebarOpen: false,
+  // True while a group chat is open on mobile — Layout hides BottomNav/FAB
+  // then, since a full-height chat composer needs that screen space and a
+  // fixed nav bar floating over it just gets in the way.
+  groupChatMobileOpen: false,
   isUploading: false,
   // Phase 2 UI state
   showAddSheet: false,
@@ -1280,6 +1284,7 @@ export const useStore = create((set, get) => ({
   setCalendarDate: (date) => set({ calendarDate: date }),
   setPendingTuneCommand: (cmd) => set({ pendingTuneCommand: cmd }),
   setSidebarOpen: (isOpen) => set({ sidebarOpen: isOpen }),
+  setGroupChatMobileOpen: (isOpen) => set({ groupChatMobileOpen: isOpen }),
   setIsUploading: (status) => set({ isUploading: status }),
   setGoogleCalendarToken: (token) => set({ googleCalendarToken: token }),
   setGoogleSyncEnabled: (enabled) => {
