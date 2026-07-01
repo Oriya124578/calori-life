@@ -22,7 +22,7 @@ import {
 } from 'date-fns';
 import { he, enUS } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Trash2, MapPin, Clock, Sparkles, Check, GraduationCap } from 'lucide-react';
+import { X, Trash2, MapPin, Clock, Sparkles, Check, GraduationCap, ChevronLeft, ChevronRight } from 'lucide-react';
 import { dateKey } from '../../lib/caloriRepo';
 import { toast } from '../../store/useToast';
 import styles from './CalendarView.module.css';
@@ -41,14 +41,15 @@ function safeParse(d) {
 }
 
 export const CalendarView = () => {
-  const { data, updateEvent, deleteEvent, updatePersonalTask, deletePersonalTask, togglePersonalTask, setActiveCategory, setScheduleDate } = useStore();
+  const { data, updateEvent, deleteEvent, updatePersonalTask, deletePersonalTask, togglePersonalTask, setActiveCategory, setScheduleDate, calendarDate, setCalendarDate, goBack } = useStore();
   const { language } = useTranslation();
   const isRTL = language === 'he';
   const locale = isRTL ? he : enUS;
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState('week'); // 'day', '3days', 'week', 'month', 'list'
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const selectedDate = calendarDate || new Date();
+  const setSelectedDate = setCalendarDate;
   const [selectedItem, setSelectedItem] = useState(null); // tapped block → edit sheet
 
   // Day view follows the manager's cl_schedule for the viewed date, so the
@@ -85,7 +86,15 @@ export const CalendarView = () => {
       moedC: 'מועד ג׳'
     };
 
-    data?.courses?.forEach((course) => {
+    const activeYear = data?.profile?.academicYear || "שנה א'";
+    const activeSemester = data?.profile?.semester || "סמסטר ב'";
+    const activeCourses = (data?.courses || []).filter(c => 
+      !c.isArchived && 
+      (c.academicYear || "שנה א'") === activeYear && 
+      (c.semester || "סמסטר ב'") === activeSemester
+    );
+
+    activeCourses.forEach((course) => {
       // 1. Standard Moeds
       ['moedA', 'moedB', 'moedC'].forEach((moed) => {
         const raw = course[moed] || course.exams?.[moed];
@@ -668,11 +677,24 @@ export const CalendarView = () => {
 
   return (
     <div className={styles.wrapper} dir={isRTL ? 'rtl' : 'ltr'}>
-      <div className={styles.monthHero}>
+      {/* Unified Compact Header */}
+      <div className={styles.calendarHeader}>
         <div className={styles.mhTop}>
-          <div>
-            <div className={styles.mhYear}>{format(viewMode === 'month' ? currentDate : selectedDate, 'yyyy', { locale })}</div>
-            <div className={styles.mhMonth}><em>{format(viewMode === 'month' ? currentDate : selectedDate, 'MMMM', { locale })}</em></div>
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={goBack} 
+              className="w-9 h-9 rounded-full flex items-center justify-center transition-all hover:bg-[rgba(180,140,80,.08)] active:scale-95 shrink-0 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
+              title="חזרה"
+              aria-label="חזרה ללוז"
+            >
+              {isRTL 
+                ? <ChevronRight className="w-6 h-6" style={{ color: '#2A1A0A' }} /> 
+                : <ChevronLeft className="w-6 h-6" style={{ color: '#2A1A0A' }} />}
+            </button>
+            <div>
+              <div className={styles.mhYear}>{format(viewMode === 'month' ? currentDate : selectedDate, 'yyyy', { locale })}</div>
+              <div className={styles.mhMonth}><em>{format(viewMode === 'month' ? currentDate : selectedDate, 'MMMM', { locale })}</em></div>
+            </div>
           </div>
           <div className={styles.mhNav}>
             <div className={styles.navBtn} onClick={() => nav('prev')}>›</div>
@@ -702,13 +724,16 @@ export const CalendarView = () => {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Grid Content with Internal Scrolling */}
+      <div className={styles.gridContent}>
         {viewMode === 'day' && renderDayView()}
         {viewMode === '3days' && render3Days()}
         {viewMode === 'week' && renderWeek()}
+        {viewMode === 'month' && renderMonth()}
+        {viewMode === 'list' && renderList()}
       </div>
-
-      {viewMode === 'month' && renderMonth()}
-      {viewMode === 'list' && renderList()}
 
       <AnimatePresence>{renderItemSheet()}</AnimatePresence>
     </div>

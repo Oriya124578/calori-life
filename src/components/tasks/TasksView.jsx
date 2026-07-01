@@ -132,8 +132,16 @@ const EditListModal = ({ onClose, onSave, onDelete, initialValue, isEdit = false
 // ── Sub-task row ─────────────────────────────────────────────────────────────
 
 const SubtaskRow = ({ taskId, sub }) => {
-  const { toggleSubtask, deleteSubtask } = useStore();
+  const { toggleSubtask, updateSubtask, deleteSubtask } = useStore();
   const { t } = useTranslation();
+  const [draft, setDraft] = useState(sub.title || '');
+
+  const commit = () => {
+    const v = draft.trim();
+    if (v && v !== sub.title) updateSubtask(taskId, sub.id, v);
+    else setDraft(sub.title || '');
+  };
+
   return (
     <div className="flex items-center gap-2 py-1.5 group/sub">
       <button
@@ -155,9 +163,19 @@ const SubtaskRow = ({ taskId, sub }) => {
           {sub.done && '✓'}
         </div>
       </button>
-      <span className="flex-1 text-sm" style={{ color: sub.done ? '#8A7A6A' : '#2A1A0A', textDecoration: sub.done ? 'line-through' : 'none' }}>
-        {sub.title}
-      </span>
+      {/* Click directly on the text to edit it — no separate edit button */}
+      <input
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); }
+          if (e.key === 'Escape') { setDraft(sub.title || ''); e.currentTarget.blur(); }
+        }}
+        aria-label={t('editSubtask', 'ערוך תת-משימה')}
+        className="flex-1 min-w-0 text-sm bg-transparent outline-none border-none p-0 rounded-sm focus-visible:ring-2 focus-visible:ring-primary"
+        style={{ color: sub.done ? '#8A7A6A' : '#2A1A0A', textDecoration: sub.done ? 'line-through' : 'none' }}
+      />
       <button
         onClick={() => deleteSubtask(taskId, sub.id)}
         className="opacity-0 group-hover/sub:opacity-100 transition-opacity p-1.5 rounded-full focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none focus-visible:opacity-100"
@@ -183,7 +201,7 @@ const TaskRow = ({ task }) => {
   const saveTitle = () => {
     const v = titleDraft.trim();
     if (v && v !== task.title) updatePersonalTask(task.id, { title: v });
-    else if (!v) setTitleDraft(task.title || ''); // don't allow an empty title
+    else setTitleDraft(task.title || ''); // reject an empty title, revert to saved value
   };
 
   const dueDateInfo = useDueDate(task.dueDate, t);
@@ -246,24 +264,40 @@ const TaskRow = ({ task }) => {
           </div>
         </button>
 
-        {/* Title + meta — tap to expand */}
-        <button
+        {/* Title + meta — tap anywhere here (but not the title text) to expand;
+            the title itself is directly editable, click it to change it. */}
+        <div
           onClick={() => !task.done && setExpanded((v) => !v)}
-          className="flex-1 flex items-center gap-2 text-start min-w-0 rounded-lg focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
+          role="button"
+          tabIndex={task.done ? -1 : 0}
+          onKeyDown={(e) => {
+            if (task.done) return;
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded((v) => !v); }
+          }}
+          className="flex-1 flex items-center gap-2 text-start min-w-0 rounded-lg cursor-pointer focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
           aria-expanded={!task.done ? expanded : undefined}
           aria-controls={!task.done ? `task-subtasks-${task.id}` : undefined}
+          aria-label={t('expandTaskDetails', 'הצג פרטי משימה')}
         >
           <div className="flex flex-col items-start flex-1 min-w-0">
             <div className="flex items-center gap-[6px] w-full">
-              <span
-                className="truncate text-start"
+              <input
+                value={titleDraft}
+                onChange={(e) => setTitleDraft(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                onBlur={saveTitle}
+                onKeyDown={(e) => {
+                  e.stopPropagation();
+                  if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); }
+                  if (e.key === 'Escape') { setTitleDraft(task.title || ''); e.currentTarget.blur(); }
+                }}
+                aria-label={t('editTask', 'ערוך משימה')}
+                className="truncate text-start bg-transparent outline-none border-none p-0 m-0 w-full rounded-sm focus-visible:ring-2 focus-visible:ring-primary"
                 style={{
                   fontSize: 14, fontWeight: 600, color: task.done ? '#8A7A6A' : '#2A1A0A',
                   textDecoration: task.done ? 'line-through' : 'none', lineHeight: 1.2, flex: 1,
                 }}
-              >
-                {task.title}
-              </span>
+              />
             </div>
             <div className="flex gap-[6px] mt-1 items-center flex-wrap">
               {task.priority === 'high' && (
@@ -307,7 +341,7 @@ const TaskRow = ({ task }) => {
               <ChevronDown className="w-4 h-4" style={{ color: 'rgba(180,140,80,.4)' }} />
             </motion.div>
           )}
-        </button>
+        </div>
 
         {/* Star icon */}
         <StarButton

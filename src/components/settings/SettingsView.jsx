@@ -114,6 +114,8 @@ export const SettingsView = () => {
   const [displayName, setDisplayName] = useState(data?.profile?.displayName || "");
   const [academicYear, setAcademicYear] = useState(data?.profile?.academicYear || "שנה א'");
   const [semester, setSemester] = useState(data?.profile?.semester || "סמסטר א'");
+  const [academicInstitution, setAcademicInstitution] = useState(data?.profile?.academicInstitution || "");
+  const [degree, setDegree] = useState(data?.profile?.degree || "");
 
   // AI & CommandCenter settings state
   const [wakeTime, setWakeTime] = useState(data?.profile?.wakeTime || "07:00");
@@ -180,7 +182,7 @@ export const SettingsView = () => {
   };
 
   const handleSaveProfile = () => {
-    setProfile({ displayName, academicYear, semester });
+    setProfile({ displayName, academicYear, semester, academicInstitution, degree });
     toast.success(t('profileSaved', 'פרופיל עודכן בהצלחה'));
   };
 
@@ -188,11 +190,16 @@ export const SettingsView = () => {
     setIsAddMode(false);
     setEditingCourse({
       ...course,
+      academicYear: course.academicYear || "שנה א'",
+      semester: course.semester || "סמסטר ב'",
+      localFolder: course.localFolder || course.defaultLocalFolder || "",
+      keywords: Array.isArray(course.keywords) ? course.keywords.join(', ') : (course.keywords || ""),
       moedA: toDateInput(course.moedA || course.exams?.moedA),
       moedB: toDateInput(course.moedB || course.exams?.moedB),
       moedC: toDateInput(course.moedC || course.exams?.moedC),
       notebookLm: course.links?.notebookLm || course.defaultNotebookLmLink || "",
-      gemini: course.links?.gemini || course.defaultGeminiLink || ""
+      gemini: course.links?.gemini || course.defaultGeminiLink || "",
+      moodle: course.links?.moodle || course.defaultMoodleLink || ""
     });
   };
 
@@ -211,7 +218,12 @@ export const SettingsView = () => {
       moedB: '',
       moedC: '',
       notebookLm: '',
-      gemini: ''
+      gemini: '',
+      moodle: '',
+      academicYear: data?.profile?.academicYear || "שנה א'",
+      semester: data?.profile?.semester || "סמסטר א'",
+      localFolder: '',
+      keywords: ''
     });
   };
 
@@ -230,12 +242,17 @@ export const SettingsView = () => {
 
         await addCourse({
           name: editingCourse.name,
+          academicYear: editingCourse.academicYear,
+          semester: editingCourse.semester,
+          localFolder: editingCourse.localFolder,
+          keywords: (editingCourse.keywords || '').split(',').map(s => s.trim()).filter(Boolean),
           weeksCount: parseInt(editingCourse.weeksCount) || 13,
           moedA: editingCourse.moedA || null,
           moedB: editingCourse.moedB || null,
           moedC: editingCourse.moedC || null,
           defaultNotebookLmLink: editingCourse.notebookLm || '',
           defaultGeminiLink: editingCourse.gemini || '',
+          defaultMoodleLink: editingCourse.moodle || '',
           progressSettings: {
             lecture: progressLecture,
             tutorial: progressTutorial,
@@ -247,6 +264,10 @@ export const SettingsView = () => {
       } else {
         await updateCourse(editingCourse.id, {
           name: editingCourse.name,
+          academicYear: editingCourse.academicYear,
+          semester: editingCourse.semester,
+          localFolder: editingCourse.localFolder,
+          keywords: (editingCourse.keywords || '').split(',').map(s => s.trim()).filter(Boolean),
           weeksCount: parseInt(editingCourse.weeksCount) || 13,
           exams: {
             moedA: editingCourse.moedA || null,
@@ -256,6 +277,8 @@ export const SettingsView = () => {
           links: {
             notebookLm: editingCourse.notebookLm || '',
             gemini: editingCourse.gemini || '',
+            moodle: editingCourse.moodle || '',
+            localFolder: editingCourse.localFolder || '',
           }
         });
         toast.success(t('courseUpdated', 'הקורס עודכן בהצלחה'));
@@ -504,6 +527,24 @@ export const SettingsView = () => {
                     <option key={s} value={s}>{s}</option>
                   ))}
                 </select>
+              </div>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="space-y-2 flex-1 w-full">
+                <label className="text-sm font-medium text-foreground">{t('academicInstitution', 'מוסד לימודים')}</label>
+                <Input 
+                  value={academicInstitution} 
+                  onChange={(e) => setAcademicInstitution(e.target.value)} 
+                  placeholder={t('academicInstitutionPlaceholder', 'לדוגמה: אוניברסיטת רייכמן')}
+                />
+              </div>
+              <div className="space-y-2 flex-1 w-full">
+                <label className="text-sm font-medium text-foreground">{t('degree', 'תואר / מסלול')}</label>
+                <Input 
+                  value={degree} 
+                  onChange={(e) => setDegree(e.target.value)} 
+                  placeholder={t('degreePlaceholder', 'לדוגמה: מדעי המחשב')}
+                />
               </div>
             </div>
             <div className="flex justify-end">
@@ -1144,6 +1185,50 @@ export const SettingsView = () => {
                 <label className="text-sm font-medium">{t('weeksCountLabel')}</label>
                 <Input type="number" min="1" max="20" value={editingCourse.weeksCount} onChange={e => setEditingCourse({...editingCourse, weeksCount: parseInt(e.target.value)})} />
               </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">{language === 'he' ? 'שנת לימודים' : 'Academic Year'}</label>
+                  <select
+                    value={editingCourse.academicYear || "שנה א'"}
+                    onChange={e => setEditingCourse({...editingCourse, academicYear: e.target.value})}
+                    className="flex h-10 w-full rounded-xl border border-input bg-background/50 px-3 py-2 text-sm outline-none"
+                  >
+                    {(language === 'en'
+                      ? ['Year 1', 'Year 2', 'Year 3', 'Year 4']
+                      : ["שנה א'", "שנה ב'", "שנה ג'", "שנה ד'"]
+                    ).map((y) => <option key={y} value={y}>{y}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">{language === 'he' ? 'סמסטר' : 'Semester'}</label>
+                  <select
+                    value={editingCourse.semester || "סמסטר א'"}
+                    onChange={e => setEditingCourse({...editingCourse, semester: e.target.value})}
+                    className="flex h-10 w-full rounded-xl border border-input bg-background/50 px-3 py-2 text-sm outline-none"
+                  >
+                    {(language === 'en'
+                      ? ['Semester A', 'Semester B', 'Summer']
+                      : ["סמסטר א'", "סמסטר ב'", 'סמסטר קיץ']
+                    ).map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">{language === 'he' ? 'תיקייה מקומית במחשב' : 'Local Folder Name'}</label>
+                <Input 
+                  value={editingCourse.localFolder || ''} 
+                  onChange={e => setEditingCourse({...editingCourse, localFolder: e.target.value})} 
+                  placeholder={language === 'he' ? 'למשל: אינפי 2' : 'e.g. infi2'}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">{language === 'he' ? 'מילות מפתח למיון (מופרדות בפסיק)' : 'Sorting Keywords (comma-separated)'}</label>
+                <Input 
+                  value={editingCourse.keywords || ''} 
+                  onChange={e => setEditingCourse({...editingCourse, keywords: e.target.value})} 
+                  placeholder={language === 'he' ? 'אינפי, infi, calculus' : 'infi, calculus'}
+                />
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">{t('examDateA')}</label>
@@ -1186,6 +1271,10 @@ export const SettingsView = () => {
               <div className="space-y-2">
                 <label className="text-sm font-medium">{t('geminiLink')}</label>
                 <Input value={editingCourse.gemini} onChange={e => setEditingCourse({...editingCourse, gemini: e.target.value})} placeholder="https://gemini.google.com/..." dir="ltr" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">{t('moodleLink')}</label>
+                <Input value={editingCourse.moodle} onChange={e => setEditingCourse({...editingCourse, moodle: e.target.value})} placeholder="https://moodle.runi.ac.il/..." dir="ltr" />
               </div>
               {isAddMode && (
                 <div className="space-y-2 border-t pt-3">

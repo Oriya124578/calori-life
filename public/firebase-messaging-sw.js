@@ -1,3 +1,4 @@
+/* global firebase, importScripts */
 /* Calori Life — FCM background service worker (Phase 5b).
  * Receives push messages when the app is closed / backgrounded and paints the
  * notification. Config values below are public Firebase identifiers (safe to

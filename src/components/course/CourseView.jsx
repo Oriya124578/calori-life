@@ -72,6 +72,7 @@ export const CourseView = () => {
         semester: activeCourse.semester || "א'",
         geminiLink: data.links?.[activeCourse.id]?.gemini || "",
         notebookLmLink: data.links?.[activeCourse.id]?.notebookLm || "",
+        moodleLink: data.links?.[activeCourse.id]?.moodle || "",
         progressSettings: activeCourse.progressSettings || {
           lecture: true,
           tutorial: true,
@@ -223,6 +224,7 @@ export const CourseView = () => {
         ...data.links?.[activeCourse.id],
         gemini: (editData.geminiLink || '').trim(),
         notebookLm: (editData.notebookLmLink || '').trim(),
+        moodle: (editData.moodleLink || '').trim(),
       });
       setActiveTab('weekly');
       toast.success(t('courseUpdated', 'הקורס עודכן בהצלחה'));
@@ -319,6 +321,18 @@ export const CourseView = () => {
                 <button onClick={handleOpenSettings} className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring border border-dashed border-border bg-background hover:bg-secondary/50 h-8 px-3 gap-1.5 text-muted-foreground shadow-sm">
                   <Book className="w-3.5 h-3.5" />
                   {t('addNotebookLmLink')}
+                </button>
+              )}
+              {data.links?.[activeCourse.id]?.moodle ? (
+                <a href={data.links[activeCourse.id].moodle} target="_blank" rel="noopener noreferrer"
+                   className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring border border-border bg-background hover:bg-secondary/50 h-8 px-3 gap-1.5 shadow-sm">
+                  <GraduationCap className="w-3.5 h-3.5 text-primary" />
+                  Moodle
+                </a>
+              ) : (
+                <button onClick={handleOpenSettings} className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring border border-dashed border-border bg-background hover:bg-secondary/50 h-8 px-3 gap-1.5 text-muted-foreground shadow-sm">
+                  <GraduationCap className="w-3.5 h-3.5" />
+                  {t('addMoodleLink')}
                 </button>
               )}
             </div>
@@ -559,6 +573,16 @@ export const CourseView = () => {
                   placeholder="https://notebooklm.google.com/..."
                   value={editData.notebookLmLink || ''} 
                   onChange={(e) => setEditData({...editData, notebookLmLink: e.target.value})} 
+                  className="text-start"
+                  dir="ltr"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-foreground">{t('moodleLink')}</label>
+                <Input 
+                  placeholder="https://moodle.runi.ac.il/..."
+                  value={editData.moodleLink || ''} 
+                  onChange={(e) => setEditData({...editData, moodleLink: e.target.value})} 
                   className="text-start"
                   dir="ltr"
                 />

@@ -27,6 +27,7 @@ const StudiesHub = lazy(() => import('../studies/StudiesHub').then((m) => ({ def
 const ExamsBoardView = lazy(() => import('../studies/ExamsBoardView').then((m) => ({ default: m.ExamsBoardView })));
 const TasksView = lazy(() => import('../tasks/TasksView').then((m) => ({ default: m.TasksView })));
 const NotesView = lazy(() => import('../notes/NotesView').then((m) => ({ default: m.NotesView })));
+const GroupsView = lazy(() => import('../groups/GroupsView').then((m) => ({ default: m.GroupsView })));
 
 const CaloriView = lazy(() => import('../calori/CaloriView').then((m) => ({ default: m.CaloriView })));
 const CommandCenterView = lazy(() => import('../command-center/CommandCenterView').then((m) => ({ default: m.CommandCenterView })));
@@ -43,7 +44,7 @@ const ViewFallback = () => (
 );
 
 // Top-level bottom-nav tabs — everything else is a sub-page that gets a back button.
-const NAV_TABS = ['overview', 'calendar', 'courses', 'commandCenter', 'shopping'];
+const NAV_TABS = ['overview', 'courses', 'commandCenter', 'shopping', 'groups'];
 
 export const Layout = () => {
   const { data, activeCategory, activeCourse, openAddSheet, setActiveCategory, goBack,
@@ -82,6 +83,8 @@ export const Layout = () => {
         return <CommandCenterView />;
       case 'shopping':
         return <ShoppingListView />;
+      case 'groups':
+        return <GroupsView />;
       default:
         return <SmartDashboard />;
     }
@@ -108,6 +111,8 @@ export const Layout = () => {
       ? t('navCommandCenter')
       : activeCategory === 'shopping'
       ? t('shoppingTitle')
+      : activeCategory === 'groups'
+      ? t('navGroups')
       : t('navHome');
 
   return (
@@ -119,73 +124,83 @@ export const Layout = () => {
           put instead of jumping as the URL bar shows/hides. */}
       <div className="flex flex-col flex-1 min-w-0 min-h-0">
       {/* Top header — cream v3: warm blur, avatar→settings, serif title, wordmark */}
-      <header
-        className="flex items-center justify-between px-5 py-3 border-b z-20 shrink-0 sticky top-0 transition-all pt-[max(env(safe-area-inset-top),14px)] min-[900px]:max-w-[1120px] min-[900px]:mx-auto min-[900px]:w-full min-[900px]:px-8"
-        style={{
-          background: 'var(--header-bg)',
-          backdropFilter: 'blur(22px)',
-          WebkitBackdropFilter: 'blur(22px)',
-          borderColor: 'var(--header-border)',
-          transform: 'translateZ(0)',
-        }}
-        dir={language === 'he' ? 'rtl' : 'ltr'}
-      >
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          {isSubPage ? (
-            <button
-              onClick={goBack}
-              className="w-9 h-9 -ms-1 rounded-full flex items-center justify-center transition-all hover:bg-[rgba(180,140,80,.08)] active:scale-95 shrink-0 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
-              title={t('back', 'חזרה')}
-              aria-label={t('back', 'חזרה')}
+      {!['calendar', 'groups'].includes(activeCategory) && (
+        <header
+          className="flex items-center justify-between px-5 py-3 border-b z-20 shrink-0 sticky top-0 transition-all pt-[max(env(safe-area-inset-top),14px)] min-[900px]:max-w-[1120px] min-[900px]:mx-auto min-[900px]:w-full min-[900px]:px-8"
+          style={{
+            background: 'var(--header-bg)',
+            backdropFilter: 'blur(22px)',
+            WebkitBackdropFilter: 'blur(22px)',
+            borderColor: 'var(--header-border)',
+            transform: 'translateZ(0)',
+          }}
+          dir={language === 'he' ? 'rtl' : 'ltr'}
+        >
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            {isSubPage ? (
+              <button
+                onClick={goBack}
+                className="w-9 h-9 -ms-1 rounded-full flex items-center justify-center transition-all hover:bg-[rgba(180,140,80,.08)] active:scale-95 shrink-0 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
+                title={t('back', 'חזרה')}
+                aria-label={t('back', 'חזרה')}
+              >
+                {isRTL
+                  ? <ChevronRight className="w-6 h-6" style={{ color: 'var(--color-foreground)' }} />
+                  : <ChevronLeft className="w-6 h-6" style={{ color: 'var(--color-foreground)' }} />}
+              </button>
+            ) : (
+              <button
+                onClick={() => setActiveCategory('settings')}
+                className={cn(
+                  "rounded-full transition-all hover:scale-105 active:scale-95 duration-200 cursor-pointer shrink-0 min-[900px]:hidden",
+                  activeCategory.startsWith('settings') && "ring-2 ring-primary ring-offset-2 ring-offset-background"
+                )}
+                title={t('navSettings', 'הגדרות')}
+                aria-label={t('navSettings', 'הגדרות')}
+              >
+                <Avatar
+                  src={data?.profile?.photoURL}
+                  initial={displayName ? displayName.trim().charAt(0).toUpperCase() : 'א'}
+                  size={34}
+                  alt="User Profile"
+                />
+              </button>
+            )}
+            <h1
+              className="text-[17px] tracking-tight truncate text-start select-none"
+              style={{ fontFamily: "'Instrument Serif', serif", fontWeight: 400, color: 'var(--cream-text)' }}
             >
-              {isRTL
-                ? <ChevronRight className="w-6 h-6" style={{ color: 'var(--color-foreground)' }} />
-                : <ChevronLeft className="w-6 h-6" style={{ color: 'var(--color-foreground)' }} />}
-            </button>
-          ) : (
-            <button
-              onClick={() => setActiveCategory('settings')}
-              className={cn(
-                "rounded-full transition-all hover:scale-105 active:scale-95 duration-200 cursor-pointer shrink-0 min-[900px]:hidden",
-                activeCategory.startsWith('settings') && "ring-2 ring-primary ring-offset-2 ring-offset-background"
-              )}
-              title={t('navSettings', 'הגדרות')}
-              aria-label={t('navSettings', 'הגדרות')}
-            >
-              <Avatar
-                src={data?.profile?.photoURL}
-                initial={displayName ? displayName.trim().charAt(0).toUpperCase() : 'א'}
-                size={34}
-                alt="User Profile"
-              />
-            </button>
-          )}
-          <h1
-            className="text-[17px] tracking-tight truncate text-start select-none"
-            style={{ fontFamily: "'Instrument Serif', serif", fontWeight: 400, color: 'var(--cream-text)' }}
-          >
-            {headerTitle}
-          </h1>
-        </div>
-        <div className="flex items-center gap-3 shrink-0 min-[900px]:hidden" dir="ltr">
-          <div
-            className="flex flex-col items-end select-none cursor-pointer"
-            onClick={() => setActiveCategory('overview')}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => { if (e.key === 'Enter') setActiveCategory('overview'); }}
-          >
-            <span className="text-[23px] font-extrabold tracking-tight leading-none" style={{ color: 'var(--cream-text)', letterSpacing: '-.02em' }}>
-              calori<span style={{ color: '#059669', fontFamily: "'Instrument Serif', serif", fontStyle: 'normal', fontWeight: 400, fontSize: '25px' }}> life</span>
-            </span>
+              {headerTitle}
+            </h1>
           </div>
-        </div>
-      </header>
+          <div className="flex items-center gap-3 shrink-0 min-[900px]:hidden" dir="ltr">
+            <div
+              className="flex flex-col items-end select-none cursor-pointer"
+              onClick={() => setActiveCategory('overview')}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter') setActiveCategory('overview'); }}
+            >
+              <span className="text-[23px] font-extrabold tracking-tight leading-none" style={{ color: 'var(--cream-text)', letterSpacing: '-.02em' }}>
+                calori<span style={{ color: '#059669', fontFamily: "'Instrument Serif', serif", fontStyle: 'normal', fontWeight: 400, fontSize: '25px' }}> life</span>
+              </span>
+            </div>
+          </div>
+        </header>
+      )}
 
       {/* Main content — keyed motion wrapper gives every tab/page switch a
           gentle rise+fade entrance (enter-only: no AnimatePresence around
           Suspense, which is glitch-prone with lazy chunks). */}
-      <main className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain relative scroll-smooth min-w-0 pb-28 pt-2 min-[900px]:max-w-[1120px] min-[900px]:mx-auto min-[900px]:w-full min-[900px]:px-8">
+      <main className={cn(
+        "flex-1 min-h-0 relative scroll-smooth min-w-0",
+        activeCategory === 'groups'
+          ? "w-full h-full overflow-hidden"
+          : "min-[900px]:max-w-[1120px] min-[900px]:mx-auto min-[900px]:w-full min-[900px]:px-8",
+        ['groups', 'calendar'].includes(activeCategory)
+          ? "overflow-hidden h-full"
+          : "overflow-y-auto overscroll-y-contain pb-28 pt-2"
+      )}>
         <ErrorBoundary resetKey={activeCategory}>
           <Suspense fallback={<ViewFallback />}>
             <motion.div
@@ -193,6 +208,9 @@ export const Layout = () => {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+              className={cn(
+                ['groups', 'calendar'].includes(activeCategory) && 'h-full flex flex-col min-h-0'
+              )}
             >
               {renderContent()}
             </motion.div>

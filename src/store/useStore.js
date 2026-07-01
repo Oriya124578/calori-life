@@ -16,6 +16,8 @@ import { generateInitialState, OWNER_UID } from '../data';
 import {
   subscribeProfile,
   setProfile as fsSetProfile,
+  setRootProfilePhoto,
+  syncUserProfile,
   subscribeCourses,
   setCourse as fsSetCourse,
   deleteCourse as fsDeleteCourse,
@@ -58,6 +60,26 @@ import {
   deleteShoppingList as fsDeleteShoppingList,
   subscribeGroceryDict,
   mergeGroceryDict,
+  subscribeGroups,
+  subscribeGroupUpdates,
+  subscribeGroupShoppingLists,
+  subscribeGroupNotes,
+  subscribeGroupExpenses,
+  postGroupMessage,
+  reactToGroupUpdate,
+  createGroup as fsCreateGroup,
+  joinGroupByCode as fsJoinGroupByCode,
+  leaveGroup as fsLeaveGroup,
+  fetchGroupMembers as fsFetchGroupMembers,
+  setGroupShoppingList as fsSetGroupShoppingList,
+  setGroupExpense as fsSetGroupExpense,
+  uploadGroupFile,
+  deleteGroupShoppingList as fsDeleteGroupShoppingList,
+  deleteGroupExpense as fsDeleteGroupExpense,
+  setSharedCourse as fsSetSharedCourse,
+  getSharedCourse as fsGetSharedCourse,
+  markGroupAsRead as fsMarkGroupAsRead,
+  toggleGroupMute as fsToggleGroupMute,
 } from '../lib/firestoreRepo';
 import { applyExternalDict, genItemId } from '../lib/groceryCategories';
 import { recurringInstancesForDate } from '../lib/recurrence';
@@ -74,6 +96,7 @@ import { generateDailySchedule } from '../lib/gemini';
 import { chooseEngine, timeToMin, validateAndRepair } from '../lib/scheduleEngine';
 import { format, parseISO, isValid } from 'date-fns';
 import { toast } from './useToast';
+import { auth } from '../lib/firebase';
 
 // ---------- Notification settings (Phase 5) --------------------------------
 
@@ -144,9 +167,14 @@ export const isTaskIncludedInProgress = (task, course) => {
   return !!progressSettings.custom;
 };
 
-export const getCourseProgressSummary = (courses, tasks) => {
+export const getCourseProgressSummary = (courses, tasks, activeYear, activeSemester) => {
   if (!courses || !tasks) return [];
-  return courses.filter(c => !c.isArchived).map(course => {
+  return courses.filter(c => {
+    if (c.isArchived) return false;
+    if (activeYear && (c.academicYear || "שנה א'") !== activeYear) return false;
+    if (activeSemester && (c.semester || "סמסטר ב'") !== activeSemester) return false;
+    return true;
+  }).map(course => {
     const courseWeeks = tasks[course.id] || {};
     let totalIncluded = 0;
     let completedIncluded = 0;
@@ -297,6 +325,7 @@ export const useStore = create((set, get) => ({
   hasCompletedOnboarding: undefined, // undefined = not yet determined
   dataLoaded: false, // true once the first Firestore snapshot has arrived
   _unsubs: [], // active onSnapshot cleanup fns
+  _groupUnsubs: {}, // groupId -> array of unsubscribe functions
 
   // --- UI-only state ------------------------------------------------------
   activeCourse: null,
@@ -321,6 +350,7 @@ export const useStore = create((set, get) => ({
   notificationSettings: loadNotificationSettings(),
   // AI Command Center draft state
   draftSchedule: { date: null, blocks: [], coachNote: '' },
+  calendarDate: new Date(),
 
   // Global "המנהל האישי" coach chat (opened from the floating left FAB on any screen).
   coachChatOpen: false,
@@ -354,6 +384,16 @@ export const useStore = create((set, get) => ({
     get()._unsubs.forEach((u) => { try { u(); } catch { /* ignore */ } });
     get()._caloriDayUnsubs.forEach((u) => { try { u(); } catch { /* ignore */ } });
 
+    // Auth profile photoURL sync
+    const currentUser = auth.currentUser;
+    if (currentUser && currentUser.photoURL) {
+      const localPhoto = get().data?.profile?.photoURL;
+      if (!localPhoto) {
+        fsSetProfile(uid, { photoURL: currentUser.photoURL }).catch(console.error);
+        setRootProfilePhoto(uid, currentUser.photoURL).catch(console.error);
+      }
+    }
+
     const unsubProfile = subscribeProfile(uid, (profile) => {
       set((state) => {
         const patch = {
@@ -363,6 +403,8 @@ export const useStore = create((set, get) => ({
               displayName: '',
               academicYear: "שנה א'",
               semester: "סמסטר א'",
+              academicInstitution: '',
+              degree: '',
             },
           },
         };
@@ -383,10 +425,59 @@ export const useStore = create((set, get) => ({
       const links = {};
       for (const c of courseDocs) {
         notes[c.id] = c.notes || {};
-        links[c.id] = c.links || {
-          notebookLm: c.defaultNotebookLmLink || '',
-          gemini: c.defaultGeminiLink || '',
-          localFolder: c.defaultLocalFolder || '',
+        
+        const currentLinks = c.links || {};
+        let moodleLink = currentLinks.moodle || c.defaultMoodleLink || '';
+        
+        // Auto-heal owner courses to include correct Moodle links if missing (only for Year 1 Semester B)
+        const courseYear = c.academicYear || "שנה א'";
+        const courseSemester = c.semester || "סמסטר ב'";
+        const isCurrentSemester = courseYear === "שנה א'" && courseSemester === "סמסטר ב'";
+
+        if (uid === OWNER_UID && !moodleLink && isCurrentSemester) {
+          const defaultMoodleMap = {
+            'infi2': 'https://moodle.runi.ac.il/2026/course/view.php?id=2602191',
+            'linear2': 'https://moodle.runi.ac.il/2026/course/view.php?id=2601713',
+            'c_sys': 'https://moodle.runi.ac.il/2026/course/view.php?id=2601709',
+            'data_structures': 'https://moodle.runi.ac.il/2026/course/view.php?id=2602402',
+            'logic': 'https://moodle.runi.ac.il/2026/course/view.php?id=2602426',
+          };
+          
+          let matchedMoodle = defaultMoodleMap[c.id];
+          if (!matchedMoodle) {
+            const normalizedName = (c.name || '').trim();
+            if (normalizedName.includes('אינפי')) {
+              matchedMoodle = 'https://moodle.runi.ac.il/2026/course/view.php?id=2602191';
+            } else if (normalizedName.includes('לינארית')) {
+              matchedMoodle = 'https://moodle.runi.ac.il/2026/course/view.php?id=2601713';
+            } else if (normalizedName.includes('שפת C') || normalizedName === 'C' || normalizedName.includes('תכנות בשפת C') || normalizedName.includes('שפת סי')) {
+              matchedMoodle = 'https://moodle.runi.ac.il/2026/course/view.php?id=2601709';
+            } else if (normalizedName.includes('מבני נתונים')) {
+              matchedMoodle = 'https://moodle.runi.ac.il/2026/course/view.php?id=2602402';
+            } else if (normalizedName.includes('לוגיקה')) {
+              matchedMoodle = 'https://moodle.runi.ac.il/2026/course/view.php?id=2602426';
+            } else if (normalizedName.includes('בעיות המאה')) {
+              matchedMoodle = 'https://moodle.runi.ac.il/2026/course/view.php?id=2602763';
+            }
+          }
+          
+          if (matchedMoodle) {
+            moodleLink = matchedMoodle;
+            const updatedLinks = {
+              notebookLm: currentLinks.notebookLm || c.defaultNotebookLmLink || '',
+              gemini: currentLinks.gemini || c.defaultGeminiLink || '',
+              localFolder: currentLinks.localFolder || c.defaultLocalFolder || '',
+              moodle: moodleLink,
+            };
+            fsSetCourse(uid, c.id, { links: updatedLinks }).catch(console.error);
+          }
+        }
+        
+        links[c.id] = {
+          notebookLm: currentLinks.notebookLm || c.defaultNotebookLmLink || '',
+          gemini: currentLinks.gemini || c.defaultGeminiLink || '',
+          localFolder: currentLinks.localFolder || c.defaultLocalFolder || '',
+          moodle: moodleLink,
         };
       }
       set((state) => ({
@@ -460,6 +551,11 @@ export const useStore = create((set, get) => ({
       set((state) => ({ data: { ...state.data, shoppingLists } }));
     });
 
+    const unsubGroups = subscribeGroups(uid, (groups) => {
+      set((state) => ({ data: { ...state.data, groups } }));
+      get()._syncGroupSubscriptions(groups);
+    });
+
     // Seed the local grocery dict cache from Firestore so AI learnings flow
     // between devices.
     const unsubGroceryDict = subscribeGroceryDict(uid, (dict) => {
@@ -476,14 +572,29 @@ export const useStore = create((set, get) => ({
 
     const unsubCaloriProfile = subscribeCaloriProfile(uid, (caloriProfile) => {
       if (caloriProfile) {
+        const caloriPhotoURL = 
+          caloriProfile.photoUrl || 
+          caloriProfile.photo_url || 
+          caloriProfile.profile?.photoURL || 
+          caloriProfile.profile?.photoUrl;
+        
+        const localPhotoURL = get().data?.profile?.photoURL;
+
+        // Bi-directional profile photo URL synchronization
+        if (caloriPhotoURL && caloriPhotoURL !== localPhotoURL) {
+          fsSetProfile(uid, { photoURL: caloriPhotoURL }).catch(console.error);
+        } else if (localPhotoURL && localPhotoURL !== caloriPhotoURL) {
+          setRootProfilePhoto(uid, localPhotoURL).catch(console.error);
+        }
+
         set((state) => {
-          const photoURL = caloriProfile.profile?.photoURL || state.data.profile?.photoURL;
+          const finalPhotoURL = caloriPhotoURL || state.data.profile?.photoURL;
           return {
             data: {
               ...state.data,
               profile: {
                 ...state.data.profile,
-                ...(photoURL ? { photoURL } : {}),
+                ...(finalPhotoURL ? { photoURL: finalPhotoURL } : {}),
               },
               calori: {
                 ...state.data.calori,
@@ -520,6 +631,7 @@ export const useStore = create((set, get) => ({
         unsubAiSuggestions,
         unsubShoppingLists,
         unsubGroceryDict,
+        unsubGroups,
       ],
     });
 
@@ -533,10 +645,17 @@ export const useStore = create((set, get) => ({
     get()._unsubs.forEach((u) => { try { u(); } catch { /* ignore */ } });
     get()._caloriDayUnsubs.forEach((u) => { try { u(); } catch { /* ignore */ } });
     try { get()._scheduleUnsub && get()._scheduleUnsub(); } catch { /* ignore */ }
+    
+    // Clean up group-level listeners
+    Object.values(get()._groupUnsubs).forEach((unsubList) => {
+      unsubList.forEach((u) => { try { u(); } catch { /* ignore */ } });
+    });
+
     set({
       uid: null,
       _unsubs: [],
       _caloriDayUnsubs: [],
+      _groupUnsubs: {},
       _scheduleUnsub: null,
       data: generateInitialState(),
       hasCompletedOnboarding: undefined,
@@ -547,6 +666,412 @@ export const useStore = create((set, get) => ({
       caloriDate: dateKey(),
       scheduleDate: dateKey(),
     });
+  },
+
+  // ---------- Shared Groups (groups) -------------------------------------
+
+  _syncGroupSubscriptions: (groups) => {
+    const { uid, _groupUnsubs } = get();
+    if (!uid) return;
+
+    const activeGids = groups.map((g) => g.id);
+    const nextGroupUnsubs = { ..._groupUnsubs };
+
+    // 1. Clean up stale subscriptions
+    Object.keys(_groupUnsubs).forEach((gid) => {
+      if (!activeGids.includes(gid)) {
+        _groupUnsubs[gid].forEach((u) => { try { u(); } catch (err) { console.error(err); } });
+        delete nextGroupUnsubs[gid];
+      }
+    });
+
+    // 2. Set up new subscriptions
+    groups.forEach((g) => {
+      if (!nextGroupUnsubs[g.id]) {
+        const unsubUpdates = subscribeGroupUpdates(g.id, (updates) => {
+          const prev = get().data.groupUpdates?.[g.id] || [];
+          if (prev.length > 0 && updates.length > 0) {
+            const latest = updates[0];
+            const prevLatest = prev[0];
+            if (latest.id !== prevLatest.id) {
+              const isFromMe = latest.author_uid === uid || latest.user_uid === uid;
+              if (!isFromMe) {
+                const title = latest.author_name || 'חבר קבוצה';
+                const body = latest.summary || latest.message || 'הודעה חדשה 💬';
+                try {
+                  const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav');
+                  audio.volume = 0.5;
+                  audio.play().catch(() => {});
+                } catch { /* ignore audio play failures */ }
+                
+                toast.info(`${g.name} - ${title}: ${body}`);
+              }
+            }
+          }
+
+          set((state) => ({
+            data: {
+              ...state.data,
+              groupUpdates: { ...state.data.groupUpdates, [g.id]: updates },
+            },
+          }));
+        });
+
+        const unsubShoppingLists = subscribeGroupShoppingLists(g.id, (lists) => {
+          set((state) => ({
+            data: {
+              ...state.data,
+              groupShoppingLists: { ...state.data.groupShoppingLists, [g.id]: lists },
+            },
+          }));
+        });
+
+        const unsubNotes = subscribeGroupNotes(g.id, (notes) => {
+          set((state) => ({
+            data: {
+              ...state.data,
+              groupNotes: { ...state.data.groupNotes, [g.id]: notes },
+            },
+          }));
+        });
+
+        const unsubExpenses = subscribeGroupExpenses(g.id, (expenses) => {
+          set((state) => ({
+            data: {
+              ...state.data,
+              groupExpenses: { ...state.data.groupExpenses, [g.id]: expenses },
+            },
+          }));
+        });
+
+        nextGroupUnsubs[g.id] = [unsubUpdates, unsubShoppingLists, unsubNotes, unsubExpenses];
+      }
+    });
+
+    set({ _groupUnsubs: nextGroupUnsubs });
+  },
+
+  createGroup: async (name) => {
+    const { uid } = get();
+    if (!uid) return;
+    return await fsCreateGroup(uid, name);
+  },
+
+  joinGroupByCode: async (code) => {
+    const { uid } = get();
+    if (!uid) return;
+    return await fsJoinGroupByCode(uid, code);
+  },
+
+  leaveGroup: async (groupId) => {
+    const { uid } = get();
+    if (!uid) return;
+    await fsLeaveGroup(uid, groupId);
+  },
+
+  postGroupMessage: async (groupId, text) => {
+    const { uid, data } = get();
+    if (!uid) return;
+    const authorName = data.profile?.displayName || 'סטודנט/ית';
+    await postGroupMessage(groupId, {
+      kind: 'chat',
+      app_origin: 'life',
+      author_uid: uid,
+      author_name: authorName,
+      summary: text,
+      type: 'message', // legacy
+      user_uid: uid,    // legacy
+      user_name: authorName, // legacy
+      message: text,   // legacy
+    });
+  },
+
+  reactToGroupUpdate: async (groupId, updateId, emoji) => {
+    const { uid } = get();
+    if (!uid) return;
+    await reactToGroupUpdate(groupId, updateId, uid, emoji);
+  },
+
+  toggleGroupMute: async (groupId, isMuted) => {
+    try {
+      await fsToggleGroupMute(groupId, isMuted);
+    } catch (e) {
+      console.error('Failed to toggle group mute', e);
+    }
+  },
+
+  loadGroupMembers: async (groupId) => {
+    try {
+      const members = await fsFetchGroupMembers(groupId);
+      set((state) => ({
+        data: {
+          ...state.data,
+          groupMembers: { ...state.data.groupMembers, [groupId]: members },
+        },
+      }));
+    } catch (e) {
+      console.error('Failed to load group members', e);
+    }
+  },
+
+  shareShoppingListToGroup: async (listId, groupId) => {
+    const { uid, data } = get();
+    if (!uid) return;
+    const list = data.shoppingLists.find((l) => l.id === listId);
+    if (!list) return;
+
+    const sharedList = {
+      ...list,
+      groupId,
+      updatedAt: new Date().toISOString(),
+    };
+
+    // 1. Save to group shared path
+    await fsSetGroupShoppingList(groupId, listId, sharedList);
+
+    // 2. Delete from personal path
+    await fsDeleteShoppingList(uid, listId);
+
+    // 3. Post notification update to chat
+    const authorName = data.profile?.displayName || 'סטודנט/ית';
+    await postGroupMessage(groupId, {
+      kind: 'chat',
+      app_origin: 'life',
+      author_uid: uid,
+      author_name: authorName,
+      summary: `שיתפתי את רשימת הקניות "${list.name}" 🛒`,
+      payload: { sharedListId: listId, sharedListName: list.name, kind: 'shoppingList' },
+      type: 'message', // legacy
+      user_uid: uid,    // legacy
+      user_name: authorName, // legacy
+      message: `שיתפתי את רשימת הקניות "${list.name}" 🛒`, // legacy
+    });
+  },
+
+  updateGroupShoppingItem: async (groupId, listId, itemId, patch) => {
+    const { data } = get();
+    const lists = data.groupShoppingLists[groupId] || [];
+    const list = lists.find(l => l.id === listId);
+    if (!list) return;
+    const nextItems = list.items.map((it) => (it.id === itemId ? { ...it, ...patch } : it));
+    await fsSetGroupShoppingList(groupId, listId, { items: nextItems, updatedAt: new Date().toISOString() });
+  },
+
+  addGroupShoppingItem: async (groupId, listId, item) => {
+    const { data } = get();
+    const lists = data.groupShoppingLists[groupId] || [];
+    const list = lists.find(l => l.id === listId);
+    if (!list) return;
+    const nextItems = [...list.items, item];
+    await fsSetGroupShoppingList(groupId, listId, { items: nextItems, updatedAt: new Date().toISOString() });
+  },
+
+  removeGroupShoppingItem: async (groupId, listId, itemId) => {
+    const { data } = get();
+    const lists = data.groupShoppingLists[groupId] || [];
+    const list = lists.find(l => l.id === listId);
+    if (!list) return;
+    const nextItems = list.items.filter((it) => it.id !== itemId);
+    await fsSetGroupShoppingList(groupId, listId, { items: nextItems, updatedAt: new Date().toISOString() });
+  },
+
+  deleteGroupShoppingList: async (groupId, listId) => {
+    await fsDeleteGroupShoppingList(groupId, listId);
+  },
+
+  shareNoteToGroup: async (noteId, groupId) => {
+    const { uid, data } = get();
+    if (!uid) return;
+    const note = data.quickNotes.find((n) => n.id === noteId);
+    if (!note) return;
+
+    const authorName = data.profile?.displayName || 'סטודנט/ית';
+    await postGroupMessage(groupId, {
+      kind: 'chat',
+      app_origin: 'life',
+      author_uid: uid,
+      author_name: authorName,
+      summary: `שיתפתי פתק: "${note.title || 'פתק ללא כותרת'}" 📝`,
+      payload: {
+        kind: 'note',
+        noteId: note.id,
+        title: note.title || '',
+        content: note.content || '',
+        color: note.color || '#fff',
+      },
+      type: 'message', // legacy
+      user_uid: uid,    // legacy
+      user_name: authorName, // legacy
+      message: `שיתפתי פתק: "${note.title || 'פתק ללא כותרת'}" 📝`, // legacy
+    });
+  },
+
+  shareFileToGroup: async (groupId, file) => {
+    const { uid, data } = get();
+    if (!uid) return;
+    try {
+      const url = await uploadGroupFile(groupId, file);
+      const authorName = data.profile?.displayName || 'סטודנט/ית';
+      await postGroupMessage(groupId, {
+        kind: 'chat',
+        app_origin: 'life',
+        author_uid: uid,
+        author_name: authorName,
+        summary: `שיתפתי קובץ: "${file.name}" 📂`,
+        payload: {
+          kind: 'file',
+          fileUrl: url,
+          fileName: file.name,
+          fileSize: file.size,
+        },
+        type: 'message', // legacy
+        user_uid: uid,    // legacy
+        user_name: authorName, // legacy
+        message: `שיתפתי קובץ: "${file.name}" 📂`, // legacy
+      });
+    } catch (e) {
+      console.error('Failed to upload file to group', e);
+      throw e;
+    }
+  },
+
+  addSharedExpense: async (groupId, expenseData) => {
+    const { uid, data } = get();
+    if (!uid) return;
+    const id = 'exp_' + Date.now();
+    const authorName = data.profile?.displayName || 'סטודנט/ית';
+    const expense = {
+      id,
+      ...expenseData,
+      createdAt: new Date().toISOString(),
+    };
+    await fsSetGroupExpense(groupId, id, expense);
+
+    // Post to chat
+    const summary = expense.isSettleUp
+      ? `החזר חוב: ${expense.paidByName} העביר/ה ל-${expense.receivedByName} בסך ${expense.amount} ₪ 🤝`
+      : `הוצאה חדשה: "${expense.title}" בסך ${expense.amount} ₪ 💰`;
+
+    await postGroupMessage(groupId, {
+      kind: 'chat',
+      app_origin: 'life',
+      author_uid: uid,
+      author_name: authorName,
+      summary,
+      payload: { 
+        kind: 'expense', 
+        expenseId: id, 
+        expenseTitle: expense.title || 'החזר חוב', 
+        expenseAmount: expense.amount,
+        isSettleUp: !!expense.isSettleUp
+      },
+      type: 'message', // legacy
+      user_uid: uid,    // legacy
+      user_name: authorName, // legacy
+      message: summary, // legacy
+    });
+  },
+
+  deleteSharedExpense: async (groupId, expenseId) => {
+    await fsDeleteGroupExpense(groupId, expenseId);
+  },
+
+  markGroupAsRead: async (groupId) => {
+    const { uid } = get();
+    if (!uid) return;
+    await fsMarkGroupAsRead(uid, groupId);
+  },
+
+  shareCourse: async (courseId) => {
+    const { uid, data } = get();
+    if (!uid) return null;
+    const course = data.courses.find((c) => c.id === courseId);
+    if (!course) return null;
+
+    // Gather all related tasks for this course
+    const courseTasks = Object.values(data.tasks[courseId] || {}).flat();
+    const globalCourseTasks = Object.values(data.globalTasks[courseId] || {}).flat();
+
+    const flatTasks = [
+      ...courseTasks.map(t => ({ ...t, scope: 'weekly', courseId })),
+      ...globalCourseTasks.map(t => ({ ...t, scope: 'global', courseId })),
+    ];
+
+    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const shareData = {
+      code,
+      ownerUid: uid,
+      course: {
+        id: course.id,
+        name: course.name,
+        weeksCount: course.weeksCount,
+        academicYear: course.academicYear || "שנה א'",
+        semester: course.semester || "סמסטר ב'",
+        exams: course.exams || {},
+        links: course.links || {},
+        defaultMoodleLink: course.defaultMoodleLink || '',
+        defaultNotebookLmLink: course.defaultNotebookLmLink || '',
+        defaultGeminiLink: course.defaultGeminiLink || '',
+        defaultLocalFolder: course.defaultLocalFolder || '',
+      },
+      tasks: flatTasks,
+      createdAt: new Date().toISOString(),
+    };
+
+    await fsSetSharedCourse(code, shareData);
+    return code;
+  },
+
+  importCourseFromCode: async (code) => {
+    const { uid } = get();
+    if (!uid) return false;
+    try {
+      const sharedData = await fsGetSharedCourse(code);
+      if (!sharedData) {
+        toast.error('קוד השיתוף אינו תקין או פג תוקף');
+        return false;
+      }
+
+      const { course, tasks } = sharedData;
+      // Resolve name clashes by suffixing if already exists
+      const existing = get().data.courses.some(c => c.id === course.id);
+      const newCourseId = existing ? `${course.id}_${Date.now().toString().slice(-4)}` : course.id;
+
+      const importedCourse = {
+        ...course,
+        id: newCourseId,
+        isArchived: false,
+        importedFromCode: code,
+      };
+
+      // 1. Create course doc
+      await fsSetCourse(uid, newCourseId, importedCourse);
+
+      // 2. Batch create all tasks (with checked: false)
+      const tasksToUpload = tasks.map((t, idx) => {
+        const taskId = `${newCourseId}-${t.scope === 'weekly' ? 'w' + t.week : 'g' + t.category}-${Date.now()}-${idx}`;
+        return {
+          id: taskId,
+          courseId: newCourseId,
+          scope: t.scope,
+          week: t.week || null,
+          category: t.category || null,
+          type: t.type || 'custom',
+          label: t.label || '',
+          checked: false, // Reset checked status for privacy
+          files: Array.isArray(t.files) ? t.files : [], // Duplicates file links!
+          order: t.order ?? idx,
+        };
+      });
+
+      await batchSetCourseTasks(uid, tasksToUpload);
+      toast.success(`הקורס "${course.name}" יובא בהצלחה!`);
+      return true;
+    } catch (e) {
+      console.error('Failed to import course', e);
+      toast.error('שגיאה בייבוא הקורס');
+      return false;
+    }
   },
 
   // ---------- Calori bridge (READ-ONLY) ---------------------------------
@@ -730,6 +1255,7 @@ export const useStore = create((set, get) => ({
     }),
   openCoachChat: () => set({ coachChatOpen: true }),
   closeCoachChat: () => set({ coachChatOpen: false }),
+  setCalendarDate: (date) => set({ calendarDate: date }),
   setPendingTuneCommand: (cmd) => set({ pendingTuneCommand: cmd }),
   setSidebarOpen: (isOpen) => set({ sidebarOpen: isOpen }),
   setIsUploading: (status) => set({ isUploading: status }),
@@ -800,7 +1326,29 @@ export const useStore = create((set, get) => ({
       return { data: { ...state.data, profile: mergedProfile } };
     });
     const { uid } = get();
-    if (uid) fsSetProfile(uid, profileData).catch(console.error);
+    if (uid) {
+      fsSetProfile(uid, profileData).catch(console.error);
+      if (profileData.photoURL) {
+        setRootProfilePhoto(uid, profileData.photoURL).catch(console.error);
+      }
+      get().syncProfileToRoot(profileData);
+    }
+  },
+
+  syncProfileToRoot: async (profilePatch = null, coursesPatch = null) => {
+    const { uid, data } = get();
+    if (!uid) return;
+    const profile = { ...(data.profile || {}), ...profilePatch };
+    const courses = coursesPatch || data.courses || [];
+    const activeCourses = courses.filter((c) => !c.isArchived).map((c) => c.name);
+    
+    await syncUserProfile(uid, {
+      displayName: profile.displayName || '',
+      photoURL: profile.photoURL || null,
+      academicInstitution: profile.academicInstitution || '',
+      degree: profile.degree || '',
+      activeCourses,
+    }).catch(console.error);
   },
 
   // ---------- Onboarding -------------------------------------------------
@@ -815,10 +1363,15 @@ export const useStore = create((set, get) => ({
     for (const course of selectedCourses) {
       const notebookLmLink = isOwner ? (course.defaultNotebookLmLink || '') : '';
       const geminiLink = isOwner ? (course.defaultGeminiLink || '') : '';
+      const moodleLink = isOwner ? (course.defaultMoodleLink || '') : '';
       const courseDoc = {
         name: course.name,
+        academicYear: course.academicYear || profileData.academicYear || "שנה א'",
+        semester: course.semester || profileData.semester || "סמסטר א'",
+        keywords: course.keywords || [],
         defaultNotebookLmLink: notebookLmLink,
         defaultGeminiLink: geminiLink,
+        defaultMoodleLink: moodleLink,
         defaultLocalFolder: course.defaultLocalFolder || '',
         weeksCount: course.weeksCount,
         exams: course.exams || { moedA: null, moedB: null, moedC: null },
@@ -827,6 +1380,7 @@ export const useStore = create((set, get) => ({
           notebookLm: notebookLmLink,
           gemini: geminiLink,
           localFolder: course.defaultLocalFolder || '',
+          moodle: moodleLink,
         },
         notes: {},
         progressSettings: progressSettings || {
@@ -843,6 +1397,7 @@ export const useStore = create((set, get) => ({
 
     await fsSetProfile(uid, { ...profileData, hasCompletedOnboarding: true });
     set({ hasCompletedOnboarding: true });
+    await get().syncProfileToRoot(profileData, selectedCourses);
   },
 
   // ---------- AI Suggestions ----------------------------------------------
@@ -1206,16 +1761,22 @@ export const useStore = create((set, get) => ({
   // ---------- Courses ----------------------------------------------------
 
   addCourse: async (course, seeds = null) => {
-    const { uid, language } = get();
+    const { uid, language, data } = get();
     if (!uid) return;
     const lang = language || 'he';
     const courseId = course.id || `course-${Date.now()}`;
+    const activeYear = course.academicYear || data.profile?.academicYear || "שנה א'";
+    const activeSemester = course.semester || data.profile?.semester || "סמסטר א'";
 
     const courseDoc = {
       name: course.name,
+      academicYear: activeYear,
+      semester: activeSemester,
+      keywords: course.keywords || [],
       defaultNotebookLmLink: course.defaultNotebookLmLink || '',
       defaultGeminiLink: course.defaultGeminiLink || '',
-      defaultLocalFolder: course.defaultLocalFolder || '',
+      defaultMoodleLink: course.defaultMoodleLink || '',
+      defaultLocalFolder: course.defaultLocalFolder || course.localFolder || '',
       weeksCount: course.weeksCount,
       exams: course.exams || {
         moedA: course.moedA || null,
@@ -1226,7 +1787,8 @@ export const useStore = create((set, get) => ({
       links: {
         notebookLm: course.defaultNotebookLmLink || '',
         gemini: course.defaultGeminiLink || '',
-        localFolder: course.defaultLocalFolder || '',
+        localFolder: course.defaultLocalFolder || course.localFolder || '',
+        moodle: course.defaultMoodleLink || '',
       },
       notes: {},
       progressSettings: course.progressSettings || {
@@ -1240,6 +1802,9 @@ export const useStore = create((set, get) => ({
 
     const tasksMap = buildInitialWeeklyTasksMap({ ...course, id: courseId }, lang, seeds);
     await batchSetCourseTasks(uid, tasksMap).catch(console.error);
+
+    const updatedCourses = [...(data.courses || []), { ...courseDoc, id: courseId }];
+    await get().syncProfileToRoot(null, updatedCourses);
   },
 
   updateCourse: (courseId, updates) => {
@@ -1250,7 +1815,10 @@ export const useStore = create((set, get) => ({
       );
       return { data: { ...state.data, courses } };
     });
-    if (uid) fsSetCourse(uid, courseId, updates).catch(console.error);
+    if (uid) {
+      fsSetCourse(uid, courseId, updates).catch(console.error);
+      get().syncProfileToRoot();
+    }
   },
 
   archiveCourse: (courseId, isArchived) => {
@@ -1261,7 +1829,10 @@ export const useStore = create((set, get) => ({
       );
       return { data: { ...state.data, courses } };
     });
-    if (uid) fsSetCourse(uid, courseId, { isArchived }).catch(console.error);
+    if (uid) {
+      fsSetCourse(uid, courseId, { isArchived }).catch(console.error);
+      get().syncProfileToRoot();
+    }
   },
 
   // ---------- Weekly tasks ------------------------------------------------
@@ -1567,27 +2138,38 @@ export const useStore = create((set, get) => ({
     const { uid, data, language } = get();
     if (!uid) return;
     const lang = language || 'he';
+    const activeYear = data.profile?.academicYear || "שנה א'";
+    const activeSemester = data.profile?.semester || "סמסטר ב'";
+
+    // Filter courses matching the active academic period
+    const activeCourses = (data.courses || []).filter(c => 
+      (c.academicYear || "שנה א'") === activeYear && 
+      (c.semester || "סמסטר ב'") === activeSemester
+    );
+    const activeCourseIds = new Set(activeCourses.map(c => c.id));
 
     const currentTasks = [];
-    Object.values(data.tasks).forEach((weeks) => {
+    Object.entries(data.tasks || {}).forEach(([courseId, weeks]) => {
+      if (!activeCourseIds.has(courseId)) return;
       Object.values(weeks).forEach((weekTasks) => {
         weekTasks.forEach((t) => currentTasks.push(t.id));
       });
     });
-    Object.values(data.globalTasks).forEach((cats) => {
+    Object.entries(data.globalTasks || {}).forEach(([courseId, cats]) => {
+      if (!activeCourseIds.has(courseId)) return;
       Object.values(cats).forEach((catTasks) => {
         catTasks.forEach((t) => currentTasks.push(t.id));
       });
     });
 
     try {
-      for (const course of data.courses) {
+      for (const course of activeCourses) {
         await fsSetCourse(uid, course.id, { notes: {} });
       }
       for (const tid of currentTasks) {
         await fsDeleteCourseTask(uid, tid);
       }
-      for (const course of data.courses) {
+      for (const course of activeCourses) {
         const tasksMap = buildInitialWeeklyTasksMap(course, lang);
         await batchSetCourseTasks(uid, tasksMap);
       }
@@ -1600,9 +2182,11 @@ export const useStore = create((set, get) => ({
   // ---------- Hard delete a course (used by future settings) ------------
 
   deleteCourseFully: async (courseId) => {
-    const { uid } = get();
+    const { uid, data } = get();
     if (!uid) return;
     await fsDeleteCourse(uid, courseId).catch(console.error);
+    const updatedCourses = (data.courses || []).filter(c => c.id !== courseId);
+    await get().syncProfileToRoot(null, updatedCourses);
   },
 
   // ---------- Personal events (cl_events) -------------------------------
@@ -1776,6 +2360,27 @@ export const useStore = create((set, get) => ({
     return id;
   },
 
+  copySharedNoteToPersonal: async (payload) => {
+    const { uid } = get();
+    if (!uid) return null;
+    const { title, content, color } = payload;
+    const id = newId(uid, 'note');
+    const now = new Date().toISOString();
+    const note = {
+      title: title || '',
+      content: content || '',
+      type: 'note',
+      pinned: false,
+      color: color || null,
+      categoryId: null,
+      courseId: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    await fsSetNote(uid, id, note);
+    return id;
+  },
+
   updateQuickNote: (id, updates) => {
     const { uid } = get();
     if (uid)
@@ -1808,6 +2413,18 @@ export const useStore = create((set, get) => ({
     if (!t) return;
     const newSubtasks = (t.subtasks || []).map((s) =>
       s.id === subtaskId ? { ...s, done: !s.done } : s,
+    );
+    fsSetPersonalTask(uid, taskId, { subtasks: newSubtasks }).catch(console.error);
+  },
+
+  // Inline rename of a subtask's title (click-to-edit in the UI).
+  updateSubtask: (taskId, subtaskId, title) => {
+    const { uid, data } = get();
+    if (!uid) return;
+    const t = data.personalTasks.find((t) => t.id === taskId);
+    if (!t) return;
+    const newSubtasks = (t.subtasks || []).map((s) =>
+      s.id === subtaskId ? { ...s, title } : s,
     );
     fsSetPersonalTask(uid, taskId, { subtasks: newSubtasks }).catch(console.error);
   },
@@ -2273,7 +2890,12 @@ export const useStore = create((set, get) => ({
             };
           });
 
-        const courseProgress = getCourseProgressSummary(data?.courses || [], data?.tasks || {});
+        const courseProgress = getCourseProgressSummary(
+          data?.courses || [],
+          data?.tasks || {},
+          data?.profile?.academicYear,
+          data?.profile?.semester
+        );
 
         // Derive day-of-week + Shabbat relevance from the PLANNED date, not "now"
         // — otherwise a reschedule mislabels the day and can leak Shabbat context

@@ -5,6 +5,7 @@ import { differenceInCalendarDays, startOfDay, parseISO, isValid } from 'date-fn
 import { StudiesStats } from './StudiesStats';
 import { formatExamDaysBadge } from '../../lib/examDaysFormat';
 import { Stagger } from '../../lib/motion';
+import { GraduationCap } from 'lucide-react';
 
 const COURSE_COLORS = ['#059669', '#2563EB', '#D97706', '#7C3AED', '#DC2626'];
 
@@ -216,6 +217,16 @@ export const StudiesHub = () => {
             {isRTL ? 'שלי' : 'Courses'}
           </em>
         </h2>
+        {/* Main Moodle Quick Link */}
+        <a
+          href="https://moodle.runi.ac.il/2026/my/courses.php"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-cream-border bg-white text-xs font-bold text-cream-text hover:border-[#059669]/30 hover:bg-[#059669]/[0.02] shadow-sm transition-all"
+        >
+          <GraduationCap className="w-3.5 h-3.5 text-[#059669]" />
+          <span>{isRTL ? 'כניסה למודל' : 'Moodle Login'}</span>
+        </a>
       </div>
 
       {/* 2-Column Course Grid */}

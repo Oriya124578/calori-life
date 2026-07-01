@@ -152,6 +152,18 @@ export default defineConfig({
       }
     })
   ],
+  server: {
+    proxy: {
+      '/auth': {
+        target: 'http://127.0.0.1:5001/calori1300/us-central1/api',
+        changeOrigin: true,
+      },
+      '/api': {
+        target: 'http://127.0.0.1:5001/calori1300/us-central1/api',
+        changeOrigin: true,
+      },
+    },
+  },
   build: {
     rollupOptions: {
       output: {

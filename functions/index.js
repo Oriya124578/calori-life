@@ -241,7 +241,7 @@ app.post("/api/calendar/calori-world", validateFirebaseIdToken, async (req, res)
     if (calId) {
       try {
         await calendar.calendars.get({ calendarId: calId });
-      } catch (_) {
+      } catch {
         calId = null; // stale — recreate
       }
     }

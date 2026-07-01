@@ -1,9 +1,11 @@
 /* CalendarView.module.css */
 .wrapper {
   background: #FAF7F2;
-  min-height: 100vh;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   font-family: 'Inter', 'Rubik', sans-serif;
-  padding-bottom: 100px;
 }
 
 /* Design-system rule: uniform-width digits everywhere times/dates appear */
@@ -804,24 +806,26 @@
 .legendDot.lb { background: #2563EB; }
 .legendDot.lr { background: #EF4444; }
 .legendDot.la { background: #D97706; }
-.monthHero {
-  background: #fff;
-  border-radius: 22px;
-  padding: 18px 18px 16px;
-  border: 1px solid rgba(180, 140, 80, 0.14);
-  box-shadow: 0 4px 24px rgba(40, 20, 0, 0.07);
-  position: relative;
-  overflow: hidden;
-  margin: 14px 14px 14px;
+.calendarHeader {
+  background: rgba(250, 247, 242, 0.96);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+  border-bottom: 1px solid rgba(180, 140, 80, 0.12);
+  padding: 16px 20px 10px;
+  flex-shrink: 0;
+  z-index: 20;
 }
-.monthHero::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, #065F46, #059669 50%, #047857);
+.gridContent {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 96px; /* safe bottom nav padding on mobile */
+  padding-top: 8px;
+}
+@media (min-width: 900px) {
+  .gridContent {
+    padding-bottom: 24px;
+  }
 }
 .mhTop {
   display: flex;

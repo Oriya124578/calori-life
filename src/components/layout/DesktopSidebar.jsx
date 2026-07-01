@@ -9,7 +9,8 @@ import {
   CheckSquare, 
   StickyNote, 
   Pin, 
-  Settings 
+  Settings,
+  Users
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../../store/useStore';
@@ -19,6 +20,7 @@ import { cn } from '../../lib/utils';
 
 const NAV_ITEMS = [
   { key: 'overview',      icon: Home,         labelKey: 'navHome' },
+  { key: 'groups',        icon: Users,        labelKey: 'navGroups' },
   { key: 'calendar',      icon: Calendar,     labelKey: 'navCalendar' },
   { key: 'courses',       icon: BookOpen,     labelKey: 'navStudies' },
   { key: 'commandCenter', icon: Sparkles,     labelKey: 'navManager' },
@@ -34,6 +36,19 @@ const EXPANDED = 270;
 export const DesktopSidebar = () => {
   const { activeCategory, setActiveCategory, setActiveCourse, data, activeCourse } = useStore();
   const { t } = useTranslation();
+
+  const hasUnreadGroups = React.useMemo(() => {
+    const groups = data?.groups || [];
+    const readMap = data?.profile?.group_read_timestamps || {};
+    return groups.some((g) => {
+      if (!g.lastActivityTimestamp) return false;
+      const readTime = readMap[g.id];
+      if (!readTime) return true;
+      const lastDate = g.lastActivityTimestamp.toDate ? g.lastActivityTimestamp.toDate() : new Date(g.lastActivityTimestamp);
+      const readDate = readTime.toDate ? readTime.toDate() : new Date(readTime);
+      return lastDate > readDate;
+    });
+  }, [data?.groups, data?.profile?.group_read_timestamps]);
 
   // Pinned state persists; while collapsed, hovering peeks the rail open.
   const [pinned, setPinned] = useState(() => {
@@ -88,7 +103,7 @@ export const DesktopSidebar = () => {
       } else {
         next = [...prev, courseId];
       }
-      try { localStorage.setItem('cl_pinned_courses', JSON.stringify(next)); } catch {}
+      try { localStorage.setItem('cl_pinned_courses', JSON.stringify(next)); } catch (err) { console.error(err); }
       return next;
     });
   };
@@ -168,73 +183,79 @@ export const DesktopSidebar = () => {
         </button>
       </div>
 
-      {/* ── Scrollable Body container ── */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden flex flex-col gap-6 py-2 scrollbar-none">
-        
-        {/* Nav items */}
-        <nav className="flex flex-col gap-1 w-full px-2.5 shrink-0">
-          {NAV_ITEMS.map((item) => {
-            const Icon = item.icon;
-            const label = t(item.labelKey);
-            const isActive =
-              activeCategory === item.key ||
-              (item.key === 'courses' && (activeCategory === 'courses' || activeCategory === 'course'));
+      {/* Nav items (fixed/pinned) */}
+      <nav className="flex flex-col gap-1 w-full px-2.5 shrink-0 py-2">
+        {NAV_ITEMS.map((item) => {
+          const Icon = item.icon;
+          const label = t(item.labelKey);
+          const isActive =
+            activeCategory === item.key ||
+            (item.key === 'courses' && (activeCategory === 'courses' || activeCategory === 'course'));
 
-            return (
-              <button
-                key={item.key}
-                onClick={() => handleNavClick(item.key)}
-                aria-current={isActive ? 'page' : undefined}
-                aria-label={label}
-                title={expanded ? undefined : label}
-                className={cn(
-                  'group relative flex items-center h-11 rounded-2xl w-full transition-colors active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none',
-                  expanded ? 'justify-start px-3.5 gap-3' : 'justify-center',
-                  !isActive && 'hover:bg-primary/10',
-                )}
-                style={{ color: isActive ? '#fff' : 'var(--cream-muted)' }}
-              >
-                {/* Active pill that springs between items (and reshapes with width) */}
-                {isActive && (
-                  <motion.span
-                    layoutId="sideNavBubble"
-                    transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-                    className="absolute inset-0 rounded-2xl"
-                    style={{
-                      background: 'linear-gradient(135deg, #059669, #047857)',
-                      boxShadow: '0 4px 14px rgba(5,150,105,.4)',
-                    }}
-                  />
-                )}
+          return (
+            <button
+              key={item.key}
+              onClick={() => handleNavClick(item.key)}
+              aria-current={isActive ? 'page' : undefined}
+              aria-label={label}
+              title={expanded ? undefined : label}
+              className={cn(
+                'group relative flex items-center h-11 rounded-2xl w-full transition-colors active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none',
+                expanded ? 'justify-start px-3.5 gap-3' : 'justify-center',
+                !isActive && 'hover:bg-primary/10',
+              )}
+              style={{ color: isActive ? '#fff' : 'var(--cream-muted)' }}
+            >
+              {/* Active pill that springs between items (and reshapes with width) */}
+              {isActive && (
                 <motion.span
-                  animate={{ scale: isActive ? 1.06 : 1 }}
-                  transition={{ type: 'spring', stiffness: 500, damping: 24 }}
-                  className="relative flex items-center justify-center shrink-0"
-                >
-                  <Icon className="w-[19px] h-[19px]" strokeWidth={isActive ? 2.4 : 2} />
-                </motion.span>
-                <AnimatePresence initial={false}>
-                  {expanded && (
-                    <motion.span
-                      key="label"
-                      initial={{ opacity: 0, x: -6 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -6 }}
-                      transition={{ duration: 0.16 }}
-                      className="relative text-[13px] font-bold whitespace-nowrap"
-                    >
-                      {label}
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-              </button>
-            );
-          })}
-        </nav>
+                  layoutId="sideNavBubble"
+                  transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                  className="absolute inset-0 rounded-2xl"
+                  style={{
+                    background: 'linear-gradient(135deg, #059669, #047857)',
+                    boxShadow: '0 4px 14px rgba(5,150,105,.4)',
+                  }}
+                />
+              )}
+              <motion.span
+                animate={{ scale: isActive ? 1.06 : 1 }}
+                transition={{ type: 'spring', stiffness: 500, damping: 24 }}
+                className="relative flex items-center justify-center shrink-0"
+              >
+                <Icon className="w-[19px] h-[19px]" strokeWidth={isActive ? 2.4 : 2} />
+                {item.key === 'groups' && hasUnreadGroups && (
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-[var(--header-bg)] shadow-[0_0_8px_rgba(239,68,68,0.7)]" />
+                )}
+              </motion.span>
+              <AnimatePresence initial={false}>
+                {expanded && (
+                  <motion.span
+                    key="label"
+                    initial={{ opacity: 0, x: -6 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -6 }}
+                    transition={{ duration: 0.16 }}
+                    className="relative text-[13px] font-bold whitespace-nowrap"
+                  >
+                    {label}
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </button>
+          );
+        })}
+      </nav>
 
-        {/* Recent courses section */}
+      {/* Divider between Nav and Recent */}
+      {expanded && displayCourses.length > 0 && (
+        <hr className="border-[rgba(180,140,80,.08)] mx-5 my-1 shrink-0" />
+      )}
+
+      {/* ── Scrollable Recent courses section ── */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden flex flex-col py-2 scrollbar-none min-h-0">
         {expanded && displayCourses.length > 0 && (
-          <div className="flex flex-col min-h-0 shrink-0">
+          <div className="flex flex-col min-h-0">
             <h3 className="px-5 text-[11px] font-bold text-cream-muted uppercase tracking-wider mb-2 select-none">
               {t('recentCoursesHeader', 'מהזמן האחרון')}
             </h3>

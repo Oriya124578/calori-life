@@ -135,8 +135,17 @@ export const CoachChatDrawer = ({ isOpen, onClose, dateStr, shabbatTimes, onRepl
         }))
       };
 
-      // Active courses
-      const coursesContext = (data?.courses || []).filter(c => !c.isArchived).map(c => ({
+      // Active courses filtered by active year and semester
+      const activeYear = data?.profile?.academicYear || "שנה א'";
+      const activeSemester = data?.profile?.semester || "סמסטר ב'";
+      
+      const activeCourses = (data?.courses || []).filter(c => 
+        !c.isArchived && 
+        (c.academicYear || "שנה א'") === activeYear && 
+        (c.semester || "סמסטר ב'") === activeSemester
+      );
+
+      const coursesContext = activeCourses.map(c => ({
         id: c.id,
         name: c.name,
         progressSettings: c.progressSettings || { lecture: true, tutorial: true, homework: false, custom: true }
@@ -147,7 +156,7 @@ export const CoachChatDrawer = ({ isOpen, onClose, dateStr, shabbatTimes, onRepl
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
 
-      (data?.courses || []).filter(c => !c.isArchived).forEach((course) => {
+      activeCourses.forEach((course) => {
         // 1. Standard Moeds
         ['moedA', 'moedB', 'moedC'].forEach((moed) => {
           const examDate = course[moed] || course.exams?.[moed];
@@ -179,7 +188,12 @@ export const CoachChatDrawer = ({ isOpen, onClose, dateStr, shabbatTimes, onRepl
       });
       upcomingExams.sort((a, b) => a.date.localeCompare(b.date));
 
-      const courseProgress = getCourseProgressSummary(data?.courses || [], data?.tasks || {});
+      const courseProgress = getCourseProgressSummary(
+        data?.courses || [],
+        data?.tasks || {},
+        activeYear,
+        activeSemester
+      );
 
       const res = await chatWithCoach({
         history: contextHistory,

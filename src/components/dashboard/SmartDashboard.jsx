@@ -1,5 +1,18 @@
 import React, { useMemo } from 'react';
-import { Sparkles, Bot } from 'lucide-react';
+import { 
+  Sparkles, 
+  Bot, 
+  UtensilsCrossed, 
+  Dumbbell, 
+  CheckSquare, 
+  GraduationCap, 
+  Flame, 
+  Scale, 
+  Plus, 
+  ChevronLeft,
+  Clock
+} from 'lucide-react';
+import { motion } from 'framer-motion';
 import { useStore } from '../../store/useStore';
 import { useTranslation } from '../../hooks/useTranslation';
 import { cn } from '../../lib/utils';
@@ -20,7 +33,7 @@ const safeParse = (d) => {
 };
 
 export const SmartDashboard = () => {
-  const { data, setActiveCategory, draftSchedule, openAddSheet } = useStore();
+  const { data, setActiveCategory, draftSchedule, openAddSheet, setCalendarDate } = useStore();
   const { t, language } = useTranslation();
   const isRTL = language === 'he';
   const locale = isRTL ? he : undefined;
@@ -39,14 +52,22 @@ export const SmartDashboard = () => {
   const nearestExam = useMemo(() => {
     let nearest = null;
     const today = startOfDay(new Date());
-    (data?.courses || []).forEach((course) => {
+    const activeYear = data?.profile?.academicYear || "שנה א'";
+    const activeSemester = data?.profile?.semester || "סמסטר ב'";
+    const activeCourses = (data?.courses || []).filter(c => 
+      !c.isArchived && 
+      (c.academicYear || "שנה א'") === activeYear && 
+      (c.semester || "סמסטר ב'") === activeSemester
+    );
+
+    activeCourses.forEach((course) => {
       // 1. Standard Moeds
       ['moedA', 'moedB', 'moedC'].forEach((moed) => {
         const dt = safeParse(course[moed] || course.exams?.[moed]);
         if (!dt) return;
         const days = differenceInCalendarDays(startOfDay(dt), today);
         if (days >= 0 && (!nearest || days < nearest.days)) {
-          nearest = { name: course.name, days, moed: moed.replace('moed', '') };
+          nearest = { name: course.name, days, moed: moed.replace('moed', ''), date: dt };
         }
       });
       // 2. Custom Exams
@@ -55,20 +76,25 @@ export const SmartDashboard = () => {
         if (!dt) return;
         const days = differenceInCalendarDays(startOfDay(dt), today);
         if (days >= 0 && (!nearest || days < nearest.days)) {
-          nearest = { name: course.name, days, moed: exam.name };
+          nearest = { name: course.name, days, moed: exam.name, date: dt };
         }
       });
     });
     return nearest;
-  }, [data.courses]);
+  }, [data.courses, data?.profile?.academicYear, data?.profile?.semester]);
 
-  // ── Today's tasks count ──
+  // ── Today's tasks count (including overdue tasks) ──
   const todayTasksCount = useMemo(() => {
-    const today = new Date();
-    return (data?.personalTasks || []).filter(
-      (task) => safeParse(task.dueDate) && isSameDay(safeParse(task.dueDate), today) && !task.done
-    ).length;
-  }, [data.personalTasks]);
+    return (data?.personalTasks || []).filter((task) => {
+      if (task.done) return false;
+      if (task.list === 'today') return true;
+      const d = (task.dueDate || '').slice(0, 10);
+      if (!d) return false;
+      if (d === todayStr) return true;
+      if (d < todayStr) return true; // overdue, not done
+      return false;
+    }).length;
+  }, [data.personalTasks, todayStr]);
 
   // ── Smart summary ──
   const summaryText = useMemo(() => {
@@ -101,10 +127,6 @@ export const SmartDashboard = () => {
   const weight = data?.calori?.weight || data?.calori?.dayHistory?.weight;
 
   // ── Timeline blocks ──
-  // Single source of truth: a today draft wins; otherwise buildTimeline (same
-  // selector the manager uses) reads the SAVED cl_schedule doc and overlays
-  // events + scheduled tasks + calori. This is what keeps the home "today" list
-  // in sync with the schedule created in the manager.
   const todayBlocks = useMemo(() => {
     const ds = todayStr;
 
@@ -138,7 +160,15 @@ export const SmartDashboard = () => {
       }));
 
     // All-day exams on top of the timed blocks.
-    (data?.courses || []).forEach((course) => {
+    const activeYear = data?.profile?.academicYear || "שנה א'";
+    const activeSemester = data?.profile?.semester || "סמסטר ב'";
+    const activeCourses = (data?.courses || []).filter(c => 
+      !c.isArchived && 
+      (c.academicYear || "שנה א'") === activeYear && 
+      (c.semester || "סמסטר ב'") === activeSemester
+    );
+
+    activeCourses.forEach((course) => {
       ['moedA', 'moedB', 'moedC'].forEach((moed) => {
         const dt = safeParse(course[moed] || course.exams?.[moed]);
         if (dt && isSameDay(dt, new Date())) {
@@ -150,11 +180,19 @@ export const SmartDashboard = () => {
     return blocks.sort((a, b) => (a.time || '').localeCompare(b.time || '')).slice(0, 6);
   }, [data, todayStr, draftSchedule, t]);
 
-  // ── Upcoming 7 days ──
+  // ── Upcoming 7 days (including overdue tasks) ──
   const upcomingItems = useMemo(() => {
     const today = new Date();
     const items = [];
-    (data?.courses || []).forEach((course) => {
+    const activeYear = data?.profile?.academicYear || "שנה א'";
+    const activeSemester = data?.profile?.semester || "סמסטר ב'";
+    const activeCourses = (data?.courses || []).filter(c => 
+      !c.isArchived && 
+      (c.academicYear || "שנה א'") === activeYear && 
+      (c.semester || "סמסטר ב'") === activeSemester
+    );
+
+    activeCourses.forEach((course) => {
       ['moedA', 'moedB', 'moedC'].forEach((moed) => {
         const dt = safeParse(course[moed] || course.exams?.[moed]);
         if (dt) {
@@ -174,50 +212,58 @@ export const SmartDashboard = () => {
       const dt = safeParse(task.dueDate);
       if (dt && !task.done) {
         const d = differenceInCalendarDays(startOfDay(dt), startOfDay(today));
-        if (d > 0 && d <= 7) items.push({ id: task.id, kind: 'task', title: task.title, date: dt });
+        if (d < 0 || (d > 0 && d <= 7)) {
+          items.push({ 
+            id: task.id, 
+            kind: 'task', 
+            title: task.title, 
+            date: dt,
+            isOverdue: d < 0
+          });
+        }
       }
     });
-    return items.sort((a, b) => a.date - b.date).slice(0, 4);
+    return items.sort((a, b) => a.date - b.date).slice(0, 5);
   }, [data, t]);
 
   return (
-    <div className="max-w-lg mx-auto w-full px-3.5 py-3 space-y-2.5 rise-in-stagger min-[900px]:max-w-none min-[900px]:space-y-0 min-[900px]:grid min-[900px]:grid-cols-2 min-[900px]:gap-4 min-[900px]:items-start" dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className="max-w-lg mx-auto w-full px-3.5 py-3 space-y-4 rise-in-stagger min-[900px]:max-w-none min-[900px]:space-y-0 min-[900px]:grid min-[900px]:grid-cols-2 min-[900px]:gap-6 min-[900px]:items-start" dir={isRTL ? 'rtl' : 'ltr'}>
 
-      {/* ══════ HERO CARD — cream v3 unified ══════ */}
+      {/* ══════ HERO CARD — premium elevated design ══════ */}
       <div
-        className="rounded-[22px] p-5 pb-4 relative overflow-hidden min-[900px]:col-span-2"
+        className="rounded-[24px] p-6 pb-5 relative overflow-hidden min-[900px]:col-span-2 transition-all duration-300"
         style={{
           background: 'var(--color-card)',
           border: '1px solid var(--cream-border)',
-          boxShadow: '0 4px 24px rgba(40,20,0,.07), 0 1px 0 rgba(255,255,255,.8) inset',
+          boxShadow: '0 12px 36px -12px rgba(40,20,0,.09), 0 1px 0 rgba(255,255,255,.9) inset',
         }}
       >
-        {/* Green top accent bar */}
-        <div className="absolute top-0 left-0 right-0 h-[3px]" style={{ background: 'linear-gradient(90deg,#065F46,#059669 50%,#047857)' }} />
-        {/* Warm texture hint */}
-        <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse 80% 60% at 100% 0%, rgba(255,245,220,.4) 0%, transparent 60%)' }} />
+        {/* Brand linear top accent */}
+        <div className="absolute top-0 left-0 right-0 h-[4px]" style={{ background: 'linear-gradient(90deg, #10B981, #059669 50%, #7C3AED)' }} />
+        {/* Glassmorphic warm glow */}
+        <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle 260px at 100% 0%, rgba(255,245,220,.45) 0%, transparent 100%)' }} />
 
         {/* Top: greeting + exam badge */}
-        <div className="flex justify-between items-start mb-4 relative">
+        <div className="flex justify-between items-start mb-5 relative">
           <div>
-            <div className="text-[10px] font-semibold tracking-widest uppercase" style={{ color: 'var(--cream-muted)' }}>
+            <div className="text-[10px] font-bold tracking-widest uppercase text-cream-muted">
               {format(new Date(), 'EEEE · d MMMM yyyy', { locale })}
             </div>
-            <div className="mt-1.5" style={{ fontFamily: "'Instrument Serif', serif", fontSize: '27px', fontWeight: 400, color: 'var(--cream-text)', letterSpacing: '-.04em', lineHeight: 1.05 }}>
+            <div className="mt-2" style={{ fontFamily: "'Instrument Serif', serif", fontSize: '32px', fontWeight: 400, color: 'var(--cream-text)', letterSpacing: '-.03em', lineHeight: 1.05 }}>
               {getGreeting()},<br />
-              <span style={{ color: '#059669', fontStyle: 'italic' }}>{displayName || t('user')} 👋</span>
+              <span className="font-bold font-serif" style={{ color: '#059669', fontStyle: 'italic' }}>{displayName || t('user')} 👋</span>
             </div>
-            <div className="flex items-center gap-1.5 mt-2">
-              <div className="w-1.5 h-1.5 rounded-full" style={{ background: '#059669' }} />
-              <span className="text-xs font-semibold" style={{ color: 'var(--cream-muted)' }}>{summaryText}</span>
+            <div className="flex items-center gap-2 mt-3.5 bg-primary/5 rounded-full px-3 py-1 w-fit border border-primary/10">
+              <Sparkles className="w-3.5 h-3.5 text-primary animate-pulse shrink-0" />
+              <span className="text-xs font-bold text-cream-text">{summaryText}</span>
             </div>
           </div>
           {nearestExam && (
-            <div className="text-center shrink-0 rounded-[14px] px-3 py-2.5" style={{ background: '#F0FDF4', border: '1px solid rgba(5,150,105,.2)' }}>
-              <div style={{ fontFamily: "'Fraunces', serif", fontSize: '26px', fontWeight: 600, fontStyle: 'italic', color: '#065F46', lineHeight: 1, letterSpacing: '-.04em' }}>
+            <div className="text-center shrink-0 rounded-[18px] px-4 py-3 bg-red-500/5 border border-red-500/15 shadow-sm">
+              <div style={{ fontFamily: "'Fraunces', serif", fontSize: '28px', fontWeight: 600, fontStyle: 'italic', color: '#B91C1C', lineHeight: 1, letterSpacing: '-.04em' }}>
                 {formatExamDaysBadge(nearestExam.days, isRTL).number}
               </div>
-              <div className="text-[9px] mt-0.5" style={{ color: 'rgba(6,95,70,.5)' }}>
+              <div className="text-[9px] font-bold mt-1 text-red-700/70">
                 {nearestExam.days <= 2
                   ? formatExamDaysBadge(nearestExam.days, isRTL).label
                   : `${t('daysTo', 'ימים ל')}${nearestExam.name.length > 8 ? nearestExam.name.slice(0, 8) + '…' : nearestExam.name}`
@@ -228,72 +274,86 @@ export const SmartDashboard = () => {
         </div>
 
         {/* Divider */}
-        <div style={{ borderTop: '1px solid var(--cream-border)', marginBottom: '14px' }} />
+        <div style={{ borderTop: '1px solid var(--cream-border)', marginBottom: '16px' }} />
 
-        {/* Nutrition row */}
-        <div className="flex items-center gap-3 relative">
+        {/* Nutrition & Fitness stats row */}
+        <div className="flex items-center gap-4 relative">
           <div className="flex-1">
-            <div className="flex gap-0 mb-2.5">
-              {/* Calories */}
-              <div className="flex-1 pe-2.5">
-                <div style={{ fontFamily: "'Fraunces', serif", fontSize: '30px', fontWeight: 600, fontStyle: 'italic', color: '#059669', letterSpacing: '-.04em', lineHeight: 1 }}>
-                  {totalCalories}
+            <div className="grid grid-cols-3 gap-1 mb-3.5">
+              {/* Calories consumed */}
+              <div className="pe-2">
+                <div className="flex items-center gap-1">
+                  <UtensilsCrossed className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <div style={{ fontFamily: "'Fraunces', serif", fontSize: '28px', fontWeight: 600, fontStyle: 'italic', color: '#059669', letterSpacing: '-.03em', lineHeight: 1 }}>
+                    {totalCalories}
+                  </div>
                 </div>
-                <div className="text-[10px] mt-1" style={{ color: 'var(--cream-muted)' }}>{t('caloriesShort', 'קק"ל')} / {dailyGoal.toLocaleString()}</div>
+                <div className="text-[9px] font-semibold mt-1 text-cream-muted">{t('caloriesShort', 'קק"ל')} / {dailyGoal.toLocaleString()}</div>
               </div>
-              {/* Workout */}
-              <div className="flex-1 px-2.5" style={{ borderInlineEnd: '1px solid var(--cream-border)', borderInlineStart: '1px solid var(--cream-border)' }}>
+              
+              {/* Workout burned */}
+              <div className="px-3 border-r border-l" style={{ borderColor: 'var(--cream-border)' }}>
                 {burned > 0 ? (
                   <>
-                    <div style={{ fontFamily: "'Fraunces', serif", fontSize: '20px', fontWeight: 600, fontStyle: 'italic', color: '#7C3AED', letterSpacing: '-.03em', lineHeight: 1 }}>
-                      +{burned}
+                    <div className="flex items-center gap-1">
+                      <Flame className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                      <div style={{ fontFamily: "'Fraunces', serif", fontSize: '24px', fontWeight: 600, fontStyle: 'italic', color: '#7C3AED', letterSpacing: '-.03em', lineHeight: 1 }}>
+                        +{burned}
+                      </div>
                     </div>
-                    <div className="text-[10px] mt-1" style={{ color: 'var(--cream-muted)' }}>{t('caloriesBurned', 'נשרפו')} · {workoutMin}{t('min', 'ד׳')}</div>
+                    <div className="text-[9px] font-semibold mt-1 text-cream-muted">{t('caloriesBurned', 'נשרפו')} · {workoutMin}{t('min', 'ד׳')}</div>
                   </>
                 ) : (
                   <>
-                    <div className="text-sm leading-tight" style={{ color: 'var(--cream-muted)' }}>{t('noWorkoutToday', 'לא היה')}<br />{t('noWorkoutToday2', 'אימון היום')}</div>
-                    <div className="text-[10px] mt-1" style={{ color: 'var(--cream-muted)' }}>{t('trySoon', 'נסה בקרוב')}</div>
+                    <div className="text-xs font-semibold leading-tight text-cream-muted">{t('noWorkoutToday', 'אין אימון')}</div>
+                    <div className="text-[9px] mt-1 text-cream-muted">{t('trySoon', 'בקרוב')}</div>
                   </>
                 )}
               </div>
-              {/* Weight */}
-              <div className="flex-1 px-2.5" style={{ borderInlineEnd: '1px solid var(--cream-border)' }}>
-                <div style={{ fontFamily: "'Fraunces', serif", fontSize: '18px', fontWeight: 600, fontStyle: 'italic', color: 'var(--cream-text)', letterSpacing: '-.02em', lineHeight: 1 }}>
-                  {weight || '—'}
+              
+              {/* Current Weight */}
+              <div className="ps-3">
+                <div className="flex items-center gap-1">
+                  <Scale className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <div style={{ fontFamily: "'Fraunces', serif", fontSize: '22px', fontWeight: 600, fontStyle: 'italic', color: 'var(--cream-text)', letterSpacing: '-.02em', lineHeight: 1 }}>
+                    {weight || '—'}
+                  </div>
                 </div>
-                <div className="text-[10px] mt-1" style={{ color: 'var(--cream-muted)' }}>{t('kg', 'ק"ג')} · {t('target', 'יעד')} {data?.calori?.targetWeight || 78}</div>
+                <div className="text-[9px] font-semibold mt-1 text-cream-muted">{t('kg', 'ק"ג')} · {t('target', 'יעד')} {data?.calori?.targetWeight || 78}</div>
               </div>
             </div>
-            {/* Macros pills */}
-            <div className="flex gap-1.5">
-              <span className="rounded-md px-2.5 py-1 text-[11px] font-bold" style={{ background: '#ECFDF5', color: '#065F46', border: '1px solid rgba(5,150,105,.15)' }}>
+            
+            {/* Macros pills row */}
+            <div className="flex flex-wrap gap-1.5">
+              <span className="rounded-lg px-2.5 py-1 text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-500/10">
                 {t('caloriProtein')} {totalProtein}g
               </span>
-              <span className="rounded-md px-2.5 py-1 text-[11px] font-bold" style={{ background: '#FFFBEB', color: '#D97706', border: '1px solid rgba(217,119,6,.15)' }}>
-                {totalCarbs}g
+              <span className="rounded-lg px-2.5 py-1 text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-500/10">
+                {totalCarbs}g {t('caloriCarbs', 'פחמימות')}
               </span>
-              <span className="rounded-md px-2.5 py-1 text-[11px] font-bold" style={{ background: '#FFF5F5', color: '#DC2626', border: '1px solid rgba(220,38,38,.12)' }}>
-                {t('caloriFats', 'שומן')} {totalFats}g
+              <span className="rounded-lg px-2.5 py-1 text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-500/10">
+                {totalFats}g {t('caloriFats', 'שומן')}
               </span>
             </div>
           </div>
 
-          {/* Progress rings */}
-          <div className="relative shrink-0">
-            <svg width="88" height="88" viewBox="0 0 88 88" fill="none">
-              <circle cx="44" cy="44" r="37" stroke="rgba(5,150,105,.1)" strokeWidth="10" />
-              <circle cx="44" cy="44" r="37" stroke="#059669" strokeWidth="10" strokeLinecap="round"
-                strokeDasharray="233" strokeDashoffset={233 - (233 * calsPercentage) / 100}
-                transform="rotate(-90 44 44)" className="transition-all duration-700" />
-              <circle cx="44" cy="44" r="26" stroke="rgba(124,58,237,.08)" strokeWidth="9" />
-              <circle cx="44" cy="44" r="26" stroke="#7C3AED" strokeWidth="9" strokeLinecap="round"
-                strokeDasharray="163" strokeDashoffset={163 - (163 * Math.min(100, burned > 0 ? Math.round((burned / 300) * 100) : 0)) / 100}
-                transform="rotate(-90 44 44)" className="transition-all duration-700" />
+          {/* Dual Progress rings */}
+          <div className="relative shrink-0 select-none">
+            <svg width="92" height="92" viewBox="0 0 92 92" fill="none" className="drop-shadow-sm">
+              {/* Consumed calories ring */}
+              <circle cx="46" cy="46" r="39" stroke="rgba(5,150,105,.08)" strokeWidth="8" />
+              <circle cx="46" cy="46" r="39" stroke="#059669" strokeWidth="8" strokeLinecap="round"
+                strokeDasharray="245" strokeDashoffset={245 - (245 * calsPercentage) / 100}
+                transform="rotate(-90 46 46)" className="transition-all duration-700" />
+              {/* Burned calories ring */}
+              <circle cx="46" cy="46" r="28" stroke="rgba(124,58,237,.06)" strokeWidth="7" />
+              <circle cx="46" cy="46" r="28" stroke="#7C3AED" strokeWidth="7" strokeLinecap="round"
+                strokeDasharray="176" strokeDashoffset={176 - (176 * Math.min(100, burned > 0 ? Math.round((burned / 300) * 100) : 0)) / 100}
+                transform="rotate(-90 46 46)" className="transition-all duration-700" />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-[15px] font-extrabold" style={{ color: 'var(--cream-text)' }}>{calsPercentage}%</span>
-              <span className="text-[9px]" style={{ color: 'var(--cream-muted)' }}>{t('completed', 'הושלם')}</span>
+              <span className="text-[14px] font-extrabold text-cream-text">{calsPercentage}%</span>
+              <span className="text-[8px] font-bold text-cream-muted uppercase tracking-wider">{t('completed', 'מדד')}</span>
             </div>
           </div>
         </div>
@@ -301,74 +361,97 @@ export const SmartDashboard = () => {
         {/* CTA: open calori */}
         <button
           onClick={() => setActiveCategory('calori')}
-          className="w-full mt-3.5 pt-3 flex items-center justify-between cursor-pointer"
-          style={{ borderTop: '1px solid rgba(180,140,80,.1)', fontFamily: "'Instrument Serif', serif", fontStyle: 'italic', fontSize: '13px', color: '#059669' }}
+          className="w-full mt-4 pt-3 flex items-center justify-between cursor-pointer group"
+          style={{ borderTop: '1px solid var(--cream-border)' }}
         >
-          <span>{t('openCaloriDetails', 'פתח קלורי · פרטי תזונה ואימונים מלאים')}</span>
-          <span style={{ fontFamily: "'Inter', sans-serif", fontStyle: 'normal', fontWeight: 700, fontSize: '18px' }}>›</span>
+          <span className="text-xs font-semibold text-emerald-700 group-hover:text-emerald-800 transition-colors">
+            {t('openCaloriDetails', 'פתח קלורי · פרטי תזונה ואימונים מלאים')}
+          </span>
+          <ChevronLeft className="w-4 h-4 text-emerald-600 transition-transform group-hover:-translate-x-1 shrink-0" />
         </button>
       </div>
 
-      {/* ══════ QA PILLS — cream v3 ══════ */}
-      <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar min-[900px]:col-span-2">
-        <button
+      {/* ══════ QUICK ACTIONS PILLS — premium rounded chips ══════ */}
+      <div className="flex gap-2.5 overflow-x-auto pb-1.5 no-scrollbar min-[900px]:col-span-2">
+        <motion.button
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.97 }}
           onClick={() => openAddSheet('task')}
-          className="shrink-0 flex items-center gap-2 rounded-[14px] px-4 py-2.5 active:scale-95 transition-transform"
-          style={{ background: '#059669', boxShadow: '0 4px 16px rgba(5,150,105,.28)' }}
+          className="shrink-0 flex items-center gap-2 rounded-2xl px-4 py-3 active:scale-95 transition-transform cursor-pointer shadow-sm"
+          style={{ background: 'linear-gradient(135deg, #059669, #047857)', boxShadow: '0 4px 14px rgba(5,150,105,.25)' }}
         >
-          <div className="w-[26px] h-[26px] rounded-lg flex items-center justify-center text-[13px]" style={{ background: 'rgba(255,255,255,.2)', color: '#fff' }}>＋</div>
+          <Plus className="w-4 h-4 text-white" strokeWidth={3} />
           <span className="text-xs font-bold text-white">{t('addNewItem', 'הוסף פריט')}</span>
-        </button>
+        </motion.button>
         {[
-          { label: t('myNotes', 'פתקים'), icon: '📒', bg: '#ECFDF5', cat: 'notes' },
+          { label: t('myNotes', 'פתקים'), icon: '📒', bg: '#FDF6E2', cat: 'notes' },
           { label: t('myTasks', 'משימות'), icon: '✓', bg: '#EFF4FF', cat: 'tasks' },
           { label: t('navShopping', 'קניות'), icon: '🛒', bg: '#ECFDF5', cat: 'shopping' },
         ].map((pill) => (
-          <button
+          <motion.button
             key={pill.cat}
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
             onClick={() => setActiveCategory(pill.cat)}
-            className="shrink-0 flex items-center gap-2 rounded-[14px] px-4 py-2.5 active:scale-95 transition-transform"
-            style={{ background: '#fff', border: '1px solid rgba(180,140,80,.18)', boxShadow: '0 2px 8px rgba(40,20,0,.06)' }}
+            className="shrink-0 flex items-center gap-2 rounded-2xl px-4 py-3 active:scale-95 transition-all cursor-pointer border border-cream-border/60 bg-white hover:border-primary/30 shadow-sm"
           >
-            <div className="w-[26px] h-[26px] rounded-lg flex items-center justify-center text-[13px]" style={{ background: pill.bg }}>{pill.icon}</div>
-            <span className="text-xs font-bold" style={{ color: '#2A1A0A' }}>{pill.label}</span>
-          </button>
+            <div className="w-[24px] h-[24px] rounded-lg flex items-center justify-center text-xs" style={{ background: pill.bg }}>{pill.icon}</div>
+            <span className="text-xs font-bold text-cream-text">{pill.label}</span>
+          </motion.button>
         ))}
       </div>
 
-      {/* ══════ TIMELINE — cream v3 ══════ */}
-      <div>
-        <div className="flex justify-between items-center px-0.5 pb-2">
-          <span style={{ fontFamily: "'Instrument Serif', serif", fontSize: '18px', fontWeight: 400, color: '#2A1A0A', letterSpacing: '-.02em' }}>
+      {/* ══════ TIMELINE — clean planner timeline ══════ */}
+      <div className="space-y-3">
+        <div className="flex justify-between items-center px-0.5">
+          <span className="text-[17px] font-bold text-cream-text" style={{ fontFamily: "'Instrument Serif', serif", letterSpacing: '-.01em' }}>
             {t('today', 'היום')}
           </span>
-          <button onClick={() => setActiveCategory('calendar')} className="text-[11px] font-bold cursor-pointer" style={{ color: '#059669' }}>
+          <button onClick={() => { setCalendarDate(new Date()); setActiveCategory('calendar'); }} className="text-xs font-bold text-primary hover:underline cursor-pointer">
             {t('openCalendar', 'יומן')} ›
           </button>
         </div>
 
         {todayBlocks.length > 0 ? (
-          <Stagger className="space-y-2 max-h-[220px] overflow-y-auto pr-1 no-scrollbar">
+          <Stagger className="space-y-3 max-h-[300px] overflow-y-auto pr-1 pl-1 scrollbar-none">
             {todayBlocks.map((block) => {
-              const dotColor = block.type === 'meal' ? '#059669' : block.type === 'workout' ? '#7C3AED' : block.type === 'exam' ? '#EF4444' : block.type === 'reminder' ? '#D97706' : block.type === 'task' ? '#059669' : '#D6C8B8';
-              const cardStyle = block.type === 'meal'
-                ? { background: '#059669', color: '#fff' }
-                : block.type === 'exam'
-                ? { background: '#FEF2F2', border: '1px solid rgba(239,68,68,.1)', color: '#991B1B' }
-                : block.type === 'workout'
-                ? { background: '#7C3AED', color: '#fff' }
-                : { background: 'rgba(180,140,80,.05)', border: '1.5px dashed rgba(180,140,80,.2)', color: '#8A7A6A' };
+              const isActiveMeal = block.type === 'meal';
+              const isActiveWorkout = block.type === 'workout';
+              const isActiveExam = block.type === 'exam';
+              const isActiveTask = block.type === 'task';
+
+              // Icons & Styles matching categories
+              const Icon = isActiveMeal ? UtensilsCrossed : isActiveWorkout ? Dumbbell : isActiveExam ? GraduationCap : isActiveTask ? CheckSquare : Clock;
+              const iconColor = isActiveMeal ? '#059669' : isActiveWorkout ? '#7C3AED' : isActiveExam ? '#DC2626' : isActiveTask ? '#059669' : '#8A7A6A';
+              const iconBg = isActiveMeal ? '#ECFDF5' : isActiveWorkout ? '#F5F3FF' : isActiveExam ? '#FEF2F2' : isActiveTask ? '#ECFDF5' : '#FAF7F2';
+              
+              const cardStyle = isActiveMeal
+                ? { background: '#059669', color: '#fff', border: '1px solid rgba(5,150,105,.2)', boxShadow: '0 4px 12px rgba(5,150,105,.15)' }
+                : isActiveWorkout
+                ? { background: '#7C3AED', color: '#fff', border: '1px solid rgba(124,58,237,.2)', boxShadow: '0 4px 12px rgba(124,58,237,.15)' }
+                : isActiveExam
+                ? { background: '#FEF2F2', border: '1px solid rgba(220,38,38,.15)', color: '#991B1B', boxShadow: '0 2px 8px rgba(220,38,38,.06)' }
+                : { background: '#fff', border: '1px solid var(--cream-border)', color: 'var(--cream-text)', boxShadow: '0 2px 8px rgba(0,0,0,.02)' };
 
               return (
-                <Stagger.Item key={block.id} className="flex gap-2.5 items-stretch">
-                  <div className="w-[34px] text-center shrink-0 pt-2.5 text-[10px] font-semibold" style={{ color: '#8A7A6A' }}>{block.time}</div>
-                  <div className="flex flex-col items-center shrink-0 w-3.5">
-                    <div className="w-[9px] h-[9px] rounded-full mt-2.5" style={{ background: dotColor, boxShadow: dotColor !== '#D6C8B8' ? `0 0 0 2px ${dotColor}33` : 'none' }} />
-                    <div className="flex-1 w-[1.5px] mt-1" style={{ background: 'rgba(180,140,80,.15)' }} />
+                <Stagger.Item key={block.id} className="flex gap-3 items-stretch group">
+                  <div className="w-[38px] text-center shrink-0 pt-3 text-[11px] font-bold text-cream-muted">{block.time}</div>
+                  
+                  {/* Dynamic connector line */}
+                  <div className="flex flex-col items-center shrink-0 w-8">
+                    <div 
+                      className="w-8 h-8 rounded-full flex items-center justify-center border transition-transform group-hover:scale-110 shadow-sm"
+                      style={{ background: iconBg, borderColor: 'var(--cream-border)' }}
+                    >
+                      <Icon className="w-4 h-4" style={{ color: iconColor }} />
+                    </div>
+                    <div className="flex-1 w-[2px] mt-1.5" style={{ background: 'rgba(180,140,80,.16)' }} />
                   </div>
-                  <div className="flex-1 rounded-[14px] px-3.5 py-2.5" style={cardStyle}>
-                    <div className="text-[13px] font-bold">{block.title}</div>
-                    {block.sub && <div className="text-[11px] mt-0.5" style={{ opacity: 0.65 }}>{block.sub}</div>}
+
+                  {/* Card Content */}
+                  <div className="flex-1 rounded-2xl px-4 py-3 transition-all duration-200 group-hover:translate-x-0.5" style={cardStyle}>
+                    <div className="text-[13px] font-extrabold leading-snug">{block.title}</div>
+                    {block.sub && <div className="text-[11px] mt-0.5 font-medium leading-relaxed" style={{ opacity: isActiveMeal || isActiveWorkout ? 0.75 : 0.6 }}>{block.sub}</div>}
                   </div>
                 </Stagger.Item>
               );
@@ -377,83 +460,122 @@ export const SmartDashboard = () => {
         ) : (
           <button
             onClick={() => setActiveCategory('commandCenter')}
-            className="w-full rounded-[16px] px-4 py-5 flex flex-col items-center gap-2 active:scale-[0.98] transition-transform"
-            style={{ background: 'rgba(5,150,105,.05)', border: '1.5px dashed rgba(5,150,105,.28)' }}
+            className="w-full rounded-2xl px-4 py-6 flex flex-col items-center gap-2 active:scale-[0.98] transition-transform bg-primary/5 border border-dashed border-primary/20 hover:bg-primary/10 cursor-pointer"
           >
-            <Sparkles className="w-5 h-5" style={{ color: '#059669' }} />
-            <span style={{ fontFamily: "'Instrument Serif', serif", fontSize: '16px', color: '#2A1A0A' }}>
+            <Sparkles className="w-5 h-5 text-primary" />
+            <span style={{ fontFamily: "'Instrument Serif', serif", fontSize: '18px', color: 'var(--cream-text)' }}>
               {t('emptyDayTitle', 'היום עוד פנוי')}
             </span>
-            <span className="text-[12px] font-semibold" style={{ color: '#059669' }}>
+            <span className="text-xs font-bold text-primary">
               {t('emptyDayCta', 'בנה לי את היום ›')}
             </span>
           </button>
         )}
       </div>
 
-      {/* ══════ 3 MINI STATS — cream v3 ══════ */}
-      <div className="flex gap-2">
-        <div className="flex-1 rounded-2xl px-3 py-3" style={{ background: '#fff', border: '1px solid rgba(180,140,80,.12)', boxShadow: '0 2px 10px rgba(40,20,0,.05)' }}>
-          <div style={{ fontFamily: "'Fraunces', serif", fontSize: '24px', fontWeight: 600, fontStyle: 'italic', color: '#059669', letterSpacing: '-.04em', lineHeight: 1 }}>
-            {nearestExam ? formatExamDaysBadge(nearestExam.days, isRTL).number : '—'}
+      {/* ══════ RIGHT COLUMN (STATS & UPCOMING LIST) ══════ */}
+      <div className="space-y-4">
+        
+        {/* ══════ 3 MINI STATS — premium styled cards ══════ */}
+        <div className="grid grid-cols-3 gap-2">
+          {/* Exam Days card */}
+          <div 
+            onClick={() => {
+              if (nearestExam) {
+                setCalendarDate(nearestExam.date);
+                setActiveCategory('calendar');
+              }
+            }}
+            className="rounded-2xl px-3 py-3.5 border bg-white border-cream-border/60 shadow-sm flex flex-col justify-between h-20 transition-all hover:border-red-500/20 active:scale-95 cursor-pointer"
+          >
+            <div style={{ fontFamily: "'Fraunces', serif", fontSize: '24px', fontWeight: 600, fontStyle: 'italic', color: '#B91C1C', letterSpacing: '-.04em', lineHeight: 1 }}>
+              {nearestExam ? formatExamDaysBadge(nearestExam.days, isRTL).number : '—'}
+            </div>
+            <div className="text-[9px] font-bold text-cream-muted mt-1 leading-tight">
+              {nearestExam && nearestExam.days <= 2
+                ? formatExamDaysBadge(nearestExam.days, isRTL).label
+                : t('daysToExam', 'ימים לבחינה')
+              }
+            </div>
           </div>
-          <div className="text-[10px] font-semibold mt-1" style={{ color: '#8A7A6A' }}>
-            {nearestExam && nearestExam.days <= 2
-              ? formatExamDaysBadge(nearestExam.days, isRTL).label
-              : t('daysToExam', 'ימים לבחינה')
-            }
+
+          {/* Shopping items card */}
+          <button 
+            onClick={() => setActiveCategory('shopping')} 
+            className="rounded-2xl px-3 py-3.5 text-start border bg-white border-cream-border/60 shadow-sm flex flex-col justify-between h-20 transition-all hover:border-emerald-500/20 active:scale-95 cursor-pointer"
+          >
+            <div style={{ fontFamily: "'Fraunces', serif", fontSize: '24px', fontWeight: 600, fontStyle: 'italic', color: '#059669', letterSpacing: '-.04em', lineHeight: 1 }}>
+              {(() => { const al = (data?.shoppingLists || []).find((l) => l.isActive); return al ? (al.items || []).filter((i) => !i.checked).length : 0; })()}
+            </div>
+            <div className="text-[9px] font-bold text-cream-muted mt-1 leading-tight">{t('itemsToBuy', 'לקנות')}</div>
+          </button>
+
+          {/* Total Tasks card */}
+          <div 
+            onClick={() => setActiveCategory('tasks')} 
+            className="rounded-2xl px-3 py-3.5 border bg-white border-cream-border/60 shadow-sm flex flex-col justify-between h-20 transition-all hover:border-primary/20 active:scale-95 cursor-pointer"
+          >
+            <div style={{ fontFamily: "'Fraunces', serif", fontSize: '24px', fontWeight: 600, fontStyle: 'italic', color: 'var(--cream-text)', letterSpacing: '-.04em', lineHeight: 1 }}>
+              {todayTasksCount}
+            </div>
+            <div className="text-[9px] font-bold text-cream-muted mt-1 leading-tight">{t('myTasks', 'משימות')}</div>
           </div>
         </div>
-        <button onClick={() => setActiveCategory('shopping')} className="flex-1 rounded-2xl px-3 py-3 text-start cursor-pointer active:scale-[0.98] transition-transform" style={{ background: '#fff', border: '1px solid rgba(180,140,80,.12)', boxShadow: '0 2px 10px rgba(40,20,0,.05)' }}>
-          <div style={{ fontFamily: "'Fraunces', serif", fontSize: '24px', fontWeight: 600, fontStyle: 'italic', color: '#059669', letterSpacing: '-.04em', lineHeight: 1 }}>
-            {(() => { const al = (data?.shoppingLists || []).find((l) => l.isActive); return al ? (al.items || []).filter((i) => !i.checked).length : 0; })()}
-          </div>
-          <div className="text-[10px] font-semibold mt-1" style={{ color: '#8A7A6A' }}>{t('itemsToBuy', 'לקנות')}</div>
-        </button>
-        <div className="flex-1 rounded-2xl px-3 py-3" style={{ background: '#fff', border: '1px solid rgba(180,140,80,.12)', boxShadow: '0 2px 10px rgba(40,20,0,.05)' }}>
-          <div style={{ fontFamily: "'Fraunces', serif", fontSize: '24px', fontWeight: 600, fontStyle: 'italic', color: '#2A1A0A', letterSpacing: '-.04em', lineHeight: 1 }}>
-            {todayTasksCount}
-          </div>
-          <div className="text-[10px] font-semibold mt-1" style={{ color: '#8A7A6A' }}>{t('myTasks', 'משימות')}</div>
-        </div>
-      </div>
 
-      {/* ══════ AI QUICK LINKS ══════ */}
-      <AiQuickLinks data={data} t={t} />
+        {/* ══════ AI QUICK LINKS ══════ */}
+        <AiQuickLinks data={data} t={t} />
 
-      {/* ══════ UPCOMING 7 DAYS ══════ */}
-      {upcomingItems.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between px-0.5 mb-2">
-            <span style={{ fontFamily: "'Instrument Serif', serif", fontSize: '16px', fontWeight: 400, color: '#2A1A0A' }}>
-              {t('comingUp', 'בקרוב')}
-            </span>
-            <button onClick={() => setActiveCategory('calendar')} className="text-[11px] font-bold cursor-pointer" style={{ color: '#059669' }}>
-              {t('openCalendar', 'יומן')} ›
-            </button>
-          </div>
-          <div className="space-y-1.5">
-            {upcomingItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => setActiveCategory('calendar')}
-                className="w-full flex items-center justify-between gap-3 rounded-[14px] px-3.5 py-2.5 active:scale-[0.99] transition-transform text-start"
-                style={{ background: '#fff', border: '1px solid rgba(180,140,80,.12)' }}
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className={cn("w-2 h-2 rounded-full shrink-0",
-                    item.kind === 'exam' ? "bg-red-500" : item.kind === 'event' ? "bg-blue-500" : "bg-amber-500"
-                  )} />
-                  <span className="text-sm font-semibold truncate" style={{ color: '#2A1A0A' }}>{item.title}</span>
-                </div>
-                <span className="text-xs font-bold shrink-0" style={{ color: '#8A7A6A' }}>
-                  {isValid(item.date) && format(item.date, 'EEE d/M', { locale })}
-                </span>
+        {/* ══════ UPCOMING 7 DAYS ══════ */}
+        {upcomingItems.length > 0 && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between px-0.5">
+              <span className="text-[17px] font-bold text-cream-text" style={{ fontFamily: "'Instrument Serif', serif", letterSpacing: '-.01em' }}>
+                {t('comingUp', 'בקרוב')}
+              </span>
+              <button onClick={() => { setCalendarDate(new Date()); setActiveCategory('calendar'); }} className="text-xs font-bold text-primary hover:underline cursor-pointer">
+                {t('openCalendar', 'יומן')} ›
               </button>
-            ))}
+            </div>
+            <div className="space-y-1.5">
+              {upcomingItems.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    if (item.kind === 'task') {
+                      setActiveCategory('tasks');
+                    } else {
+                      setCalendarDate(item.date);
+                      setActiveCategory('calendar');
+                    }
+                  }}
+                  className="w-full flex items-center justify-between gap-3 rounded-2xl px-4 py-3 active:scale-[0.99] transition-all hover:bg-primary/[0.02] border bg-white text-start shadow-sm"
+                  style={{ borderColor: item.isOverdue ? 'rgba(220,38,38,.16)' : 'var(--cream-border)' }}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className={cn("w-2 h-2 rounded-full shrink-0",
+                      item.isOverdue ? "bg-red-500 animate-pulse" : item.kind === 'exam' ? "bg-red-500" : item.kind === 'event' ? "bg-blue-500" : "bg-amber-500"
+                    )} />
+                    <span className="text-sm font-bold truncate text-cream-text">{item.title}</span>
+                  </div>
+                  <span 
+                    className="text-xs font-extrabold shrink-0 px-2 py-0.5 rounded-md" 
+                    style={{ 
+                      color: item.isOverdue ? '#DC2626' : '#8A7A6A',
+                      background: item.isOverdue ? '#FEF2F2' : '#FAF7F2',
+                      border: item.isOverdue ? '1px solid rgba(220,38,38,.12)' : 'none'
+                    }}
+                  >
+                    {item.isOverdue 
+                      ? (isRTL ? 'פיגור' : 'Overdue') 
+                      : (isValid(item.date) && format(item.date, 'EEE d/M', { locale }))
+                    }
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };
@@ -471,23 +593,22 @@ const AiQuickLinks = ({ data, t }) => {
   if (withLinks.length === 0) return null;
 
   return (
-    <div>
-      <div className="flex items-center gap-2 px-0.5 mb-2">
-        <Bot className="w-4 h-4 shrink-0" style={{ color: '#059669' }} />
-        <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#8A7A6A' }}>{t('aiQuickLinks', 'AI קישורים')}</span>
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 px-0.5">
+        <Bot className="w-4 h-4 shrink-0 text-emerald-600" />
+        <span className="text-[10px] font-bold uppercase tracking-wider text-cream-muted">{t('aiQuickLinks', 'AI קישורים')}</span>
       </div>
-      <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+      <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar scroll-smooth">
         {withLinks.map((c) => (
           <a
             key={c.id}
             href={c.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-[14px] active:scale-95 transition-transform"
-            style={{ background: '#fff', border: '1px solid rgba(180,140,80,.12)' }}
+            className="shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-2xl active:scale-95 transition-all border border-cream-border bg-white hover:border-emerald-500/30 hover:bg-emerald-500/[0.01] shadow-sm"
           >
-            <Bot className="w-4 h-4 shrink-0" style={{ color: '#059669' }} />
-            <span className="text-xs font-semibold whitespace-nowrap" style={{ color: '#2A1A0A' }}>{c.name}</span>
+            <Bot className="w-4 h-4 shrink-0 text-emerald-600 animate-pulse" />
+            <span className="text-xs font-bold text-cream-text">{c.name}</span>
           </a>
         ))}
       </div>

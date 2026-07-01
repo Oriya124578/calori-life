@@ -106,7 +106,15 @@ export const useNotificationScheduler = () => {
 
       // ── Exams ──
       if (settings.exams) {
-        (data?.courses || []).forEach((c) => {
+        const activeYear = data?.profile?.academicYear || "שנה א'";
+        const activeSemester = data?.profile?.semester || "סמסטר ב'";
+        const activeCourses = (data?.courses || []).filter(c => 
+          !c.isArchived && 
+          (c.academicYear || "שנה א'") === activeYear && 
+          (c.semester || "סמסטר ב'") === activeSemester
+        );
+
+        activeCourses.forEach((c) => {
           ['moedA', 'moedB', 'moedC'].forEach((moed) => {
             const exam = parseDate(c[moed] || c.exams?.[moed]);
             if (!exam) return;
@@ -217,7 +225,15 @@ export const useNotificationScheduler = () => {
           const d = parseDate(task.dueDate);
           if (d && dayKey(d) === tk) tasks++;
         });
-        (data?.courses || []).forEach((c) => {
+        const activeYear = data?.profile?.academicYear || "שנה א'";
+        const activeSemester = data?.profile?.semester || "סמסטר ב'";
+        const activeCourses = (data?.courses || []).filter(c => 
+          !c.isArchived && 
+          (c.academicYear || "שנה א'") === activeYear && 
+          (c.semester || "סמסטר ב'") === activeSemester
+        );
+
+        activeCourses.forEach((c) => {
           ['moedA', 'moedB', 'moedC'].forEach((moed) => {
             const d = parseDate(c[moed] || c.exams?.[moed]);
             if (d && dayKey(d) === tk) exams++;
@@ -225,7 +241,7 @@ export const useNotificationScheduler = () => {
         });
         if (settings.weeklyTasks) {
           // Count only unchecked weekly tasks that are included in progress.
-          (data?.courses || []).forEach((course) => {
+          activeCourses.forEach((course) => {
             const courseTasks = data?.tasks?.[course.id];
             if (courseTasks) {
               Object.values(courseTasks).forEach((weeks) => {

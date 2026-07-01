@@ -22,6 +22,7 @@ import { toast } from '../../store/useToast';
 import { MorningCoachOverlay } from './MorningCoachOverlay';
 import { WeekPlanner } from './WeekPlanner';
 import { getWeeklyPlan } from '../../lib/firestoreRepo';
+import { CalendarView } from '../calendar/CalendarView';
 import { SmartClarifier } from './SmartClarifier';
 import { BlockActionSheet } from './BlockActionSheet';
 import { BlockEditModal } from './BlockEditModal';
@@ -96,7 +97,7 @@ export const CommandCenterView = () => {
   const [loading, setLoading] = useState(false);
   const [tuneCommand, setTuneCommand] = useState('');
   const [shabbatTimes, setShabbatTimes] = useState(null);
-  const [activeSubTab] = useState('schedule'); // 'schedule', 'calendar', 'pomodoro'
+  const [activeSubTab, setActiveSubTab] = useState('schedule'); // 'schedule', 'calendar', 'pomodoro'
   const [gpsLocation, setGpsLocation] = useState(null);
   const [activeTaskTab, setActiveTaskTab] = useState('all'); // 'all' | 'high' | 'med' | 'low'
   const [timePickerModal, setTimePickerModal] = useState(null); // { taskId, title, hourStr } for manual slot assign
@@ -543,9 +544,17 @@ export const CommandCenterView = () => {
           };
         });
 
-      // Upcoming exams sorted by date
+      // Upcoming exams sorted by date (filtered by active semester)
+      const activeYear = data?.profile?.academicYear || "שנה א'";
+      const activeSemester = data?.profile?.semester || "סמסטר ב'";
+      const activeCourses = (data?.courses || []).filter(c => 
+        !c.isArchived && 
+        (c.academicYear || "שנה א'") === activeYear && 
+        (c.semester || "סמסטר ב'") === activeSemester
+      );
+
       const upcomingExams = [];
-      (data?.courses || []).forEach((course) => {
+      activeCourses.forEach((course) => {
         ['moedA', 'moedB', 'moedC'].forEach((moed) => {
           const examDate = course[moed] || course.exams?.[moed];
           if (examDate) {
@@ -839,8 +848,16 @@ export const CommandCenterView = () => {
             duration: tk.duration ?? null,
           };
         });
+      const activeYear = data?.profile?.academicYear || "שנה א'";
+      const activeSemester = data?.profile?.semester || "סמסטר ב'";
+      const activeCourses = (data?.courses || []).filter(c => 
+        !c.isArchived && 
+        (c.academicYear || "שנה א'") === activeYear && 
+        (c.semester || "סמסטר ב'") === activeSemester
+      );
+
       const upcomingExams = [];
-      (data?.courses || []).forEach((course) => {
+      activeCourses.forEach((course) => {
         ['moedA', 'moedB', 'moedC'].forEach((moed) => {
           const e = course[moed] || course.exams?.[moed];
           if (e && String(e).slice(0, 10) >= dateStr) {
@@ -1347,8 +1364,36 @@ export const CommandCenterView = () => {
         )}
       </div>
 
-      {/* Main Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start animate-in fade-in duration-200">
+      {/* Mobile-only tab switcher between daily schedule and calendar */}
+      <div className="flex min-[900px]:hidden bg-[#F5F0E8] p-1 rounded-xl mb-4 gap-1 border border-[rgba(180,140,80,.12)] w-full">
+        <button
+          onClick={() => setActiveSubTab('schedule')}
+          className={`flex-1 py-2 text-center text-xs font-semibold rounded-lg transition-all ${
+            activeSubTab === 'schedule'
+              ? 'bg-white shadow-sm text-[#2A1A0A]'
+              : 'text-[#8A7A6A] hover:bg-white/50'
+          }`}
+        >
+          {isRTL ? 'סדר יום' : 'Schedule'}
+        </button>
+        <button
+          onClick={() => setActiveSubTab('calendar')}
+          className={`flex-1 py-2 text-center text-xs font-semibold rounded-lg transition-all ${
+            activeSubTab === 'calendar'
+              ? 'bg-white shadow-sm text-[#2A1A0A]'
+              : 'text-[#8A7A6A] hover:bg-white/50'
+          }`}
+        >
+          {isRTL ? 'לוח שנה' : 'Calendar'}
+        </button>
+      </div>
+
+      {activeSubTab === 'calendar' ? (
+        <div className="bg-[#FAF8F5] rounded-3xl p-4 border border-[rgba(180,140,80,.12)] shadow-sm w-full min-h-[500px]">
+          <CalendarView />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start animate-in fade-in duration-200">
         
         {/* Left/Middle: Timeline (Spans 2 columns) */}
         <div className="lg:col-span-2 space-y-6">
@@ -1727,6 +1772,7 @@ export const CommandCenterView = () => {
           </div>
         </div>
       </div>
+      )}
 
       {/* Manual Time Picker Dialog (Upgraded to support dual direction) */}
       {timePickerModal && timePickerModal.taskId && (
@@ -1846,7 +1892,11 @@ export const CommandCenterView = () => {
         {clarifierText && (
           <SmartClarifier
             userText={clarifierText}
-            courses={data?.courses || []}
+            courses={(data?.courses || []).filter(c => 
+              !c.isArchived && 
+              (c.academicYear || "שנה א'") === (data?.profile?.academicYear || "שנה א'") && 
+              (c.semester || "סמסטר ב'") === (data?.profile?.semester || "סמסטר ב'")
+            )}
             onSubmit={handleClarifierSubmit}
             onCancel={() => setClarifierText(null)}
           />

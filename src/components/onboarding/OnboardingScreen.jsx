@@ -39,13 +39,19 @@ export const OnboardingScreen = () => {
   const [semester,      setSemester]      = useState(language === 'en' ? 'Semester A'   : "סמסטר א'");
 
   // ── Step 3: course selection ──────────────────────────────────────────────
-  const [selectedCourseIds, setSelectedCourseIds] = useState(
-    DEFAULT_COURSES.slice(0, 3).map((c) => c.id),
-  );
+  const [selectedCourseIds, setSelectedCourseIds] = useState([]);
   const [customCourses,    setCustomCourses]    = useState([]);
   const [showCustomForm,   setShowCustomForm]   = useState(false);
   const [newCourseName,    setNewCourseName]    = useState('');
   const [newCourseWeeks,   setNewCourseWeeks]   = useState(12);
+
+  // Sync selected courses when year/semester changes
+  React.useEffect(() => {
+    const matchingDefaults = DEFAULT_COURSES.filter(
+      (c) => c.academicYear === academicYear && c.semester === semester
+    );
+    setSelectedCourseIds(matchingDefaults.map((c) => c.id));
+  }, [academicYear, semester]);
 
   // ── Step 4: task template ─────────────────────────────────────────────────
   const [enabledTypes, setEnabledTypes] = useState({
@@ -58,7 +64,10 @@ export const OnboardingScreen = () => {
   const [newTypeLabel,       setNewTypeLabel]       = useState('');
 
   // ── Derived ───────────────────────────────────────────────────────────────
-  const allCourses = [...DEFAULT_COURSES, ...customCourses];
+  const filteredDefaults = DEFAULT_COURSES.filter(
+    (c) => c.academicYear === academicYear && c.semester === semester
+  );
+  const allCourses = [...filteredDefaults, ...customCourses];
 
   const toggleCourse = (id) =>
     setSelectedCourseIds((prev) =>
@@ -77,6 +86,7 @@ export const OnboardingScreen = () => {
         weeksCount: newCourseWeeks,
         defaultNotebookLmLink: '',
         defaultGeminiLink: '',
+        defaultMoodleLink: '',
         defaultLocalFolder: name,
         exams: { moedA: null, moedB: null, moedC: null },
       },

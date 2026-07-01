@@ -1,28 +1,41 @@
 import React from 'react';
-import { Home, Calendar, BookOpen, Sparkles, ShoppingCart } from 'lucide-react';
+import { Home, BookOpen, Sparkles, ShoppingCart, Users } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useStore } from '../../store/useStore';
 import { useTranslation } from '../../hooks/useTranslation';
 
 // v3 cream redesign — floating pill nav (Instagram-style), 5 tabs. RTL right→left:
-// ✨ Manager · 🛒 Shopping · 🏠 Home · 📅 Calendar · 📚 Studies
+// ✨ Manager · 🛒 Shopping · 🏠 Home · 👥 Groups · 📚 Studies
 // Focus moved to FAB. Calori opens from Home Hero card tap. Tasks/Notes from FAB.
 const NAV_ITEMS = [
   { key: 'commandCenter', icon: Sparkles,     labelKey: 'navManager' },
   { key: 'shopping',      icon: ShoppingCart, labelKey: 'navShopping' },
   { key: 'overview',      icon: Home,         labelKey: 'navHome' },
-  { key: 'calendar',      icon: Calendar,     labelKey: 'navCalendar' },
+  { key: 'groups',        icon: Users,        labelKey: 'navGroups' },
   { key: 'courses',       icon: BookOpen,     labelKey: 'navStudies' },
 ];
 
 export const BottomNav = () => {
-  const { activeCategory, setActiveCategory, setActiveCourse } = useStore();
+  const { activeCategory, setActiveCategory, setActiveCourse, data } = useStore();
   const { t } = useTranslation();
 
   const handleNavClick = (key) => {
     setActiveCategory(key);
     if (key !== 'course') setActiveCourse(null);
   };
+
+  const hasUnreadGroups = React.useMemo(() => {
+    const groups = data?.groups || [];
+    const readMap = data?.profile?.group_read_timestamps || {};
+    return groups.some((g) => {
+      if (!g.lastActivityTimestamp) return false;
+      const readTime = readMap[g.id];
+      if (!readTime) return true;
+      const lastDate = g.lastActivityTimestamp.toDate ? g.lastActivityTimestamp.toDate() : new Date(g.lastActivityTimestamp);
+      const readDate = readTime.toDate ? readTime.toDate() : new Date(readTime);
+      return lastDate > readDate;
+    });
+  }, [data?.groups, data?.profile?.group_read_timestamps]);
 
   return (
     <nav
@@ -74,6 +87,9 @@ export const BottomNav = () => {
               className="relative flex items-center justify-center"
             >
               <Icon className="w-[19px] h-[19px]" strokeWidth={isActive ? 2.4 : 2} />
+              {item.key === 'groups' && hasUnreadGroups && (
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-[var(--bottom-nav-bg)] shadow-[0_0_8px_rgba(239,68,68,0.7)]" />
+              )}
             </motion.span>
             <span className="relative text-[9px] font-bold leading-none">
               {t(item.labelKey)}

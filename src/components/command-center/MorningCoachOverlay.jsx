@@ -1,8 +1,8 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  X, Sparkles, Moon, GraduationCap, ChevronRight, ChevronLeft, Check,
-  CalendarCheck, Sun, Flame, Leaf, Loader2,
+  X, Sparkles, Moon, GraduationCap, ChevronRight, ChevronLeft,
+  CalendarCheck, Flame, Leaf, Loader2,
 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { useTranslation } from '../../hooks/useTranslation';

@@ -16,8 +16,12 @@ import {
   where,
   orderBy,
   limit,
+  arrayUnion,
+  arrayRemove,
+  serverTimestamp,
+  increment,
 } from 'firebase/firestore';
-import { db } from './firebase';
+import { db, storage } from './firebase';
 
 // --- Weekly plan (cl_meta/weeklyPlan) -------------------------------------
 const weeklyPlanDoc = (uid) => doc(db, 'users', uid, 'cl_meta', 'weeklyPlan');
@@ -123,6 +127,24 @@ export const subscribeProfile = (uid, cb) =>
 /** Merge-write the profile doc. */
 export const setProfile = async (uid, profileObj) => {
   await setDoc(profileDoc(uid), profileObj, { merge: true });
+};
+
+/** Sync the profile photoURL back to the root Calori user document. */
+export const setRootProfilePhoto = async (uid, photoURL) => {
+  await setDoc(doc(db, 'users', uid), { photoUrl: photoURL, photo_url: photoURL }, { merge: true });
+};
+
+/** Sync a subset of user details to the root user document for group members fetching. */
+export const syncUserProfile = async (uid, data) => {
+  await setDoc(doc(db, 'users', uid), {
+    displayName: data.displayName || '',
+    photoURL: data.photoURL || null,
+    photoUrl: data.photoURL || null,
+    photo_url: data.photoURL || null,
+    academicInstitution: data.academicInstitution || '',
+    degree: data.degree || '',
+    activeCourses: data.activeCourses || [],
+  }, { merge: true });
 };
 
 // --- FCM push tokens (Phase 5b) -------------------------------------------
@@ -400,4 +422,213 @@ export const subscribeAiSuggestions = (uid, cb) =>
 
 export const updateAiSuggestion = async (uid, id, data) => {
   await setDoc(aiSuggestionDoc(uid, id), data, { merge: true });
+};
+
+// --- Shared Groups (groups) ------------------------------------------------
+
+const groupsCol = collection(db, 'groups');
+const groupDoc = (groupId) => doc(db, 'groups', groupId);
+const userDoc = (uid) => doc(db, 'users', uid);
+
+// 1. Subscribe to groups where user is a member
+export const subscribeGroups = (uid, cb) =>
+  onSnapshot(
+    query(groupsCol, where('members', 'array-contains', uid)),
+    (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+  );
+
+// 2. Subscribe to updates (chat messages/activity feed) for a group
+export const subscribeGroupUpdates = (groupId, cb) =>
+  onSnapshot(
+    query(collection(db, 'groups', groupId, 'updates'), orderBy('timestamp', 'desc'), limit(100)),
+    (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+  );
+
+// 3. Subscribe to group shared shopping lists
+export const subscribeGroupShoppingLists = (groupId, cb) =>
+  onSnapshot(
+    query(collection(db, 'groups', groupId, 'cl_shoppingLists'), orderBy('createdAt', 'desc')),
+    (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data(), groupId })))
+  );
+
+// 4. Subscribe to group shared notes
+export const subscribeGroupNotes = (groupId, cb) =>
+  onSnapshot(
+    collection(db, 'groups', groupId, 'cl_notes'),
+    (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data(), groupId })))
+  );
+
+// 5. Subscribe to group shared expenses
+export const subscribeGroupExpenses = (groupId, cb) =>
+  onSnapshot(
+    query(collection(db, 'groups', groupId, 'cl_expenses'), orderBy('createdAt', 'desc')),
+    (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data(), groupId })))
+  );
+
+// 6. Post a message to group chat
+export const postGroupMessage = async (groupId, update) => {
+  const ref = doc(collection(db, 'groups', groupId, 'updates'));
+  const batch = writeBatch(db);
+  batch.set(ref, {
+    ...update,
+    timestamp: serverTimestamp(),
+  });
+  batch.update(groupDoc(groupId), {
+    lastActivityTimestamp: serverTimestamp(),
+    lastActivitySnippet: update.summary || update.message || '',
+  });
+  await batch.commit();
+};
+
+// 7. Toggle reaction on a group update
+export const reactToGroupUpdate = async (groupId, updateId, uid, emoji) => {
+  const ref = doc(db, 'groups', groupId, 'updates', updateId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const raw = snap.data().reactions || {};
+  const already = Array.isArray(raw[emoji]) && raw[emoji].includes(uid);
+  
+  const updates = {};
+  // Remove uid from all emojis first (one reaction per user constraint)
+  Object.keys(raw).forEach((e) => {
+    updates[`reactions.${e}`] = arrayRemove(uid);
+  });
+  if (!already) {
+    updates[`reactions.${emoji}`] = arrayUnion(uid);
+  }
+  await setDoc(ref, updates, { merge: true });
+};
+
+// 8. Create a group
+export const createGroup = async (uid, name) => {
+  const ref = doc(groupsCol);
+  const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+  const batch = writeBatch(db);
+  batch.set(ref, {
+    name,
+    owner_uid: uid,
+    creator_id: uid,
+    members: [uid],
+    admins: [uid],
+    member_count: 1,
+    join_code: code,
+    created_at: serverTimestamp(),
+    lastActivityTimestamp: serverTimestamp(),
+    lastActivitySnippet: 'הקבוצה נוצרה',
+  });
+  batch.set(userDoc(uid), {
+    groups: arrayUnion(ref.id),
+  }, { merge: true });
+  await batch.commit();
+  return ref.id;
+};
+
+// 9. Join group by 6-char code
+export const joinGroupByCode = async (uid, code) => {
+  const q = query(groupsCol, where('join_code', '==', code.trim().toUpperCase()), limit(1));
+  const snap = await getDocs(q);
+  if (snap.docs.length === 0) return null;
+  const docSnap = snap.docs[0];
+  const gid = docSnap.id;
+  const members = docSnap.data().members || [];
+  if (!members.includes(uid)) {
+    const batch = writeBatch(db);
+    batch.update(docSnap.reference, {
+      members: arrayUnion(uid),
+      member_count: increment(1),
+    });
+    batch.set(userDoc(uid), {
+      groups: arrayUnion(gid),
+    }, { merge: true });
+    await batch.commit();
+  }
+  return gid;
+};
+
+// 10. Leave group
+export const leaveGroup = async (uid, gid) => {
+  const batch = writeBatch(db);
+  batch.update(groupDoc(gid), {
+    members: arrayRemove(uid),
+    member_count: increment(-1),
+  });
+  batch.set(userDoc(uid), {
+    groups: arrayRemove(gid),
+  }, { merge: true });
+  await batch.commit();
+};
+
+// 11. Fetch members profiles
+export const fetchGroupMembers = async (gid) => {
+  const snap = await getDoc(groupDoc(gid));
+  if (!snap.exists()) return [];
+  const members = snap.data().members || [];
+  const creator = snap.data().creator_id || snap.data().owner_uid;
+  const profiles = await Promise.all(
+    members.map(async (memberUid) => {
+      const userSnap = await getDoc(doc(db, 'users', memberUid));
+      const userData = userSnap.exists() ? userSnap.data() : {};
+
+      return {
+        uid: memberUid,
+        name: userData.displayName || userData.name || 'חבר/ה',
+        photoUrl: userData.photoURL || userData.photo_url || null,
+        academicInstitution: userData.academicInstitution || '',
+        degree: userData.degree || '',
+        courses: userData.activeCourses || [],
+        isCreator: memberUid === creator,
+      };
+    })
+  );
+  return profiles;
+};
+
+// 12. Shared Shopping List set/delete under group
+export const setGroupShoppingList = async (groupId, listId, data) => {
+  await setDoc(doc(db, 'groups', groupId, 'cl_shoppingLists', listId), data, { merge: true });
+};
+
+// 13. Shared Expense set/delete under group
+export const setGroupExpense = async (groupId, expenseId, data) => {
+  await setDoc(doc(db, 'groups', groupId, 'cl_expenses', expenseId), data, { merge: true });
+};
+
+// 14. Delete group shared shopping list
+export const deleteGroupShoppingList = async (groupId, listId) => {
+  await deleteDoc(doc(db, 'groups', groupId, 'cl_shoppingLists', listId));
+};
+
+// 15. Delete group shared expense
+export const deleteGroupExpense = async (groupId, expenseId) => {
+  await deleteDoc(doc(db, 'groups', groupId, 'cl_expenses', expenseId));
+};
+
+// 16. Upload file to group folder
+import { ref as sRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+export const uploadGroupFile = async (groupId, file) => {
+  const fileRef = sRef(storage, `groups/${groupId}/files/${Date.now()}_${file.name}`);
+  await uploadBytes(fileRef, file);
+  return await getDownloadURL(fileRef);
+};
+
+// 17. Shared course serialization
+export const setSharedCourse = async (code, courseData) => {
+  await setDoc(doc(db, 'cl_sharedCourses', code), courseData);
+};
+
+export const getSharedCourse = async (code) => {
+  const snap = await getDoc(doc(db, 'cl_sharedCourses', code));
+  return snap.exists() ? snap.data() : null;
+};
+
+export const toggleGroupMute = async (groupId, isMuted) => {
+  await setDoc(groupDoc(groupId), { silentUpdates: isMuted }, { merge: true });
+};
+
+export const markGroupAsRead = async (uid, gid) => {
+  await setDoc(userDoc(uid), {
+    group_read_timestamps: {
+      [gid]: serverTimestamp()
+    }
+  }, { merge: true });
 };
