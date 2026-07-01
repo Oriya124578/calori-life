@@ -200,6 +200,15 @@ export const GroupsView = () => {
     }
   }, [groups, selectedGroupId]);
 
+  // WhatsApp-web style: on desktop, never leave the chat pane empty — auto-open
+  // the most-recent group (groups is already sorted pinned-then-recent). Mobile
+  // keeps the list-first behavior so the back button still makes sense.
+  useEffect(() => {
+    if (isDesktop && !selectedGroupId && groups.length > 0) {
+      setSelectedGroupId(groups[0].id);
+    }
+  }, [isDesktop, selectedGroupId, groups]);
+
   const [activeTab, setActiveTab] = useState('chat'); // 'chat' | 'exams' | 'expenses' | 'members'
   
   // Forms state
@@ -795,13 +804,13 @@ export const GroupsView = () => {
       {/* 1. RIGHT SIDEBAR: Chat List (On desktop: always visible. On mobile: visible only when selectedGroupId is empty) */}
       <div
         className={cn(
-          "flex flex-col h-full bg-white border-e border-[rgba(180,140,80,.12)] shadow-sm shrink-0",
+          "flex flex-col h-full bg-[#FAF7F2] border-e border-[rgba(180,140,80,.12)] shadow-sm shrink-0",
           selectedGroupId ? "hidden min-[900px]:flex" : "w-full flex"
         )}
         style={isDesktop ? { width: sidebarWidth } : undefined}
       >
         {/* Index Header */}
-        <div className="bg-white border-b border-[rgba(180,140,80,.12)] px-4 py-4 flex items-center justify-between shrink-0 h-[65px]">
+        <div className="bg-[#FAF7F2] border-b border-[rgba(180,140,80,.12)] px-4 py-4 flex items-center justify-between shrink-0 h-[65px]">
           <h2 style={{ fontSize: 18, fontWeight: 700, color: '#2A1A0A' }}>
             {isRTL ? 'הקבוצות שלי' : 'My Groups'}
           </h2>
@@ -834,7 +843,7 @@ export const GroupsView = () => {
         </div>
 
         {/* Filter Chips */}
-        <div className="px-3 py-2 bg-white border-b border-[rgba(180,140,80,.06)] shrink-0 flex gap-1.5 overflow-x-auto select-none no-scrollbar">
+        <div className="px-3 py-2 bg-[#FAF7F2] border-b border-[rgba(180,140,80,.06)] shrink-0 flex gap-1.5 overflow-x-auto select-none no-scrollbar">
           {[
             { id: 'all', label: isRTL ? 'הכל' : 'All' },
             { id: 'unread', label: isRTL ? 'לא נקראו' : 'Unread' },
@@ -860,7 +869,7 @@ export const GroupsView = () => {
         </div>
 
         {/* Scrollable Groups List */}
-        <div className="flex-1 overflow-y-auto p-2 space-y-1 bg-white">
+        <div className="flex-1 overflow-y-auto p-2 space-y-1.5 bg-[#FAF7F2]">
           {filteredGroups.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground text-xs space-y-2">
               <Users className="w-8 h-8 mx-auto opacity-40 text-primary" />
@@ -884,10 +893,10 @@ export const GroupsView = () => {
                     setActiveTab('chat');
                   }}
                   className={cn(
-                    "w-full text-start p-3 rounded-2xl flex items-center justify-between gap-3 transition-all cursor-pointer border",
-                    isActive 
-                      ? "bg-primary/[0.06] border-primary/10" 
-                      : "border-transparent hover:bg-[#FAF7F2]/80"
+                    "w-full text-start p-3 rounded-2xl flex items-center justify-between gap-3 transition-all cursor-pointer border shadow-sm",
+                    isActive
+                      ? "bg-primary/[0.08] border-primary/20"
+                      : "bg-white border-[rgba(180,140,80,.1)] hover:bg-[#FFFDFA]"
                   )}
                 >
                   <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -1021,8 +1030,9 @@ export const GroupsView = () => {
               </div>
             </div>
 
-            {/* Sticky Tab Switcher */}
-            <div className="bg-[#FFFFFF] border-b border-[rgba(180,140,80,.08)] px-4 py-1.5 flex gap-2 shrink-0 overflow-x-auto select-none sticky top-[65px] z-10 min-[900px]:hidden">
+            {/* Sticky Tab Switcher — pill tabs matching the Flutter apps
+                (Messages / Competition / Members), visible on desktop too. */}
+            <div className="bg-[#FAF7F2] border-b border-[rgba(180,140,80,.08)] px-4 py-2 flex gap-2 shrink-0 overflow-x-auto select-none no-scrollbar">
               {[
                 { id: 'chat', label: isRTL ? 'צ\'אט ועדכונים' : 'Chat', icon: Send },
                 { id: 'exams', label: isRTL ? 'לוח בחינות' : 'Exams', icon: Clock },
@@ -1036,10 +1046,10 @@ export const GroupsView = () => {
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
                     className={cn(
-                      "px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-2 cursor-pointer transition-all active:scale-95",
-                      isActive 
-                         ? "bg-primary text-white shadow-sm font-bold" 
-                         : "bg-white text-[#8A7A6A] border border-[rgba(180,140,80,.12)] hover:bg-[#FAF7F2]"
+                      "px-4 py-1.5 rounded-full text-xs font-semibold flex items-center gap-2 cursor-pointer transition-all active:scale-95 shrink-0",
+                      isActive
+                         ? "bg-primary text-white shadow-sm font-bold"
+                         : "bg-white text-[#8A7A6A] border border-[rgba(180,140,80,.12)] hover:bg-[#FFFDFA]"
                     )}
                   >
                     <Icon className="w-3.5 h-3.5" />
@@ -1049,12 +1059,13 @@ export const GroupsView = () => {
               })}
             </div>
 
-            {/* Tab Contents Area */}
-            <div className="flex-1 flex flex-col min-[900px]:flex-row min-h-0 overflow-hidden relative bg-[#FAF7F2]">
+            {/* Tab Contents Area — the info panel is the only side pane; the
+                active tab content fills the rest (matches nutrition/fitness). */}
+            <div className="flex-1 flex flex-row min-h-0 overflow-hidden relative bg-[#FAF7F2]">
         
         {/* 1. CHAT TAB */}
-        {(activeTab === 'chat' || true) && (
-          <div className={cn("flex flex-col h-full min-h-0 flex-1", activeTab === 'chat' ? "flex" : "hidden min-[900px]:flex")}>
+        {activeTab === 'chat' && (
+          <div className="flex flex-col h-full min-h-0 flex-1">
             {/* Messages Feed */}
             <div ref={messagesFeedRef} className="flex-1 overflow-y-auto overscroll-contain p-4 min-h-0">
               {updates.length === 0 ? (
@@ -1673,7 +1684,7 @@ export const GroupsView = () => {
 
         {/* 2. EXAM BOARD TAB */}
         {activeTab === 'exams' && (
-          <div className="min-[900px]:hidden flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto">
             {(() => {
               const matchResult = verifyAcademicMatch();
               if (!matchResult.success) {
@@ -1763,7 +1774,7 @@ export const GroupsView = () => {
 
         {/* 3. EXPENSES SPLITTER TAB */}
         {activeTab === 'expenses' && (
-          <div className="min-[900px]:hidden flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto">
             {(() => {
           const membersList = data.groupMembers[selectedGroupId] || [];
           const expensesList = data.groupExpenses[selectedGroupId] || [];
@@ -2204,7 +2215,8 @@ export const GroupsView = () => {
 
         {/* 4. MEMBERS LIST TAB */}
         {activeTab === 'members' && (
-          <div className="p-4 max-w-md mx-auto space-y-4 min-[900px]:hidden">
+          <div className="flex-1 overflow-y-auto min-w-0">
+          <div className="p-4 max-w-md mx-auto space-y-4">
             <Card className="border-emerald-100 bg-emerald-50/40 shadow-sm">
               <CardContent className="p-3.5 flex items-center justify-between gap-4">
                 <div className="flex gap-2.5 items-center">
@@ -2288,6 +2300,7 @@ export const GroupsView = () => {
                 ))
               )}
             </div>
+          </div>
           </div>
         )}
 

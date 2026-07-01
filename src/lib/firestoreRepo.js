@@ -11,7 +11,6 @@ import {
   getDocs,
   onSnapshot,
   setDoc,
-  updateDoc,
   writeBatch,
   query,
   where,
@@ -627,17 +626,12 @@ export const toggleGroupMute = async (groupId, isMuted) => {
 };
 
 export const markGroupAsRead = async (uid, gid) => {
-  // updateDoc with a dot-path key targets exactly this one nested field —
-  // unambiguous, unlike relying on setDoc's merge to recurse into the
-  // existing group_read_timestamps map correctly.
-  try {
-    await updateDoc(userDoc(uid), {
-      [`group_read_timestamps.${gid}`]: serverTimestamp(),
-    });
-  } catch {
-    // Doc (or the field) may not exist yet for a brand-new user.
-    await setDoc(userDoc(uid), {
-      group_read_timestamps: { [gid]: serverTimestamp() },
-    }, { merge: true });
-  }
+  // IMPORTANT: read state must live on the SAME doc the app reads back —
+  // cl_profile/main (subscribed as data.profile), where isGroupUnread looks.
+  // A previous version wrote to the shared users/{uid} doc which this app
+  // never subscribes to, so the unread dot never cleared. setDoc+merge with
+  // a nested map is fine here since the map key is dynamic.
+  await setDoc(profileDoc(uid), {
+    group_read_timestamps: { [gid]: serverTimestamp() },
+  }, { merge: true });
 };
