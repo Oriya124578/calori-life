@@ -1472,9 +1472,12 @@ export const GroupsView = () => {
               )}
             </div>
 
-            <div className="bg-white border-t border-[rgba(180,140,80,.12)] p-3 shrink-0 flex items-center gap-2.5">
+            {/* Bottom padding clears the fixed mobile BottomNav + FAB (both
+                float over the viewport regardless of this pane's height) —
+                desktop has neither, so it resets to a normal p-3. */}
+            <div className="bg-white border-t border-[rgba(180,140,80,.12)] p-3 pb-[calc(160px+env(safe-area-inset-bottom))] min-[900px]:pb-3 shrink-0 flex items-center gap-2.5">
               <div className="relative">
-                <button 
+                <button
                   onClick={() => setShowShareMenu(!showShareMenu)}
                   className="p-2.5 bg-[#FFFFFF] border border-[rgba(180,140,80,.16)] rounded-xl text-[#8A7A6A] hover:bg-white hover:text-primary active:scale-95 transition-all shrink-0 cursor-pointer"
                 >

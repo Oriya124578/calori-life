@@ -84,7 +84,7 @@ const BackButton = ({ onClick, language }) => (
 );
 
 export const SettingsView = () => {
-  const { data, resetSemester, addCourse, updateCourse, archiveCourse, deleteCourseFully, language, setLanguage, theme, setTheme, setProfile, setCategory, deleteCategory } = useStore();
+  const { data, resetSemester, addCourse, updateCourse, archiveCourse, deleteCourseFully, language, setLanguage, theme, setTheme, setProfile, setCategory, deleteCategory, desktopModeForced, setDesktopModeForced } = useStore();
   const { t } = useTranslation();
   // Local section navigation (the app navigates via Zustand activeCategory, NOT
   // react-router — so settings sub-screens are plain local state). null = index.
@@ -386,7 +386,7 @@ export const SettingsView = () => {
         title: t('data', 'נתונים'),
         items: [
           { id: 'data', iconEl: <Database className="w-4 h-4" />, ic: 'gr', title: t('exportData', 'ייצוא וגיבוי'), sub: 'קובץ JSON, איפוס סמסטר' },
-          { id: 'about', iconEl: <Info className="w-4 h-4" />, ic: 'gr', title: t('aboutTitle', 'אודות'), sub: 'גרסה, רישיון, פרטיות', val: 'v7.1.0' },
+          { id: 'about', iconEl: <Info className="w-4 h-4" />, ic: 'gr', title: t('aboutTitle', 'אודות'), sub: 'גרסה, רישיון, פרטיות', val: 'v7.1.1' },
         ]
       }
     ];
@@ -476,7 +476,7 @@ export const SettingsView = () => {
           textAlign: 'center', fontFamily: "'Instrument Serif', serif",
           fontStyle: 'italic', fontSize: 13, color: 'rgba(138,122,106,.5)', padding: '14px 0 4px',
         }}>
-          Calori Life &middot; <em style={{ color: '#059669' }}>v7.1.0</em>
+          Calori Life &middot; <em style={{ color: '#059669' }}>v7.1.1</em>
         </div>
       </div>
     );
@@ -920,6 +920,27 @@ export const SettingsView = () => {
             </div>
           </div>
 
+          {/* Desktop mode ("request desktop site" for mobile) */}
+          <div className="flex items-center justify-between p-4 rounded-xl border bg-card">
+            <div>
+              <h3 className="font-semibold text-foreground">{t('desktopModeTitle', 'תצוגת מחשב')}</h3>
+              <p className="text-sm text-muted-foreground">{t('desktopModeDesc', 'הצג את פריסת המחשב גם בנייד — זום מוקטן, אפשר לצבוט להתקרבות')}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setDesktopModeForced(!desktopModeForced)}
+              className={cn(
+                "w-9 h-5 rounded-full border border-border transition-colors cursor-pointer relative",
+                desktopModeForced ? "bg-primary" : "bg-secondary"
+              )}
+            >
+              <span className={cn(
+                "absolute top-[2px] left-[2px] w-4 h-4 rounded-full bg-white shadow transition-transform",
+                desktopModeForced ? "translate-x-4" : "translate-x-0"
+              )} />
+            </button>
+          </div>
+
         </CardContent>
       </Card>
         </>
@@ -1030,7 +1051,7 @@ export const SettingsView = () => {
       <CardContent className="space-y-3">
         <div className="flex items-center justify-between p-4 rounded-xl border bg-card">
           <span className="font-semibold text-foreground">Calori Life</span>
-          <span className="text-sm font-mono text-primary">v7.1.0</span>
+          <span className="text-sm font-mono text-primary">v7.1.1</span>
         </div>
         <a href="/privacy" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-4 rounded-xl border bg-card hover:bg-muted/40 transition-colors">
           <span className="font-semibold text-foreground flex items-center gap-2"><Lock className="w-4 h-4" /> מדיניות פרטיות</span>

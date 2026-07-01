@@ -11,6 +11,7 @@ import {
   getDocs,
   onSnapshot,
   setDoc,
+  updateDoc,
   writeBatch,
   query,
   where,
@@ -626,9 +627,17 @@ export const toggleGroupMute = async (groupId, isMuted) => {
 };
 
 export const markGroupAsRead = async (uid, gid) => {
-  await setDoc(userDoc(uid), {
-    group_read_timestamps: {
-      [gid]: serverTimestamp()
-    }
-  }, { merge: true });
+  // updateDoc with a dot-path key targets exactly this one nested field —
+  // unambiguous, unlike relying on setDoc's merge to recurse into the
+  // existing group_read_timestamps map correctly.
+  try {
+    await updateDoc(userDoc(uid), {
+      [`group_read_timestamps.${gid}`]: serverTimestamp(),
+    });
+  } catch {
+    // Doc (or the field) may not exist yet for a brand-new user.
+    await setDoc(userDoc(uid), {
+      group_read_timestamps: { [gid]: serverTimestamp() },
+    }, { merge: true });
+  }
 };
