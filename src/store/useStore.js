@@ -333,6 +333,7 @@ export const useStore = create((set, get) => ({
   categoryHistory: [],
   theme: localStorage.getItem('theme') || 'light',
   language: localStorage.getItem('language') || 'he',
+  desktopModeForced: localStorage.getItem('desktopModeForced') === '1',
   sidebarOpen: false,
   isUploading: false,
   // Phase 2 UI state
@@ -1022,7 +1023,21 @@ export const useStore = create((set, get) => ({
     return code;
   },
 
-  importCourseFromCode: async (code) => {
+  // Fetches the raw shared payload without importing anything — used by the
+  // "adapt to me" preview step before the user commits to an import.
+  previewSharedCourse: async (code) => {
+    try {
+      return await fsGetSharedCourse(code);
+    } catch (e) {
+      console.error('Failed to preview shared course', e);
+      return null;
+    }
+  },
+
+  // `overrides` lets the importer adapt the shared course to themselves before
+  // committing: { name, weeksCount, includeExams, taskTypes (array of type
+  // strings to keep from the weekly recurring tasks, or null = keep all) }.
+  importCourseFromCode: async (code, overrides = {}) => {
     const { uid } = get();
     if (!uid) return false;
     try {
@@ -1039,6 +1054,9 @@ export const useStore = create((set, get) => ({
 
       const importedCourse = {
         ...course,
+        name: overrides.name?.trim() || course.name,
+        weeksCount: overrides.weeksCount || course.weeksCount,
+        exams: overrides.includeExams === false ? {} : course.exams,
         id: newCourseId,
         isArchived: false,
         importedFromCode: code,
@@ -1047,8 +1065,12 @@ export const useStore = create((set, get) => ({
       // 1. Create course doc
       await fsSetCourse(uid, newCourseId, importedCourse);
 
-      // 2. Batch create all tasks (with checked: false)
-      const tasksToUpload = tasks.map((t, idx) => {
+      // 2. Batch create all tasks (with checked: false), optionally filtering
+      // which weekly recurring task types to bring along.
+      const filteredTasks = overrides.taskTypes
+        ? tasks.filter((t) => t.scope !== 'weekly' || overrides.taskTypes.includes(t.type))
+        : tasks;
+      const tasksToUpload = filteredTasks.map((t, idx) => {
         const taskId = `${newCourseId}-${t.scope === 'weekly' ? 'w' + t.week : 'g' + t.category}-${Date.now()}-${idx}`;
         return {
           id: taskId,
@@ -1287,6 +1309,14 @@ export const useStore = create((set, get) => ({
       console.warn('localStorage language failed');
     }
     set({ language });
+  },
+  setDesktopModeForced: (enabled) => {
+    try {
+      localStorage.setItem('desktopModeForced', enabled ? '1' : '0');
+    } catch {
+      console.warn('localStorage desktopModeForced failed');
+    }
+    set({ desktopModeForced: enabled });
   },
   // Phase 5: merge-update notification settings + persist to localStorage.
   // Phase 5b: also mirror to Firestore (cl_profile/main.notificationSettings)

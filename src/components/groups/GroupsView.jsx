@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { format } from 'date-fns';
+import { DEFAULT_TASKS } from '../../data';
 
 const EXPENSE_CATEGORIES = {
   food: { label: 'אוכל וסופר 🛒', color: '#10B981', bg: '#ECFDF5', icon: ShoppingCart },
@@ -66,13 +67,28 @@ function sameCluster(a, b) {
   return Math.abs(updateTimestamp(b) - updateTimestamp(a)) < 5 * 60 * 1000;
 }
 
+// Draggable divider between two desktop panes. Declared at module scope
+// (not inside GroupsView) so it isn't recreated — and its internal drag
+// state reset — on every render.
+function ResizeHandle({ onMouseDown, label }) {
+  return (
+    <div
+      onMouseDown={onMouseDown}
+      className="hidden min-[900px]:block w-1.5 shrink-0 cursor-col-resize hover:bg-primary/20 active:bg-primary/30 transition-colors relative group/resize"
+      title={label}
+    >
+      <div className="absolute inset-y-0 start-1/2 -translate-x-1/2 w-px bg-[rgba(180,140,80,.15)] group-hover/resize:bg-primary/40" />
+    </div>
+  );
+}
+
 export const GroupsView = () => {
   const { 
     uid, data, createGroup, joinGroupByCode, leaveGroup, 
     postGroupMessage, reactToGroupUpdate, loadGroupMembers, 
     shareShoppingListToGroup, shareNoteToGroup, 
-    shareFileToGroup, addSharedExpense, deleteSharedExpense, shareCourse, 
-    importCourseFromCode, copySharedNoteToPersonal, markGroupAsRead,
+    shareFileToGroup, addSharedExpense, deleteSharedExpense, shareCourse,
+    importCourseFromCode, previewSharedCourse, copySharedNoteToPersonal, markGroupAsRead,
     setProfile, toggleGroupMute
   } = useStore();
 
@@ -85,6 +101,58 @@ export const GroupsView = () => {
 
   const [groupFilter, setGroupFilter] = useState('all');
   const [showInfoPanel, setShowInfoPanel] = useState(true);
+
+  // Desktop: draggable dividers let the user resize the group list and info
+  // panel panes. Widths persist across sessions; mobile ignores all of this
+  // (single-pane, full width) since resizing only makes sense once the
+  // 3-pane desktop layout is showing.
+  const SIDEBAR_MIN = 280, SIDEBAR_MAX = 520, SIDEBAR_DEFAULT = 380;
+  const INFO_MIN = 280, INFO_MAX = 480, INFO_DEFAULT = 360;
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const saved = Number(localStorage.getItem('cl_groups_sidebar_w'));
+    return saved >= SIDEBAR_MIN && saved <= SIDEBAR_MAX ? saved : SIDEBAR_DEFAULT;
+  });
+  const [infoPanelWidth, setInfoPanelWidth] = useState(() => {
+    const saved = Number(localStorage.getItem('cl_groups_info_w'));
+    return saved >= INFO_MIN && saved <= INFO_MAX ? saved : INFO_DEFAULT;
+  });
+  const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 900);
+  useEffect(() => {
+    const onResize = () => setIsDesktop(window.innerWidth >= 900);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  const startPaneResize = (which) => (e) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = which === 'sidebar' ? sidebarWidth : infoPanelWidth;
+    const [min, max] = which === 'sidebar' ? [SIDEBAR_MIN, SIDEBAR_MAX] : [INFO_MIN, INFO_MAX];
+    let latest = startWidth;
+    const onMove = (moveEvent) => {
+      const delta = moveEvent.clientX - startX;
+      // The sidebar is anchored to the RTL "start" (right) edge and the info
+      // panel to the "end" (left) edge, so dragging the same direction grows
+      // one and shrinks the other — flip the sign per pane and direction.
+      const raw = which === 'sidebar'
+        ? (isRTL ? startWidth - delta : startWidth + delta)
+        : (isRTL ? startWidth + delta : startWidth - delta);
+      latest = Math.min(max, Math.max(min, raw));
+      if (which === 'sidebar') setSidebarWidth(latest); else setInfoPanelWidth(latest);
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      localStorage.setItem(which === 'sidebar' ? 'cl_groups_sidebar_w' : 'cl_groups_info_w', String(latest));
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
+
 
   const isGroupPinned = (g) => {
     const pinnedIds = data.profile?.pinned_group_ids || [];
@@ -175,6 +243,11 @@ export const GroupsView = () => {
   const [shareType, setShareType] = useState(null); // 'note' | 'list' | 'course'
   const [selectedWorkoutDetail, setSelectedWorkoutDetail] = useState(null);
   const [selectedMealDetail, setSelectedMealDetail] = useState(null);
+  // Shared-course "adapt to me" preview: { code, course, tasks } once fetched,
+  // plus the editable overrides the importer picks before committing.
+  const [pendingImport, setPendingImport] = useState(null);
+  const [importOverrides, setImportOverrides] = useState(null);
+  const [isImporting, setIsImporting] = useState(false);
 
   // Study Buddy state
   const [isStudying, setIsStudying] = useState(false);
@@ -665,24 +738,55 @@ export const GroupsView = () => {
     }
   };
 
+  // Opens the "adapt to me" dialog instead of importing immediately, so the
+  // importer can rename the course, adjust week count, and pick which
+  // recurring task types to bring along before anything is written.
   const handleImportCourse = async (code) => {
     try {
-      const ok = await importCourseFromCode(code);
+      const shared = await previewSharedCourse(code);
+      if (!shared) {
+        toast.error(isRTL ? 'קוד השיתוף אינו תקין או פג תוקף' : 'Invalid or expired share code');
+        return;
+      }
+      setPendingImport({ code, ...shared });
+      setImportOverrides({
+        name: shared.course.name,
+        weeksCount: shared.course.weeksCount,
+        includeExams: true,
+        taskTypes: DEFAULT_TASKS.map((t) => t.type),
+      });
+    } catch {
+      toast.error(isRTL ? 'שגיאה בטעינת פרטי הקורס' : 'Failed to load course details');
+    }
+  };
+
+  const confirmImportCourse = async () => {
+    if (!pendingImport || !importOverrides) return;
+    setIsImporting(true);
+    try {
+      const ok = await importCourseFromCode(pendingImport.code, importOverrides);
       if (ok) {
-        toast.success(isRTL ? 'הקורס יובא בהצלחה!' : 'Course imported!');
+        toast.success(isRTL ? 'הקורס יובא והותאם בהצלחה!' : 'Course imported and adapted!');
+        setPendingImport(null);
+        setImportOverrides(null);
       }
     } catch {
       toast.error(isRTL ? 'שגיאה בייבוא הקורס' : 'Failed to import');
+    } finally {
+      setIsImporting(false);
     }
   };
 
   return (
     <div className="flex h-full w-full overflow-hidden bg-[#FAF7F2] relative" dir={isRTL ? 'rtl' : 'ltr'}>
       {/* 1. RIGHT SIDEBAR: Chat List (On desktop: always visible. On mobile: visible only when selectedGroupId is empty) */}
-      <div className={cn(
-        "flex flex-col h-full bg-white border-e border-[rgba(180,140,80,.12)] shadow-sm shrink-0",
-        selectedGroupId ? "hidden min-[900px]:flex min-[900px]:w-[360px] xl:w-[400px]" : "w-full min-[900px]:w-[360px] xl:w-[400px] flex"
-      )}>
+      <div
+        className={cn(
+          "flex flex-col h-full bg-white border-e border-[rgba(180,140,80,.12)] shadow-sm shrink-0",
+          selectedGroupId ? "hidden min-[900px]:flex" : "w-full flex"
+        )}
+        style={isDesktop ? { width: sidebarWidth } : undefined}
+      >
         {/* Index Header */}
         <div className="bg-white border-b border-[rgba(180,140,80,.12)] px-4 py-4 flex items-center justify-between shrink-0 h-[65px]">
           <h2 style={{ fontSize: 18, fontWeight: 700, color: '#2A1A0A' }}>
@@ -808,6 +912,8 @@ export const GroupsView = () => {
           )}
         </div>
       </div>
+
+      <ResizeHandle onMouseDown={startPaneResize('sidebar')} label={isRTL ? 'גרור לשינוי גודל' : 'Drag to resize'} />
 
       {/* 2. LEFT DETAIL PANE: Selected Group Content (On desktop: always visible. On mobile: visible only when selectedGroupId is NOT empty) */}
       <div className={cn(
@@ -2145,7 +2251,12 @@ export const GroupsView = () => {
 
         {/* 5. INFO PANEL (Desktop only) */}
         {showInfoPanel && (
-          <div className="hidden min-[900px]:flex flex-col w-[360px] xl:w-[400px] h-full bg-white border-s border-[rgba(180,140,80,.12)] overflow-y-auto shrink-0 animate-in slide-in-from-left duration-200">
+          <>
+            <ResizeHandle onMouseDown={startPaneResize('info')} label={isRTL ? 'גרור לשינוי גודל' : 'Drag to resize'} />
+            <div
+              className="hidden min-[900px]:flex flex-col h-full bg-white border-s border-[rgba(180,140,80,.12)] overflow-y-auto shrink-0 animate-in slide-in-from-left duration-200"
+              style={isDesktop ? { width: infoPanelWidth } : undefined}
+            >
             {/* Header */}
             <div className="p-4 border-b border-[rgba(180,140,80,.08)] flex items-center justify-between shrink-0 h-[65px] bg-[#FFFFFF]">
               <h3 className="font-bold text-xs text-[#2A1A0A]">{isRTL ? 'פרטי קבוצה' : 'Group Details'}</h3>
@@ -2385,7 +2496,8 @@ export const GroupsView = () => {
                 </div>
               </div>
             </div>
-          </div>
+            </div>
+          </>
         )}
       </div>
     </div>
@@ -2625,6 +2737,121 @@ export const GroupsView = () => {
           </div>
         );
       })()}
+
+      {/* Shared-course "adapt to me" dialog — shown before an imported course
+          is actually written, so the importer can rename it, adjust the
+          week count, and choose which recurring task types to bring along. */}
+      {pendingImport && importOverrides && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full max-h-[85vh] overflow-hidden flex flex-col shadow-2xl border border-[rgba(180,140,80,.12)]" dir={isRTL ? 'rtl' : 'ltr'}>
+            <div className="p-5 border-b border-[rgba(180,140,80,.08)] flex items-center justify-between bg-indigo-50/50">
+              <div>
+                <h3 className="text-base font-black text-[#2A1A0A] flex items-center gap-2">
+                  <BookMarked className="w-5 h-5 text-indigo-600" />
+                  {isRTL ? 'התאמת הקורס אליך' : 'Adapt course to you'}
+                </h3>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  {isRTL ? `מאת: ${pendingImport.course.name}` : `From: ${pendingImport.course.name}`}
+                </p>
+              </div>
+              <button
+                onClick={() => { setPendingImport(null); setImportOverrides(null); }}
+                className="w-8 h-8 rounded-full bg-white border flex items-center justify-center text-muted-foreground hover:text-foreground hover:scale-105 active:scale-95 transition-all text-xs font-bold shrink-0"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 overflow-y-auto space-y-5 flex-1">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[#2A1A0A]">{isRTL ? 'שם הקורס אצלך' : 'Course name for you'}</label>
+                <Input
+                  value={importOverrides.name}
+                  onChange={(e) => setImportOverrides((o) => ({ ...o, name: e.target.value }))}
+                  className="w-full text-sm"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[#2A1A0A]">{isRTL ? 'מספר שבועות בסמסטר' : 'Weeks in your semester'}</label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={importOverrides.weeksCount}
+                  onChange={(e) => setImportOverrides((o) => ({ ...o, weeksCount: Number(e.target.value) || o.weeksCount }))}
+                  className="w-full text-sm"
+                />
+              </div>
+
+              <div className="flex items-center justify-between p-3 rounded-xl border border-[rgba(180,140,80,.08)] bg-[#FAF7F2]">
+                <div>
+                  <span className="text-xs font-bold text-[#2A1A0A] block">{isRTL ? 'לכלול מועדי בחינות' : 'Include exam dates'}</span>
+                  <span className="text-[10px] text-muted-foreground">{isRTL ? 'תאריכי מועד א/ב/ג מהקורס המקורי' : 'Original moed A/B/C dates'}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setImportOverrides((o) => ({ ...o, includeExams: !o.includeExams }))}
+                  className={cn(
+                    'w-11 h-6 rounded-full transition-colors flex items-center px-0.5 shrink-0 cursor-pointer',
+                    importOverrides.includeExams ? 'bg-primary' : 'bg-muted-foreground/30',
+                  )}
+                >
+                  <div className={cn(
+                    'w-5 h-5 rounded-full bg-white shadow transition-transform',
+                    importOverrides.includeExams ? 'translate-x-5 rtl:-translate-x-5' : 'translate-x-0',
+                  )} />
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                <span className="text-xs font-bold text-[#2A1A0A] block">{isRTL ? 'אילו משימות שבועיות לייבא' : 'Which weekly tasks to import'}</span>
+                <div className="space-y-1.5">
+                  {DEFAULT_TASKS.map((t) => {
+                    const checked = importOverrides.taskTypes.includes(t.type);
+                    return (
+                      <label key={t.type} className="flex items-center gap-2.5 p-2.5 rounded-xl border border-[rgba(180,140,80,.08)] cursor-pointer hover:bg-[#FAF7F2] transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => setImportOverrides((o) => ({
+                            ...o,
+                            taskTypes: checked ? o.taskTypes.filter((x) => x !== t.type) : [...o.taskTypes, t.type],
+                          }))}
+                          className="w-4 h-4 accent-primary cursor-pointer"
+                        />
+                        <span className="text-xs font-semibold">{t.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  {isRTL
+                    ? 'כל המשימות ייובאו כלא-מסומנות, כדי שתוכל/י לעקוב מהתחלה.'
+                    : 'All tasks import unchecked, so you can track progress from scratch.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-[rgba(180,140,80,.08)] flex gap-2.5">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => { setPendingImport(null); setImportOverrides(null); }}
+              >
+                {isRTL ? 'ביטול' : 'Cancel'}
+              </Button>
+              <Button
+                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white"
+                disabled={isImporting || !importOverrides.name.trim()}
+                onClick={confirmImportCourse}
+              >
+                {isImporting ? (isRTL ? 'מייבא...' : 'Importing...') : (isRTL ? 'ייבא קורס מותאם' : 'Import adapted course')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
