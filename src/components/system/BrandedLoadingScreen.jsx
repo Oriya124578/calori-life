@@ -93,7 +93,7 @@ export const BrandedLoadingScreen = () => {
 
         {/* Version — Fraunces italic, green em like settings */}
         <div className="mt-2 select-text" dir="ltr" style={{ fontFamily: "'Fraunces', serif", fontStyle: 'italic', fontWeight: 600, fontSize: 13, color: '#8A7A6A', letterSpacing: '-.01em' }}>
-          Calori Life · <em style={{ color: '#059669' }}>v6.29.6</em>
+          Calori Life · <em style={{ color: '#059669' }}>v7.1.0</em>
         </div>
 
         {/* Indicator dots — warm inactive, green active */}
