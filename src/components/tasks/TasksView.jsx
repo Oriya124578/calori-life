@@ -134,12 +134,19 @@ const EditListModal = ({ onClose, onSave, onDelete, initialValue, isEdit = false
 const SubtaskRow = ({ taskId, sub }) => {
   const { toggleSubtask, updateSubtask, deleteSubtask } = useStore();
   const { t } = useTranslation();
+  const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(sub.title || '');
 
   const commit = () => {
     const v = draft.trim();
     if (v && v !== sub.title) updateSubtask(taskId, sub.id, v);
     else setDraft(sub.title || '');
+    setEditing(false);
+  };
+
+  const startEditing = () => {
+    setDraft(sub.title || '');
+    setEditing(true);
   };
 
   return (
@@ -163,19 +170,38 @@ const SubtaskRow = ({ taskId, sub }) => {
           {sub.done && '✓'}
         </div>
       </button>
-      {/* Click directly on the text to edit it — no separate edit button */}
-      <input
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); }
-          if (e.key === 'Escape') { setDraft(sub.title || ''); e.currentTarget.blur(); }
-        }}
-        aria-label={t('editSubtask', 'ערוך תת-משימה')}
-        className="flex-1 min-w-0 text-sm bg-transparent outline-none border-none p-0 rounded-sm focus-visible:ring-2 focus-visible:ring-primary"
-        style={{ color: sub.done ? '#8A7A6A' : '#2A1A0A', textDecoration: sub.done ? 'line-through' : 'none' }}
-      />
+      {/* Plain text by default — tap the pencil to make it editable */}
+      {editing ? (
+        <input
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); }
+            if (e.key === 'Escape') { setDraft(sub.title || ''); e.currentTarget.blur(); }
+          }}
+          aria-label={t('editSubtask', 'ערוך תת-משימה')}
+          className="flex-1 min-w-0 text-sm bg-transparent outline-none p-0 rounded-sm focus-visible:ring-2 focus-visible:ring-primary"
+          style={{ color: '#2A1A0A', borderBottom: '1.5px solid #059669' }}
+        />
+      ) : (
+        <span
+          className="flex-1 min-w-0 truncate text-sm"
+          style={{ color: sub.done ? '#8A7A6A' : '#2A1A0A', textDecoration: sub.done ? 'line-through' : 'none' }}
+        >
+          {sub.title}
+        </span>
+      )}
+      {!editing && (
+        <button
+          onClick={startEditing}
+          className="shrink-0 p-1 rounded-full opacity-60 hover:opacity-100 transition-opacity focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
+          aria-label={t('editSubtask', 'ערוך תת-משימה')}
+        >
+          <Edit3 className="w-3 h-3" style={{ color: '#8A7A6A' }} />
+        </button>
+      )}
       <button
         onClick={() => deleteSubtask(taskId, sub.id)}
         className="opacity-0 group-hover/sub:opacity-100 transition-opacity p-1.5 rounded-full focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none focus-visible:opacity-100"
@@ -195,6 +221,7 @@ const TaskRow = ({ task }) => {
   const isRTL = language === 'he';
   const [expanded, setExpanded] = useState(false);
   const [newSub, setNewSub]     = useState('');
+  const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(task.title || '');
   const subInputRef = useRef(null);
 
@@ -202,6 +229,13 @@ const TaskRow = ({ task }) => {
     const v = titleDraft.trim();
     if (v && v !== task.title) updatePersonalTask(task.id, { title: v });
     else setTitleDraft(task.title || ''); // reject an empty title, revert to saved value
+    setEditingTitle(false);
+  };
+
+  const startEditingTitle = (e) => {
+    e.stopPropagation();
+    setTitleDraft(task.title || '');
+    setEditingTitle(true);
   };
 
   const dueDateInfo = useDueDate(task.dueDate, t);
@@ -264,14 +298,14 @@ const TaskRow = ({ task }) => {
           </div>
         </button>
 
-        {/* Title + meta — tap anywhere here (but not the title text) to expand;
-            the title itself is directly editable, click it to change it. */}
+        {/* Title + meta — tap anywhere here to expand. Editing the title
+            requires tapping the pencil icon first, never a direct click. */}
         <div
-          onClick={() => !task.done && setExpanded((v) => !v)}
+          onClick={() => !task.done && !editingTitle && setExpanded((v) => !v)}
           role="button"
           tabIndex={task.done ? -1 : 0}
           onKeyDown={(e) => {
-            if (task.done) return;
+            if (task.done || editingTitle) return;
             if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded((v) => !v); }
           }}
           className="flex-1 flex items-center gap-2 text-start min-w-0 rounded-lg cursor-pointer focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
@@ -281,23 +315,45 @@ const TaskRow = ({ task }) => {
         >
           <div className="flex flex-col items-start flex-1 min-w-0">
             <div className="flex items-center gap-[6px] w-full">
-              <input
-                value={titleDraft}
-                onChange={(e) => setTitleDraft(e.target.value)}
-                onClick={(e) => e.stopPropagation()}
-                onBlur={saveTitle}
-                onKeyDown={(e) => {
-                  e.stopPropagation();
-                  if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); }
-                  if (e.key === 'Escape') { setTitleDraft(task.title || ''); e.currentTarget.blur(); }
-                }}
-                aria-label={t('editTask', 'ערוך משימה')}
-                className="truncate text-start bg-transparent outline-none border-none p-0 m-0 w-full rounded-sm focus-visible:ring-2 focus-visible:ring-primary"
-                style={{
-                  fontSize: 14, fontWeight: 600, color: task.done ? '#8A7A6A' : '#2A1A0A',
-                  textDecoration: task.done ? 'line-through' : 'none', lineHeight: 1.2, flex: 1,
-                }}
-              />
+              {editingTitle ? (
+                <input
+                  autoFocus
+                  value={titleDraft}
+                  onChange={(e) => setTitleDraft(e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  onBlur={saveTitle}
+                  onKeyDown={(e) => {
+                    e.stopPropagation();
+                    if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); }
+                    if (e.key === 'Escape') { setTitleDraft(task.title || ''); e.currentTarget.blur(); }
+                  }}
+                  aria-label={t('editTask', 'ערוך משימה')}
+                  className="truncate text-start bg-transparent outline-none p-0 m-0 flex-1 min-w-0 rounded-sm focus-visible:ring-2 focus-visible:ring-primary"
+                  style={{
+                    fontSize: 14, fontWeight: 600, color: '#2A1A0A',
+                    lineHeight: 1.2, borderBottom: '1.5px solid #059669',
+                  }}
+                />
+              ) : (
+                <span
+                  className="truncate text-start flex-1 min-w-0"
+                  style={{
+                    fontSize: 14, fontWeight: 600, color: task.done ? '#8A7A6A' : '#2A1A0A',
+                    textDecoration: task.done ? 'line-through' : 'none', lineHeight: 1.2,
+                  }}
+                >
+                  {task.title}
+                </span>
+              )}
+              {!editingTitle && (
+                <button
+                  onClick={startEditingTitle}
+                  className="shrink-0 p-1 rounded-full opacity-60 hover:opacity-100 transition-opacity focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
+                  aria-label={t('editTask', 'ערוך משימה')}
+                >
+                  <Edit3 className="w-3.5 h-3.5" style={{ color: '#8A7A6A' }} />
+                </button>
+              )}
             </div>
             <div className="flex gap-[6px] mt-1 items-center flex-wrap">
               {task.priority === 'high' && (

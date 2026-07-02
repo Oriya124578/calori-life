@@ -151,12 +151,14 @@ export const CoachChatDrawer = ({ isOpen, onClose, dateStr, shabbatTimes, onRepl
         progressSettings: c.progressSettings || { lecture: true, tutorial: true, homework: false, custom: true }
       }));
 
-      // Upcoming exams sorted by date
+      // Upcoming exams sorted by date — NOT filtered by active semester (an
+      // exam is real regardless of that course-record tag; see examDaysFormat.js)
       const upcomingExams = [];
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
+      const examCourses = (data?.courses || []).filter(c => !c.isArchived);
 
-      activeCourses.forEach((course) => {
+      examCourses.forEach((course) => {
         // 1. Standard Moeds
         ['moedA', 'moedB', 'moedC'].forEach((moed) => {
           const examDate = course[moed] || course.exams?.[moed];

@@ -14,7 +14,7 @@ import {
   subMonths,
   addDays,
   getDay,
-  differenceInDays,
+  differenceInCalendarDays,
   parseISO,
   isValid,
   getHours,
@@ -47,7 +47,17 @@ export const CalendarView = () => {
   const locale = isRTL ? he : enUS;
 
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [viewMode, setViewMode] = useState('week'); // 'day', '3days', 'week', 'month', 'list'
+  // 'day', '3days', 'week', 'month', 'list' — last choice persists; first
+  // visit defaults to a single day on phones (a 7-column week grid is
+  // unreadable at 375px) and the full week on desktop.
+  const [viewMode, setViewMode] = useState(() => {
+    const saved = localStorage.getItem('cl_cal_view');
+    if (['day', '3days', 'week', 'month', 'list'].includes(saved)) return saved;
+    return window.innerWidth < 900 ? 'day' : 'week';
+  });
+  useEffect(() => {
+    localStorage.setItem('cl_cal_view', viewMode);
+  }, [viewMode]);
   const selectedDate = calendarDate || new Date();
   const setSelectedDate = setCalendarDate;
   const [selectedItem, setSelectedItem] = useState(null); // tapped block → edit sheet
@@ -86,13 +96,10 @@ export const CalendarView = () => {
       moedC: 'מועד ג׳'
     };
 
-    const activeYear = data?.profile?.academicYear || "שנה א'";
-    const activeSemester = data?.profile?.semester || "סמסטר ב'";
-    const activeCourses = (data?.courses || []).filter(c => 
-      !c.isArchived && 
-      (c.academicYear || "שנה א'") === activeYear && 
-      (c.semester || "סמסטר ב'") === activeSemester
-    );
+    // Deliberately NOT filtered by active academic year/semester — every other
+    // screen shows exams regardless of that course-record tag, and filtering
+    // here could silently drop a real exam from the calendar entirely.
+    const activeCourses = (data?.courses || []).filter(c => !c.isArchived);
 
     activeCourses.forEach((course) => {
       // 1. Standard Moeds
@@ -354,7 +361,7 @@ export const CalendarView = () => {
 
   const renderList = () => {
     const upcoming = allItems.filter(
-      (i) => differenceInDays(startOfDay(i.date), startOfDay(new Date())) >= -1,
+      (i) => differenceInCalendarDays(startOfDay(i.date), startOfDay(new Date())) >= -1,
     );
     if (upcoming.length === 0) {
       return <div className={styles.emptyState}>אין אירועים קרובים</div>;

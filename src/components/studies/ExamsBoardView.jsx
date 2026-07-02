@@ -10,10 +10,8 @@ import {
   addMonths,
   subMonths,
   getDay,
-  parseISO, 
-  isValid,
-  differenceInCalendarDays,
-  startOfDay
+  parseISO,
+  isValid
 } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { Button } from '../ui/button';
@@ -31,7 +29,7 @@ import {
   GraduationCap
 } from 'lucide-react';
 import { toast } from '../../store/useToast';
-import { formatExamDaysBadge } from '../../lib/examDaysFormat';
+import { formatExamDaysBadge, daysUntilExam } from '../../lib/examDaysFormat';
 
 const creamCard = {
   background: '#fff',
@@ -551,8 +549,7 @@ export const ExamsBoardView = () => {
             <div className="grid gap-3 sm:grid-cols-2">
               {allExams.map((exam) => {
                 // Determine days left
-                const today = startOfDay(new Date());
-                const daysLeft = differenceInCalendarDays(startOfDay(exam.date), today);
+                const daysLeft = daysUntilExam(exam.date);
                 const badge = formatExamDaysBadge(daysLeft, isRTL);
 
                 return (

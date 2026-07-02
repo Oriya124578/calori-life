@@ -18,6 +18,7 @@ function App() {
   const {
     theme,
     language,
+    desktopModeForced,
     hasCompletedOnboarding,
     dataLoaded,
     initFromAuth,
@@ -108,6 +109,21 @@ function App() {
     document.documentElement.lang = language;
     document.documentElement.dir = language === 'en' ? 'ltr' : 'rtl';
   }, [language]);
+
+  // "Request desktop site": widen the layout viewport past the 900px CSS
+  // breakpoint so the desktop shell renders, then let the browser's native
+  // pinch-zoom (re-enabled here) handle reading it on a narrow screen —
+  // the same trick mobile browsers use for desktop-site requests.
+  useEffect(() => {
+    const meta = document.querySelector('meta[name="viewport"]');
+    if (!meta) return;
+    meta.setAttribute(
+      'content',
+      desktopModeForced
+        ? 'width=1280, user-scalable=yes, viewport-fit=cover'
+        : 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover'
+    );
+  }, [desktopModeForced]);
 
   // --- Render ---------------------------------------------------------------
 

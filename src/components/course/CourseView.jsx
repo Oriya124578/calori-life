@@ -11,8 +11,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '../ui/input';
 import { useTranslation } from '../../hooks/useTranslation';
 import { toast } from '../../store/useToast';
-import { differenceInCalendarDays, startOfDay, parseISO, isValid } from 'date-fns';
-import { formatExamDays } from '../../lib/examDaysFormat';
+import { formatExamDays, collectCourseExams } from '../../lib/examDaysFormat';
+
+const MOED_LABELS = { A: 'מועד א׳', B: 'מועד ב׳', C: 'מועד ג׳' };
 
 export const CourseView = () => {
   const { activeCourse, data, updateCourse, saveLinks, setActiveCourse, saveNote } = useStore();
@@ -85,53 +86,18 @@ export const CourseView = () => {
 
   const isRTL = language === 'he';
 
+  // Shared with every other exam-countdown screen so the days-left number
+  // never disagrees between Home, Calendar, Studies, and here.
   const nextExam = useMemo(() => {
     if (!activeCourse) return null;
-    const exams = [];
-    const today = startOfDay(new Date());
-
-    const safeParseDt = (raw) => {
-      if (!raw) return null;
-      const dt = typeof raw === 'string' ? parseISO(raw) : new Date(raw);
-      return isValid(dt) ? dt : null;
+    const [soonest] = collectCourseExams(activeCourse);
+    if (!soonest) return null;
+    return {
+      name: soonest.custom ? soonest.moed : MOED_LABELS[soonest.moed],
+      date: soonest.date,
+      daysLeft: soonest.days,
+      hasTime: soonest.hasTime,
     };
-    
-    // 1. Standard Moeds
-    ['moedA', 'moedB', 'moedC'].forEach((moedKey) => {
-      const rawDate = activeCourse[moedKey] || activeCourse.exams?.[moedKey];
-      const dt = safeParseDt(rawDate);
-      if (dt) {
-        const daysLeft = differenceInCalendarDays(startOfDay(dt), today);
-        if (daysLeft >= 0) {
-          exams.push({
-            name: moedKey === 'moedA' ? 'מועד א׳' : moedKey === 'moedB' ? 'מועד ב׳' : 'מועד ג׳',
-            date: dt,
-            daysLeft,
-            hasTime: typeof rawDate === 'string' && rawDate.includes('T')
-          });
-        }
-      }
-    });
-
-    // 2. Custom Exams
-    activeCourse.customExams?.forEach((exam) => {
-      const dt = safeParseDt(exam.date);
-      if (dt) {
-        const daysLeft = differenceInCalendarDays(startOfDay(dt), today);
-        if (daysLeft >= 0) {
-          exams.push({
-            name: exam.name,
-            date: dt,
-            daysLeft,
-            hasTime: typeof exam.date === 'string' && exam.date.includes('T')
-          });
-        }
-      }
-    });
-
-    if (exams.length === 0) return null;
-    exams.sort((a, b) => a.date.getTime() - b.date.getTime());
-    return exams[0];
   }, [activeCourse]);
 
   // Hooks above run unconditionally; the early bail-out goes after them.

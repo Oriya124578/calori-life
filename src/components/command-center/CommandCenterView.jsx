@@ -544,14 +544,9 @@ export const CommandCenterView = () => {
           };
         });
 
-      // Upcoming exams sorted by date (filtered by active semester)
-      const activeYear = data?.profile?.academicYear || "שנה א'";
-      const activeSemester = data?.profile?.semester || "סמסטר ב'";
-      const activeCourses = (data?.courses || []).filter(c => 
-        !c.isArchived && 
-        (c.academicYear || "שנה א'") === activeYear && 
-        (c.semester || "סמסטר ב'") === activeSemester
-      );
+      // Upcoming exams sorted by date — not filtered by active semester (an
+      // exam is real regardless of that course-record tag; see examDaysFormat.js)
+      const activeCourses = (data?.courses || []).filter(c => !c.isArchived);
 
       const upcomingExams = [];
       activeCourses.forEach((course) => {
@@ -848,13 +843,9 @@ export const CommandCenterView = () => {
             duration: tk.duration ?? null,
           };
         });
-      const activeYear = data?.profile?.academicYear || "שנה א'";
-      const activeSemester = data?.profile?.semester || "סמסטר ב'";
-      const activeCourses = (data?.courses || []).filter(c => 
-        !c.isArchived && 
-        (c.academicYear || "שנה א'") === activeYear && 
-        (c.semester || "סמסטר ב'") === activeSemester
-      );
+      // Not filtered by active semester — an exam is real regardless of that
+      // course-record tag; see examDaysFormat.js.
+      const activeCourses = (data?.courses || []).filter(c => !c.isArchived);
 
       const upcomingExams = [];
       activeCourses.forEach((course) => {

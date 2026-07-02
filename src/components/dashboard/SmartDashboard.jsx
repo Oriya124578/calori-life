@@ -23,7 +23,7 @@ import {
   startOfDay
 } from 'date-fns';
 import { he } from 'date-fns/locale';
-import { formatExamDaysBadge } from '../../lib/examDaysFormat';
+import { formatExamDaysBadge, getNearestExam, collectUpcomingExams } from '../../lib/examDaysFormat';
 import { Stagger } from '../../lib/motion';
 
 const safeParse = (d) => {
@@ -49,39 +49,16 @@ export const SmartDashboard = () => {
   };
 
   // ── Nearest Exam ──
+  // Deliberately NOT filtered by "active academic year/semester" — an exam is
+  // real regardless of that course-record tag (older/migrated courses often
+  // don't have it set), and every other screen (Studies, course details, exams
+  // board) shows exams unfiltered too. Filtering here was the bug: it could
+  // silently hide the true nearest exam and fall back to a farther one.
   const nearestExam = useMemo(() => {
-    let nearest = null;
-    const today = startOfDay(new Date());
-    const activeYear = data?.profile?.academicYear || "שנה א'";
-    const activeSemester = data?.profile?.semester || "סמסטר ב'";
-    const activeCourses = (data?.courses || []).filter(c => 
-      !c.isArchived && 
-      (c.academicYear || "שנה א'") === activeYear && 
-      (c.semester || "סמסטר ב'") === activeSemester
-    );
-
-    activeCourses.forEach((course) => {
-      // 1. Standard Moeds
-      ['moedA', 'moedB', 'moedC'].forEach((moed) => {
-        const dt = safeParse(course[moed] || course.exams?.[moed]);
-        if (!dt) return;
-        const days = differenceInCalendarDays(startOfDay(dt), today);
-        if (days >= 0 && (!nearest || days < nearest.days)) {
-          nearest = { name: course.name, days, moed: moed.replace('moed', ''), date: dt };
-        }
-      });
-      // 2. Custom Exams
-      course.customExams?.forEach((exam) => {
-        const dt = safeParse(exam.date);
-        if (!dt) return;
-        const days = differenceInCalendarDays(startOfDay(dt), today);
-        if (days >= 0 && (!nearest || days < nearest.days)) {
-          nearest = { name: course.name, days, moed: exam.name, date: dt };
-        }
-      });
-    });
-    return nearest;
-  }, [data.courses, data?.profile?.academicYear, data?.profile?.semester]);
+    const nearest = getNearestExam(data?.courses);
+    if (!nearest) return null;
+    return { name: nearest.courseName, days: nearest.days, moed: nearest.moed, date: nearest.date };
+  }, [data.courses]);
 
   // ── Today's tasks count (including overdue tasks) ──
   const todayTasksCount = useMemo(() => {
@@ -159,22 +136,12 @@ export const SmartDashboard = () => {
         sub: (b.type === 'meal' || b.type === 'workout') ? (b.notes || '') : '',
       }));
 
-    // All-day exams on top of the timed blocks.
-    const activeYear = data?.profile?.academicYear || "שנה א'";
-    const activeSemester = data?.profile?.semester || "סמסטר ב'";
-    const activeCourses = (data?.courses || []).filter(c => 
-      !c.isArchived && 
-      (c.academicYear || "שנה א'") === activeYear && 
-      (c.semester || "סמסטר ב'") === activeSemester
-    );
-
-    activeCourses.forEach((course) => {
-      ['moedA', 'moedB', 'moedC'].forEach((moed) => {
-        const dt = safeParse(course[moed] || course.exams?.[moed]);
-        if (dt && isSameDay(dt, new Date())) {
-          blocks.push({ id: `exam-${course.id}`, type: 'exam', title: `⏰ ${course.name}`, time: t('allDay'), sub: '' });
-        }
-      });
+    // All-day exams on top of the timed blocks — not filtered by active
+    // semester (an exam is real regardless of that course-record tag).
+    collectUpcomingExams(data?.courses).forEach((exam) => {
+      if (isSameDay(exam.date, new Date())) {
+        blocks.push({ id: `exam-${exam.courseId}-${exam.type}`, type: 'exam', title: `⏰ ${exam.courseName}`, time: t('allDay'), sub: '' });
+      }
     });
 
     return blocks.sort((a, b) => (a.time || '').localeCompare(b.time || '')).slice(0, 6);
@@ -184,22 +151,17 @@ export const SmartDashboard = () => {
   const upcomingItems = useMemo(() => {
     const today = new Date();
     const items = [];
-    const activeYear = data?.profile?.academicYear || "שנה א'";
-    const activeSemester = data?.profile?.semester || "סמסטר ב'";
-    const activeCourses = (data?.courses || []).filter(c => 
-      !c.isArchived && 
-      (c.academicYear || "שנה א'") === activeYear && 
-      (c.semester || "סמסטר ב'") === activeSemester
-    );
 
-    activeCourses.forEach((course) => {
-      ['moedA', 'moedB', 'moedC'].forEach((moed) => {
-        const dt = safeParse(course[moed] || course.exams?.[moed]);
-        if (dt) {
-          const d = differenceInCalendarDays(startOfDay(dt), startOfDay(today));
-          if (d > 0 && d <= 7) items.push({ id: `e-${course.id}-${moed}`, kind: 'exam', title: `${course.name} — ${t(moed)}`, date: dt });
-        }
-      });
+    // Same unfiltered exam set as `nearestExam` — no active-semester filter.
+    collectUpcomingExams(data?.courses).forEach((exam) => {
+      if (exam.days > 0 && exam.days <= 7) {
+        items.push({
+          id: `e-${exam.courseId}-${exam.type}`,
+          kind: 'exam',
+          title: `${exam.courseName} — ${exam.custom ? exam.moed : t(exam.type)}`,
+          date: exam.date,
+        });
+      }
     });
     (data?.events || []).forEach((ev) => {
       const dt = safeParse(ev.start);

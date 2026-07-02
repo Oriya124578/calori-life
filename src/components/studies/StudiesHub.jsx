@@ -1,9 +1,8 @@
 import React, { useMemo } from 'react';
 import { useStore, isTaskIncludedInProgress } from '../../store/useStore';
 import { useTranslation } from '../../hooks/useTranslation';
-import { differenceInCalendarDays, startOfDay, parseISO, isValid } from 'date-fns';
 import { StudiesStats } from './StudiesStats';
-import { formatExamDaysBadge } from '../../lib/examDaysFormat';
+import { formatExamDaysBadge, getNearestExam } from '../../lib/examDaysFormat';
 import { Stagger } from '../../lib/motion';
 import { GraduationCap } from 'lucide-react';
 
@@ -58,34 +57,9 @@ export const StudiesHub = () => {
     });
     const pct = totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100);
 
-    // Find nearest exam
-    let nearestExamDays = null;
-    const today = startOfDay(new Date());
-    const safeParseDt = (raw) => {
-      if (!raw) return null;
-      const dt = typeof raw === 'string' ? parseISO(raw) : new Date(raw);
-      return isValid(dt) ? dt : null;
-    };
-    (data?.courses || []).forEach((c) => {
-      // 1. Standard Moeds
-      ['moedA', 'moedB', 'moedC'].forEach((moedKey) => {
-        const dt = safeParseDt(c[moedKey] || c.exams?.[moedKey]);
-        if (!dt) return;
-        const diff = differenceInCalendarDays(startOfDay(dt), today);
-        if (diff >= 0 && (nearestExamDays === null || diff < nearestExamDays)) {
-          nearestExamDays = diff;
-        }
-      });
-      // 2. Custom Exams
-      c.customExams?.forEach((exam) => {
-        const dt = safeParseDt(exam.date);
-        if (!dt) return;
-        const diff = differenceInCalendarDays(startOfDay(dt), today);
-        if (diff >= 0 && (nearestExamDays === null || diff < nearestExamDays)) {
-          nearestExamDays = diff;
-        }
-      });
-    });
+    // Nearest exam across all courses — shared with every other screen so the
+    // count never disagrees (Home, Calendar, course details, exams board).
+    const nearestExamDays = getNearestExam(data?.courses)?.days ?? null;
 
     return { pct, totalTasks, nearestExamDays };
   }, [data]);
@@ -319,21 +293,19 @@ export const StudiesHub = () => {
 
               <div className="flex justify-between" style={{ marginTop: 6, fontSize: 9, color: '#8A7A6A' }}>
                 <span>{pct}% {isRTL ? 'הושלם' : 'done'}</span>
-                {course.examDate && (() => {
-                  try {
-                    const days = differenceInCalendarDays(parseISO(course.examDate), new Date());
-                    if (days >= 0) return (
-                      <span style={{
-                        fontFamily: "'Instrument Serif', serif",
-                        fontStyle: 'italic',
-                        fontSize: 11,
-                        color: '#059669',
-                      }}>
-                        {days} {isRTL ? 'יום' : 'days'}
-                      </span>
-                    );
-                  } catch { /* skip unparseable exam date */ }
-                  return null;
+                {(() => {
+                  const nearest = getNearestExam([course]);
+                  if (!nearest) return null;
+                  return (
+                    <span style={{
+                      fontFamily: "'Instrument Serif', serif",
+                      fontStyle: 'italic',
+                      fontSize: 11,
+                      color: '#059669',
+                    }}>
+                      {nearest.days} {isRTL ? 'יום' : 'days'}
+                    </span>
+                  );
                 })()}
               </div>
             </Stagger.Item>

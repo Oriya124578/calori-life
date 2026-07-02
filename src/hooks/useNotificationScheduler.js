@@ -105,14 +105,11 @@ export const useNotificationScheduler = () => {
       };
 
       // ── Exams ──
+      // Not filtered by active academic year/semester — a course missing that
+      // tag (common for older/migrated courses) would otherwise silently never
+      // get exam reminders at all.
       if (settings.exams) {
-        const activeYear = data?.profile?.academicYear || "שנה א'";
-        const activeSemester = data?.profile?.semester || "סמסטר ב'";
-        const activeCourses = (data?.courses || []).filter(c => 
-          !c.isArchived && 
-          (c.academicYear || "שנה א'") === activeYear && 
-          (c.semester || "סמסטר ב'") === activeSemester
-        );
+        const activeCourses = (data?.courses || []).filter(c => !c.isArchived);
 
         activeCourses.forEach((c) => {
           ['moedA', 'moedB', 'moedC'].forEach((moed) => {
@@ -227,13 +224,15 @@ export const useNotificationScheduler = () => {
         });
         const activeYear = data?.profile?.academicYear || "שנה א'";
         const activeSemester = data?.profile?.semester || "סמסטר ב'";
-        const activeCourses = (data?.courses || []).filter(c => 
-          !c.isArchived && 
-          (c.academicYear || "שנה א'") === activeYear && 
+        const activeCourses = (data?.courses || []).filter(c =>
+          !c.isArchived &&
+          (c.academicYear || "שנה א'") === activeYear &&
           (c.semester || "סמסטר ב'") === activeSemester
         );
 
-        activeCourses.forEach((c) => {
+        // Exam count is NOT scoped to the active semester (same reasoning as
+        // the reminder block above) — only the weekly-tasks count below is.
+        (data?.courses || []).filter(c => !c.isArchived).forEach((c) => {
           ['moedA', 'moedB', 'moedC'].forEach((moed) => {
             const d = parseDate(c[moed] || c.exams?.[moed]);
             if (d && dayKey(d) === tk) exams++;

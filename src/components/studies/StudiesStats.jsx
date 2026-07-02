@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 import { useStore, isTaskIncludedInProgress } from '../../store/useStore';
 import { Calendar as CalendarIcon, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react';
-import { differenceInDays } from 'date-fns';
+import { daysUntilExam } from '../../lib/examDaysFormat';
 import { useTranslation } from '../../hooks/useTranslation';
 import { Button } from '../ui/button';
 
@@ -41,12 +41,12 @@ export const StudiesStats = () => {
           try {
             const date = new Date(examDate);
             if (Number.isNaN(date.getTime())) return;
-            const daysLeft = differenceInDays(date, new Date());
+            const daysLeft = daysUntilExam(examDate);
             if (daysLeft >= 0) {
-              exams.push({ 
-                course, 
-                moed, 
-                date, 
+              exams.push({
+                course,
+                moed,
+                date,
                 daysLeft,
                 hasTime: typeof examDate === 'string' && examDate.includes('T')
               });
@@ -61,7 +61,7 @@ export const StudiesStats = () => {
           try {
             const date = new Date(exam.date);
             if (Number.isNaN(date.getTime())) return;
-            const daysLeft = differenceInDays(date, new Date());
+            const daysLeft = daysUntilExam(exam.date);
             if (daysLeft >= 0) {
               exams.push({ 
                 course, 

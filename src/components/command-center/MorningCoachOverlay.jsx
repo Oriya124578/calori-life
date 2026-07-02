@@ -6,8 +6,8 @@ import {
 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { useTranslation } from '../../hooks/useTranslation';
-import { parseISO, isValid, differenceInCalendarDays, startOfDay } from 'date-fns';
-import { formatExamDays } from '../../lib/examDaysFormat';
+import { parseISO, isValid, differenceInCalendarDays } from 'date-fns';
+import { formatExamDays, getNearestExam } from '../../lib/examDaysFormat';
 import { clarifyDayRequest } from '../../lib/gemini';
 
 /* ── cream v3 tokens ─────────────────────────────────────────── */
@@ -91,34 +91,12 @@ export const MorningCoachOverlay = ({
     const eventsToday = (data?.events || []).filter(
       (ev) => ev.start && ev.start.startsWith(dateStr)
     ).length;
-    let nearestExam = null;
-    let nearestDays = Infinity;
-    const today = startOfDay(new Date());
-    const safeParseDt = (raw) => {
-      if (!raw) return null;
-      const dt = typeof raw === 'string' ? parseISO(raw) : new Date(raw);
-      return isValid(dt) ? dt : null;
-    };
-    (data?.courses || []).forEach((course) => {
-      ['moedA', 'moedB', 'moedC'].forEach((moed) => {
-        const dt = safeParseDt(course[moed] || course.exams?.[moed]);
-        if (!dt) return;
-        const days = differenceInCalendarDays(startOfDay(dt), today);
-        if (days >= 0 && days < nearestDays) {
-          nearestDays = days;
-          nearestExam = { name: course.name, days };
-        }
-      });
-      course.customExams?.forEach((exam) => {
-        const dt = safeParseDt(exam.date);
-        if (!dt) return;
-        const days = differenceInCalendarDays(startOfDay(dt), today);
-        if (days >= 0 && days < nearestDays) {
-          nearestDays = days;
-          nearestExam = { name: `${course.name} (${exam.name})`, days };
-        }
-      });
-    });
+    // Shared with every other exam-countdown screen so the days-left number
+    // never disagrees.
+    const rawNearest = getNearestExam(data?.courses);
+    const nearestExam = rawNearest
+      ? { name: rawNearest.custom ? `${rawNearest.courseName} (${rawNearest.moed})` : rawNearest.courseName, days: rawNearest.days }
+      : null;
     const hasWorkout = (data?.calori?.coachSessions || []).some(
       (cs) => cs.type !== 'rest' && cs.status !== 'completed' && cs.status !== 'skipped'
     );
