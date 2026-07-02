@@ -197,6 +197,65 @@ Return STRICTLY this JSON:
   }
 };
 
+/** "HH:MM" → minutes since midnight; forgiving, returns null on garbage. */
+const hhmmToMin = (s) => {
+  const m = /^(\d{1,2}):(\d{2})/.exec(String(s || ''));
+  if (!m) return null;
+  const v = Number(m[1]) * 60 + Number(m[2]);
+  return v >= 0 && v < 1440 ? v : null;
+};
+const minToHHMM = (v) =>
+  `${String(Math.floor(v / 60)).padStart(2, '0')}:${String(v % 60).padStart(2, '0')}`;
+
+/**
+ * Deterministically compute today's FREE windows (wake→bed minus fixed events,
+ * scheduled workouts, elapsed time and Shabbat cutoffs) so the model doesn't
+ * have to do interval arithmetic itself — the main source of inaccurate plans.
+ */
+const computeFreeWindows = (context) => {
+  let dayStart = hhmmToMin(context.settings?.wakeTime) ?? 7 * 60;
+  let dayEnd = hhmmToMin(context.settings?.sleepTime) ?? 23 * 60;
+  const now = hhmmToMin(context.currentTime);
+  if (now != null) dayStart = Math.max(dayStart, now);
+  if (context.shabbatTimes?.start) {
+    const sh = hhmmToMin(context.shabbatTimes.start);
+    if (sh != null) dayEnd = Math.min(dayEnd, sh - 60);
+  }
+  if (context.shabbatTimes?.end) {
+    const she = hhmmToMin(context.shabbatTimes.end);
+    // Shabbat ending today → the day effectively starts 1h after it ends.
+    if (she != null && she < dayEnd) dayStart = Math.max(dayStart, she + 60);
+  }
+  if (dayEnd <= dayStart) return [];
+
+  const busy = [];
+  for (const ev of context.fixedEvents || []) {
+    const s = hhmmToMin(ev.startTime ?? ev.start);
+    const e = hhmmToMin(ev.endTime ?? ev.end);
+    if (s != null && e != null && e > s) {
+      const pad = Number(ev.travelTimeMinutes) > 0 ? Number(ev.travelTimeMinutes) : 0;
+      busy.push([s - pad, e + pad]);
+    }
+  }
+  for (const w of context.workouts || []) {
+    const s = hhmmToMin(w.scheduledTime);
+    if (s != null) busy.push([s, s + (Number(w.durationMinutes) || 60)]);
+  }
+  busy.sort((a, b) => a[0] - b[0]);
+
+  const free = [];
+  let cursor = dayStart;
+  for (const [s, e] of busy) {
+    if (s > cursor) free.push([cursor, Math.min(s, dayEnd)]);
+    cursor = Math.max(cursor, e);
+    if (cursor >= dayEnd) break;
+  }
+  if (cursor < dayEnd) free.push([cursor, dayEnd]);
+  return free
+    .filter(([s, e]) => e - s >= 15)
+    .map(([s, e]) => ({ from: minToHHMM(s), to: minToHHMM(e), minutes: e - s }));
+};
+
 /**
  * Generate a new daily schedule from scratch based on user data.
  * @param {Object} context - The user preferences, fixed events, tasks, workouts, and Shabbat times.
@@ -204,13 +263,18 @@ Return STRICTLY this JSON:
 export const generateDailySchedule = async (context) => {
   try {
     const genAI = getAIClient();
+    // Scheduling is a constraint-satisfaction problem — give the model a real
+    // thinking budget (unlike the fast clarifier) so plans respect the window,
+    // fixed events and task rules instead of pattern-matching a layout.
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash',
-      generationConfig: { 
+      generationConfig: {
         responseMimeType: 'application/json',
-        thinkingConfig: { thinkingBudget: 0 }
+        thinkingConfig: { thinkingBudget: 2048 }
       },
     });
+
+    const freeWindows = computeFreeWindows(context);
 
     const prompt = `
 Generate today's schedule.
@@ -229,6 +293,12 @@ CRITICAL — SHABBAT EVE (today is Friday and Shabbat starts at ${context.shabba
 - The usable window today is wake time (${context.settings?.wakeTime || '07:00'}) until ONE HOUR BEFORE Shabbat (i.e. treat that as today's hard end-of-day, NOT bedtime).
 - Place EVERY block — including all study — INSIDE the daytime window above. Do NOT schedule anything in the evening or after that cutoff. "High energy / long blocks / full study day" all still apply but must fit BEFORE the cutoff.
 - It is INVALID to leave the daytime empty and put study in the evening. Front-load the study into the morning/early-afternoon.` : ''}
+
+PRE-COMPUTED FREE WINDOWS (authoritative — already account for wake/bed, the current time, fixed events, scheduled workouts and Shabbat):
+${JSON.stringify(freeWindows)}
+- Every block you PROPOSE (study/task/reminder/proposed workout) MUST start and end inside ONE of these windows. Do not do your own gap math — trust this list.
+- A window's "minutes" tells you how much fits there. Never place more minutes of blocks in a window than it holds.
+- Fixed events and pre-scheduled workouts are OUTSIDE these windows by construction — echo them unchanged (locked) at their given times.
 
 Input data:
 - Pre-scheduled fixed events for today (do not move, lock them):
@@ -351,11 +421,13 @@ Return STRICTLY:
 export const tuneSchedule = async (currentBlocks, command, context) => {
   try {
     const genAI = getAIClient();
+    // Tuning must respect the same constraints as generation — give it a
+    // thinking budget too instead of a zero-thought fast path.
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash',
-      generationConfig: { 
+      generationConfig: {
         responseMimeType: 'application/json',
-        thinkingConfig: { thinkingBudget: 0 }
+        thinkingConfig: { thinkingBudget: 1024 }
       },
     });
 

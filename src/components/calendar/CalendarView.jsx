@@ -266,19 +266,12 @@ export const CalendarView = () => {
     return styles.a;
   };
 
-  const getTagClass = (kind) => {
-    if (kind === 'exam') return styles.r;
-    if (kind === 'study' || kind === 'lec') return styles.b;
-    if (kind === 'workout') return styles.p;
-    if (kind === 'meal') return styles.g;
-    return '';
-  };
-
   const renderMonth = () => {
     const ms = startOfMonth(currentDate);
     const me = endOfMonth(currentDate);
     const days = eachDayOfInterval({ start: ms, end: me });
     const startPad = getDay(ms);
+    const agendaItems = itemsForDay(selectedDate);
 
     return (
       <div className={styles.monthGridWrapper}>
@@ -300,38 +293,66 @@ export const CalendarView = () => {
           {days.map((day) => {
             const dayItems = itemsForDay(day);
             const isCurr = isToday(day);
+            const isSel = isSameDay(day, selectedDate);
             // Exams first — they matter most at month altitude.
             const sorted = [...dayItems].sort(
               (a, b) => (a.kind === 'exam' ? 0 : 1) - (b.kind === 'exam' ? 0 : 1)
             );
-            const tags = sorted.slice(0, 2);
-            const rest = sorted.slice(2, 6);
+            const bars = sorted.slice(0, 3);
+            const more = sorted.length - bars.length;
 
             return (
               <div
                 key={day.toISOString()}
-                className={`${styles.cell} ${isCurr ? styles.today : ''}`}
+                role="button"
+                aria-label={format(day, 'd MMMM', { locale })}
+                aria-pressed={isSel}
+                className={`${styles.cell} ${isCurr ? styles.today : ''} ${isSel ? styles.selected : ''}`}
                 onClick={() => {
-                  setSelectedDate(day);
-                  setViewMode('day');
+                  // First tap selects (agenda below updates); tap again opens day view.
+                  if (isSel) setViewMode('day');
+                  else setSelectedDate(day);
                 }}
               >
                 <div className={styles.cNum}>{format(day, 'd')}</div>
-                {tags.map((item) => (
-                  <div key={item.id} className={`${styles.cTag} ${getTagClass(item.kind)}`}>
-                    {item.title}
-                  </div>
-                ))}
-                {rest.length > 0 && (
-                  <div className={styles.cDots}>
-                    {rest.map((item, i) => (
-                      <div key={i} className={`${styles.cD} ${getDotClass(item.kind)}`}></div>
-                    ))}
-                  </div>
-                )}
+                <div className={styles.cBars}>
+                  {bars.map((item) => (
+                    <div key={item.id} className={`${styles.cBar} ${getDotClass(item.kind)}`}>
+                      <span className={styles.cBarTxt}>{item.title}</span>
+                    </div>
+                  ))}
+                  {more > 0 && <div className={styles.cMore}>+{more}</div>}
+                </div>
               </div>
             );
           })}
+        </div>
+
+        {/* Selected-day agenda — readable list under the grid instead of squinting at cells */}
+        <div className={styles.monthAgenda}>
+          <div className={styles.maHeader}>
+            <div className={styles.maTitle}>
+              {isToday(selectedDate) ? 'היום · ' : ''}{format(selectedDate, 'EEEE, d MMMM', { locale })}
+            </div>
+            <button className={styles.maOpenDay} onClick={() => setViewMode('day')}>
+              פתח יום ‹
+            </button>
+          </div>
+          {agendaItems.length === 0 ? (
+            <div className={styles.maEmpty}>אין פריטים ביום זה</div>
+          ) : (
+            agendaItems.map((item) => (
+              <div key={item.id} role="listitem" onClick={() => setSelectedItem(item)} style={{ cursor: 'pointer' }} className={`${styles.item} ${styles.maItem} ${getEventClass(item.kind)}`}>
+                <div className={styles.itemTime}>{item.allDay ? 'כל היום' : format(item.date, 'HH:mm')}</div>
+                <div className={styles.itemBody}>
+                  <div className={styles.itemName}>{item.title}</div>
+                  {(item.location || (!item.allDay && item.endDate)) && (
+                    <div className={styles.itemMeta}>{item.location || `עד ${format(item.endDate, 'HH:mm')}`}</div>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
         </div>
         <div className={styles.monthLegend}>
           <div className={styles.legendItem}>

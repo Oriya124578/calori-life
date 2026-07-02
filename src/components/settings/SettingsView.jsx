@@ -13,7 +13,10 @@ import { toast } from '../../store/useToast';
 import { cn } from '../../lib/utils';
 import { NotificationSettings } from './NotificationSettings';
 import { CITIES_LIST } from '../../lib/shabbatService';
-import { Bell, Shield, Database, Info, ChevronLeft, ChevronRight, Tags, X } from 'lucide-react';
+import { Bell, Shield, Database, Info, ChevronLeft, ChevronRight, Tags, X, Users, Pin, Star, BellOff } from 'lucide-react';
+import pkg from '../../../package.json';
+
+const APP_VERSION = `v${pkg.version}`;
 
 /* ── cream v3 shared inline styles ── */
 const creamCard = {
@@ -84,7 +87,7 @@ const BackButton = ({ onClick, language }) => (
 );
 
 export const SettingsView = () => {
-  const { data, resetSemester, addCourse, updateCourse, archiveCourse, deleteCourseFully, language, setLanguage, theme, setTheme, setProfile, setCategory, deleteCategory, desktopModeForced, setDesktopModeForced } = useStore();
+  const { data, resetSemester, addCourse, updateCourse, archiveCourse, deleteCourseFully, language, setLanguage, theme, setTheme, setProfile, setCategory, deleteCategory, desktopModeForced, setDesktopModeForced, toggleGroupMute } = useStore();
   const { t } = useTranslation();
   // Local section navigation (the app navigates via Zustand activeCategory, NOT
   // react-router — so settings sub-screens are plain local state). null = index.
@@ -372,6 +375,7 @@ export const SettingsView = () => {
           { id: 'studies', iconEl: <BookOpen className="w-4 h-4" />, ic: 'r', title: t('courseManagerTitle', 'לימודים'), sub: 'סמסטר, יעדים, AI Links', val: `${activeCourses.length} ${t('courses', 'קורסים')}` },
           { id: 'manager', iconEl: <Bot className="w-4 h-4" />, ic: 'p', title: t('aiSettingsTitle', 'המנהל האישי'), sub: 'שעות, מיקום, שבת, מפתחות AI' },
           { id: 'calori', iconEl: <Shield className="w-4 h-4" />, ic: 'g', title: t('caloriTitle', 'קלורי'), sub: 'סנכרון תזונה ואימונים', val: t('linked', 'מקושר') },
+          { id: 'groups', iconEl: <Users className="w-4 h-4" />, ic: 'b', title: 'קבוצות', sub: 'השתקה, נעיצה ומועדפים', val: `${(data?.groups || []).length}` },
           { id: 'categories', iconEl: <Tags className="w-4 h-4" />, ic: 'p', title: 'קטגוריות תיוג', sub: 'ניהול תגיות וקטגוריות' },
         ]
       },
@@ -386,7 +390,7 @@ export const SettingsView = () => {
         title: t('data', 'נתונים'),
         items: [
           { id: 'data', iconEl: <Database className="w-4 h-4" />, ic: 'gr', title: t('exportData', 'ייצוא וגיבוי'), sub: 'קובץ JSON, איפוס סמסטר' },
-          { id: 'about', iconEl: <Info className="w-4 h-4" />, ic: 'gr', title: t('aboutTitle', 'אודות'), sub: 'גרסה, רישיון, פרטיות', val: 'v7.1.4' },
+          { id: 'about', iconEl: <Info className="w-4 h-4" />, ic: 'gr', title: t('aboutTitle', 'אודות'), sub: 'גרסה, רישיון, פרטיות', val: APP_VERSION },
         ]
       }
     ];
@@ -476,7 +480,7 @@ export const SettingsView = () => {
           textAlign: 'center', fontFamily: "'Instrument Serif', serif",
           fontStyle: 'italic', fontSize: 13, color: 'rgba(138,122,106,.5)', padding: '14px 0 4px',
         }}>
-          Calori Life &middot; <em style={{ color: '#059669' }}>v7.1.4</em>
+          Calori Life &middot; <em style={{ color: '#059669' }}>{APP_VERSION}</em>
         </div>
       </div>
     );
@@ -1038,6 +1042,82 @@ export const SettingsView = () => {
     );
   };
 
+  // ── Groups preferences (mute / pin / favorite per group) ──
+  const renderGroups = () => {
+    const groups = data?.groups || [];
+    const pinnedIds = data?.profile?.pinned_group_ids || [];
+    const favoriteIds = data?.profile?.favorite_group_ids || [];
+    const toggleInList = async (key, list, gid) => {
+      const next = list.includes(gid) ? list.filter((id) => id !== gid) : [...list, gid];
+      await setProfile({ [key]: next });
+    };
+    return (
+      <Card className="shadow-sm border-border">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="w-5 h-5 text-primary" />
+            קבוצות
+          </CardTitle>
+          <CardDescription>ניהול השתקת עדכוני מערכת, נעיצה ומועדפים לכל קבוצה</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {groups.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">אינך חבר/ה באף קבוצה עדיין</p>
+          ) : groups.map((g) => {
+            const muted = !!g.silentUpdates;
+            const pinned = pinnedIds.includes(g.id);
+            const favorite = favoriteIds.includes(g.id);
+            return (
+              <div key={g.id} className="flex items-center gap-3 p-3.5 rounded-xl border bg-card">
+                <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0 overflow-hidden">
+                  {(g.imageUrl || g.image_url)
+                    ? <img src={g.imageUrl || g.image_url} alt={g.name} className="w-full h-full object-cover" />
+                    : <Users className="w-4 h-4" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-sm text-foreground truncate">{g.name}</h3>
+                  <p className="text-[11px] text-muted-foreground">
+                    {muted ? 'עדכוני מערכת מושתקים' : 'עדכוני מערכת פעילים'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => toggleInList('pinned_group_ids', pinnedIds, g.id)}
+                  className="p-2 rounded-xl hover:bg-secondary/60 transition-colors"
+                  title={pinned ? 'בטל נעיצה' : 'נעץ למעלה'}
+                  aria-pressed={pinned}
+                >
+                  <Pin className={cn('w-4 h-4', pinned ? 'text-primary fill-primary' : 'text-muted-foreground')} />
+                </button>
+                <button
+                  onClick={() => toggleInList('favorite_group_ids', favoriteIds, g.id)}
+                  className="p-2 rounded-xl hover:bg-secondary/60 transition-colors"
+                  title={favorite ? 'הסר ממועדפים' : 'הוסף למועדפים'}
+                  aria-pressed={favorite}
+                >
+                  <Star className={cn('w-4 h-4', favorite ? 'text-amber-500 fill-amber-500' : 'text-muted-foreground')} />
+                </button>
+                <button
+                  onClick={async () => {
+                    await toggleGroupMute(g.id, !muted);
+                    toast.success(!muted ? 'עדכוני המערכת של הקבוצה הושתקו' : 'ההשתקה בוטלה');
+                  }}
+                  className="p-2 rounded-xl hover:bg-secondary/60 transition-colors"
+                  title={muted ? 'בטל השתקה' : 'השתק עדכוני מערכת'}
+                  aria-pressed={muted}
+                >
+                  {muted ? <BellOff className="w-4 h-4 text-red-500" /> : <Bell className="w-4 h-4 text-muted-foreground" />}
+                </button>
+              </div>
+            );
+          })}
+          <p className="text-xs text-muted-foreground leading-relaxed pt-1">
+            השתקה מכבה את עדכוני השקילה והאימונים האוטומטיים עבור כל חברי הקבוצה (כמו באפליקציות קלורי).
+          </p>
+        </CardContent>
+      </Card>
+    );
+  };
+
   // ── About ──
   const renderAbout = () => (
     <Card className="shadow-sm border-border">
@@ -1051,7 +1131,7 @@ export const SettingsView = () => {
       <CardContent className="space-y-3">
         <div className="flex items-center justify-between p-4 rounded-xl border bg-card">
           <span className="font-semibold text-foreground">Calori Life</span>
-          <span className="text-sm font-mono text-primary">v7.1.4</span>
+          <span className="text-sm font-mono text-primary">{APP_VERSION}</span>
         </div>
         <a href="/privacy" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-4 rounded-xl border bg-card hover:bg-muted/40 transition-colors">
           <span className="font-semibold text-foreground flex items-center gap-2"><Lock className="w-4 h-4" /> מדיניות פרטיות</span>
@@ -1183,6 +1263,7 @@ export const SettingsView = () => {
           {section === 'notifications' && renderNotifications()}
           {section === 'manager' && renderManager()}
           {section === 'calori' && renderCalori()}
+          {section === 'groups' && renderGroups()}
           {section === 'general' && renderPreferences()}
           {section === 'integrations' && renderIntegrations()}
           {section === 'data' && renderData()}

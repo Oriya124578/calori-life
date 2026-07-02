@@ -1,18 +1,24 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  Home, 
-  Calendar, 
-  BookOpen, 
-  Sparkles, 
-  ShoppingCart, 
-  PanelLeft, 
-  CheckSquare, 
-  StickyNote, 
-  Pin, 
+import {
+  Home,
+  Calendar,
+  BookOpen,
+  Sparkles,
+  ShoppingCart,
+  ChevronLeft,
+  CheckSquare,
+  StickyNote,
+  Pin,
   Settings,
-  Users
+  Users,
+  Moon,
+  Sun,
+  LogOut,
+  Plus
 } from 'lucide-react';
+import { signOut } from 'firebase/auth';
 import { motion, AnimatePresence } from 'framer-motion';
+import { auth } from '../../lib/firebase';
 import { useStore } from '../../store/useStore';
 import { useTranslation } from '../../hooks/useTranslation';
 import { Avatar } from '../ui/Avatar';
@@ -34,7 +40,7 @@ const COLLAPSED = 76;
 const EXPANDED = 270;
 
 export const DesktopSidebar = () => {
-  const { activeCategory, setActiveCategory, setActiveCourse, data, activeCourse } = useStore();
+  const { activeCategory, setActiveCategory, setActiveCourse, data, activeCourse, theme, setTheme, openAddSheet } = useStore();
   const { t } = useTranslation();
 
   const hasUnreadGroups = React.useMemo(() => {
@@ -147,19 +153,21 @@ export const DesktopSidebar = () => {
       onMouseEnter={() => setHovering(true)}
       onMouseLeave={() => setHovering(false)}
     >
-      {/* ── Header: wordmark + collapse toggle ── */}
-      <div className="flex items-center h-16 px-3.5 shrink-0">
+      {/* ── Header: centered wordmark + rotating chevron toggle, matching the
+             Flutter apps' CollapsibleNavRail header 1:1 ── */}
+      <div className={cn('flex items-center shrink-0 px-3', expanded ? 'h-[72px]' : 'h-16 justify-center')}>
+        {expanded && <span className="w-9 shrink-0" /> /* balances the toggle for perfect centering */}
         <AnimatePresence initial={false}>
           {expanded && (
             <motion.button
               key="wordmark"
-              initial={{ opacity: 0, x: -8 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -8 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
               transition={{ duration: 0.18 }}
               onClick={() => handleNavClick('overview')}
               dir="ltr"
-              className="flex items-baseline gap-1 cursor-pointer whitespace-nowrap"
+              className="flex-1 flex items-baseline justify-center gap-1 cursor-pointer whitespace-nowrap overflow-hidden"
               aria-label={t('navHome')}
             >
               <span className="text-[24px] font-extrabold tracking-tight leading-none" style={{ color: 'var(--cream-text)', letterSpacing: '-.02em' }}>
@@ -175,11 +183,17 @@ export const DesktopSidebar = () => {
           onClick={togglePinned}
           aria-label={expanded ? t('collapseSidebar', 'כווץ תפריט') : t('expandSidebar', 'הרחב תפריט')}
           aria-pressed={pinned}
-          className="ms-auto w-9 h-9 flex items-center justify-center rounded-xl transition-colors hover:bg-primary/10 active:scale-95 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
+          className="w-9 h-9 flex items-center justify-center rounded-xl transition-colors hover:bg-primary/10 active:scale-95 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none shrink-0"
           style={{ color: 'var(--cream-muted)' }}
           title={expanded ? t('collapseSidebar', 'כווץ תפריט') : t('expandSidebar', 'הרחב תפריט')}
         >
-          <PanelLeft className="w-[18px] h-[18px]" strokeWidth={2.2} />
+          <motion.span
+            animate={{ rotate: expanded ? 0 : 180 }}
+            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+            className="flex items-center justify-center"
+          >
+            <ChevronLeft className="w-5 h-5" strokeWidth={2.2} />
+          </motion.span>
         </button>
       </div>
 
@@ -200,21 +214,22 @@ export const DesktopSidebar = () => {
               aria-label={label}
               title={expanded ? undefined : label}
               className={cn(
-                'group relative flex items-center h-11 rounded-2xl w-full transition-colors active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none',
-                expanded ? 'justify-start px-3.5 gap-3' : 'justify-center',
-                !isActive && 'hover:bg-primary/10',
+                'group relative flex items-center h-12 rounded-[14px] w-full transition-colors active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none',
+                expanded ? 'justify-start px-3.5 gap-3.5' : 'justify-center',
+                !isActive && 'hover:bg-primary/[0.08]',
               )}
-              style={{ color: isActive ? '#fff' : 'var(--cream-muted)' }}
+              style={{ color: isActive ? '#059669' : 'var(--cream-muted)' }}
             >
-              {/* Active pill that springs between items (and reshapes with width) */}
+              {/* Active state matching the Flutter rail: soft accent fill +
+                  hairline accent border, springing between items */}
               {isActive && (
                 <motion.span
                   layoutId="sideNavBubble"
                   transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-                  className="absolute inset-0 rounded-2xl"
+                  className="absolute inset-0 rounded-[14px]"
                   style={{
-                    background: 'linear-gradient(135deg, #059669, #047857)',
-                    boxShadow: '0 4px 14px rgba(5,150,105,.4)',
+                    background: 'rgba(5,150,105,.08)',
+                    border: '1px solid rgba(5,150,105,.20)',
                   }}
                 />
               )}
@@ -236,7 +251,7 @@ export const DesktopSidebar = () => {
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -6 }}
                     transition={{ duration: 0.16 }}
-                    className="relative text-[13px] font-bold whitespace-nowrap"
+                    className="relative text-[14px] font-bold whitespace-nowrap"
                   >
                     {label}
                   </motion.span>
@@ -308,13 +323,15 @@ export const DesktopSidebar = () => {
         )}
       </div>
 
-      {/* Profile section at the bottom */}
-      <div className="mt-auto border-t shrink-0 px-3 py-4" style={{ borderColor: 'var(--header-border)' }}>
+      {/* Profile section at the bottom — mirrors the Flutter rail's
+          _ProfileSection: name+subtitle row, then a row of 4 utility squares
+          (quick add · theme · settings · logout). */}
+      <div className="mt-auto border-t shrink-0 px-4 py-3" style={{ borderColor: 'var(--header-border)' }}>
         {expanded ? (
-          <div className="flex items-center justify-between gap-2">
-            <div 
+          <div className="flex flex-col gap-3">
+            <div
               onClick={() => setActiveCategory('settings')}
-              className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer hover:bg-primary/5 p-1 rounded-xl transition-colors"
+              className="flex items-center gap-3 min-w-0 cursor-pointer hover:bg-primary/5 p-1 rounded-xl transition-colors"
             >
               <Avatar
                 src={data?.profile?.photoURL}
@@ -323,29 +340,61 @@ export const DesktopSidebar = () => {
                 alt="User Profile"
               />
               <div className="flex flex-col min-w-0 text-start">
-                <span className="text-[13px] font-bold truncate text-cream-text">
+                <span className="text-[13.5px] font-bold truncate text-cream-text">
                   {data?.profile?.displayName || t('student', 'סטודנט')}
                 </span>
-                <span className="text-[10px] text-cream-muted truncate font-medium">
+                <span className="text-[10.5px] text-cream-muted truncate font-medium">
                   {[data?.profile?.academicYear, data?.profile?.semester].filter(Boolean).join(' • ')}
                 </span>
               </div>
             </div>
 
-            <button
-              onClick={() => setActiveCategory('settings')}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-cream-muted hover:text-cream-text hover:bg-primary/5 transition-colors active:scale-95 cursor-pointer shrink-0"
-              title={t('navSettings', 'הגדרות')}
-              aria-label={t('navSettings', 'הגדרות')}
-            >
-              <Settings className="w-[17px] h-[17px]" />
-            </button>
+            <div className="flex items-center justify-between">
+              <button
+                onClick={() => openAddSheet('task')}
+                className="w-[38px] h-[38px] rounded-[10px] flex items-center justify-center text-white active:scale-95 transition-transform cursor-pointer"
+                style={{ background: '#059669', border: '1px solid rgba(5,150,105,.5)' }}
+                title={t('addNewItem', 'הוספת פריט חדש')}
+                aria-label={t('addNewItem', 'הוספת פריט חדש')}
+              >
+                <Plus className="w-[18px] h-[18px]" />
+              </button>
+              <button
+                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                className="w-[38px] h-[38px] rounded-[10px] flex items-center justify-center bg-white text-cream-muted hover:text-cream-text active:scale-95 transition-transform cursor-pointer"
+                style={{ border: '1px solid var(--header-border)' }}
+                title={theme === 'dark' ? t('lightMode', 'מצב בהיר') : t('darkMode', 'מצב כהה')}
+                aria-label={theme === 'dark' ? t('lightMode', 'מצב בהיר') : t('darkMode', 'מצב כהה')}
+              >
+                {theme === 'dark'
+                  ? <Sun className="w-[18px] h-[18px]" />
+                  : <Moon className="w-[18px] h-[18px]" />}
+              </button>
+              <button
+                onClick={() => setActiveCategory('settings')}
+                className="w-[38px] h-[38px] rounded-[10px] flex items-center justify-center bg-white text-cream-muted hover:text-cream-text active:scale-95 transition-transform cursor-pointer"
+                style={{ border: '1px solid var(--header-border)' }}
+                title={t('navSettings', 'הגדרות')}
+                aria-label={t('navSettings', 'הגדרות')}
+              >
+                <Settings className="w-[18px] h-[18px]" />
+              </button>
+              <button
+                onClick={() => signOut(auth)}
+                className="w-[38px] h-[38px] rounded-[10px] flex items-center justify-center bg-white text-cream-muted hover:text-red-500 active:scale-95 transition-transform cursor-pointer"
+                style={{ border: '1px solid var(--header-border)' }}
+                title={t('logout', 'התנתקות')}
+                aria-label={t('logout', 'התנתקות')}
+              >
+                <LogOut className="w-[18px] h-[18px]" />
+              </button>
+            </div>
           </div>
         ) : (
           <button
             onClick={() => setActiveCategory('settings')}
             className="w-full flex items-center justify-center p-1 rounded-xl hover:bg-primary/5 transition-colors active:scale-95 cursor-pointer"
-            title={t('navSettings', 'הגדרות')}
+            title={data?.profile?.displayName || t('navSettings', 'הגדרות')}
           >
             <Avatar
               src={data?.profile?.photoURL}

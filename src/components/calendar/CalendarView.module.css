@@ -108,26 +108,21 @@
 
 .segI {
   flex: 1;
-  padding: 7px 0;
+  padding: 9px 0;
   text-align: center;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   color: #8A7A6A;
   border-radius: 10px;
   cursor: pointer;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  transition: color 0.15s;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .segI.active {
   background: #fff;
   color: #059669;
   box-shadow: 0 1px 4px rgba(40, 20, 0, 0.1);
-  border-radius: 10px;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 /* Day View */
@@ -142,9 +137,15 @@
 .dayI {
   flex: 1;
   text-align: center;
-  padding: 6px 0;
-  border-radius: 10px;
+  padding: 9px 0;
+  border-radius: 12px;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s;
+}
+
+.dayI:not(.today):active {
+  background: rgba(180, 140, 80, 0.08);
 }
 
 .dayI.today {
@@ -487,7 +488,7 @@
   font-family: 'Fraunces', serif;
   font-weight: 500;
   font-style: italic;
-  font-size: 9px;
+  font-size: 10px;
   color: #8A7A6A;
   padding-top: 2px;
   text-align: left;
@@ -516,21 +517,21 @@
 }
 
 .gridWeek .evt {
-  border-radius: 5px;
+  border-radius: 6px;
   padding: 3px 4px;
-  font-size: 8px;
+  font-size: 9px;
   left: 1px;
   right: 1px;
 }
 
 .gridWeek .evtName {
-  font-size: 10px;
-  line-height: 1.18;
+  font-size: 11px;
+  line-height: 1.2;
   font-weight: 700;
 }
 
 .gridWeek .evtTime {
-  font-size: 8px;
+  font-size: 9px;
   margin-top: 0;
 }
 
@@ -559,22 +560,27 @@
 }
 
 .monthGrid {
-  padding: 0 16px 16px;
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 3px;
+  gap: 4px;
 }
 
 .cell {
-  aspect-ratio: 1 / 1.15;
-  border-radius: 10px;
-  padding: 5px 3px;
+  aspect-ratio: 1 / 1.05;
+  border-radius: 12px;
+  padding: 6px 3px 4px;
   background: #fff;
-  border: 1px solid rgba(180, 140, 80, 0.08);
+  border: 1.5px solid rgba(180, 140, 80, 0.08);
   display: flex;
   flex-direction: column;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+  min-width: 0;
+}
+
+.cell.selected {
+  border-color: #059669;
+  box-shadow: 0 0 0 1px #059669, 0 4px 12px rgba(5, 150, 105, 0.14);
 }
 
 .cell:hover:not(.today):not(.muted) {
@@ -599,53 +605,126 @@
   font-family: 'Fraunces', serif;
   font-weight: 600;
   font-style: italic;
-  font-size: 13px;
+  font-size: 15px;
   color: #2A1A0A;
   text-align: center;
   letter-spacing: -0.02em;
+  line-height: 1;
+  margin-bottom: 4px;
 }
 
 .cell.today .cNum {
   color: #fff;
 }
 
-.cDots {
+/* Colored event bars — readable density signal without unreadable 7px text */
+.cBars {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
+  flex-direction: column;
   gap: 2px;
-  margin-top: 3px;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0 2px;
 }
 
-.cD {
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
+.cBar {
+  height: 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
 }
 
-.cD.g { background: #059669; }
-.cD.b { background: #2563EB; }
-.cD.r { background: #EF4444; }
-.cD.p { background: #7C3AED; }
-.cD.a { background: #D97706; }
-.cell.today .cD { background: #fff; }
+.cBarTxt { display: none; }
 
-.cTag {
-  font-size: 7px;
+.cBar.g { background: #059669; }
+.cBar.b { background: #2563EB; }
+.cBar.r { background: #EF4444; }
+.cBar.p { background: #7C3AED; }
+.cBar.a { background: #D97706; }
+
+.cell.today .cBar { background: rgba(255, 255, 255, 0.85); }
+
+.cMore {
+  font-size: 8px;
   font-weight: 700;
+  color: #8A7A6A;
   text-align: center;
   line-height: 1.1;
-  margin-top: 2px;
-  color: #2A1A0A;
-  padding: 0 1px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.cTag.r { color: #991B1B; }
-.cTag.g { color: #065F46; }
-.cTag.b { color: #1E40AF; }
+.cell.today .cMore { color: rgba(255, 255, 255, 0.8); }
+
+/* Desktop: room for real text inside the bars */
+@media (min-width: 900px) {
+  .cell { aspect-ratio: 1 / 1.1; padding: 8px 5px 6px; }
+  .cBar {
+    height: auto;
+    padding: 2px 5px;
+    border-radius: 6px;
+  }
+  .cBarTxt {
+    display: block;
+    font-size: 10px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1.25;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .cell.today .cBar.g, .cell.today .cBar.b, .cell.today .cBar.r,
+  .cell.today .cBar.p, .cell.today .cBar.a { background: rgba(255, 255, 255, 0.22); }
+  .cMore { font-size: 10px; }
+}
+
+/* Selected-day agenda under the month grid */
+.monthAgenda {
+  margin-top: 14px;
+  background: #fff;
+  border: 1px solid rgba(180, 140, 80, 0.12);
+  border-radius: 18px;
+  padding: 14px 14px 8px;
+  box-shadow: 0 2px 10px rgba(40, 20, 0, 0.04);
+}
+
+.maHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.maTitle {
+  font-family: 'Instrument Serif', serif;
+  font-size: 17px;
+  color: #2A1A0A;
+}
+
+.maOpenDay {
+  font-size: 12px;
+  font-weight: 700;
+  color: #059669;
+  background: #F0FDF4;
+  border: 1px solid rgba(5, 150, 105, 0.15);
+  border-radius: 999px;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.maOpenDay:hover { background: #DCFCE7; }
+
+.maEmpty {
+  text-align: center;
+  padding: 16px 0 22px;
+  color: #8A7A6A;
+  font-style: italic;
+  font-family: 'Instrument Serif', serif;
+  font-size: 15px;
+}
+
+.maItem {
+  margin-right: 0;
+}
 
 /* Schedule View */
 .content {

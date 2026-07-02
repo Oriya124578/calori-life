@@ -12,7 +12,7 @@ import {
   Trash2, DollarSign, BookOpen, Clock,
   AlertTriangle, Copy, FileText, ShoppingCart, HelpCircle, FileDown, BookMarked, X,
   Car, Coffee, TrendingUp, Award, Sparkles, Pin, Star, Info, MessageCircle,
-  Soup, ClipboardList, SmilePlus
+  Soup, ClipboardList, SmilePlus, Search
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { format } from 'date-fns';
@@ -101,6 +101,7 @@ export const GroupsView = () => {
 
   const [groupFilter, setGroupFilter] = useState('all');
   const [showInfoPanel, setShowInfoPanel] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
 
   // Desktop: draggable dividers let the user resize the group list and info
   // panel panes. Widths persist across sessions; mobile ignores all of this
@@ -812,11 +813,35 @@ export const GroupsView = () => {
         )}
         style={isDesktop ? { width: sidebarWidth } : undefined}
       >
-        {/* Index Header */}
+        {/* Index Header — mobile shows the Flutter apps' appbar title
+            ('קבוצות' + search toggle); desktop keeps the sidebar title. */}
         <div className="bg-[#FAF7F2] border-b border-[rgba(180,140,80,.12)] px-4 py-4 flex items-center justify-between shrink-0 h-[65px]">
-          <h2 style={{ fontSize: 18, fontWeight: 700, color: '#2A1A0A' }}>
-            {isRTL ? 'הקבוצות שלי' : 'My Groups'}
-          </h2>
+          {!isDesktop && mobileSearchOpen ? (
+            <Input
+              autoFocus
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={isRTL ? 'חיפוש קבוצה...' : 'Search group...'}
+              className="flex-1 me-2 text-sm bg-transparent border-none shadow-none focus-visible:ring-0 px-0"
+            />
+          ) : (
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: '#2A1A0A' }}>
+              {isDesktop ? (isRTL ? 'הקבוצות שלי' : 'My Groups') : (isRTL ? 'קבוצות' : 'Groups')}
+            </h2>
+          )}
+          {!isDesktop && (
+            <button
+              onClick={() => {
+                if (mobileSearchOpen) setSearchQuery('');
+                setMobileSearchOpen(!mobileSearchOpen);
+              }}
+              className="p-2 rounded-xl text-[#2A1A0A] hover:bg-[#F5F0E8] active:scale-95 transition-all cursor-pointer"
+              title={isRTL ? 'חיפוש' : 'Search'}
+              aria-label={mobileSearchOpen ? 'סגור חיפוש' : 'חיפוש קבוצה'}
+            >
+              {mobileSearchOpen ? <X className="w-5 h-5" /> : <Search className="w-5 h-5" />}
+            </button>
+          )}
           <div className="relative">
             <button
               onClick={() => setShowAddMenu(!showAddMenu)}
@@ -852,8 +877,8 @@ export const GroupsView = () => {
           </div>
         </div>
 
-        {/* Search Bar */}
-        <div className="p-3 bg-[#FAF7F2] border-b border-[rgba(180,140,80,.06)] shrink-0">
+        {/* Search Bar — desktop sidebar only; mobile searches from the appbar */}
+        <div className="p-3 bg-[#FAF7F2] border-b border-[rgba(180,140,80,.06)] shrink-0 hidden min-[900px]:block">
           <Input 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -960,14 +985,15 @@ export const GroupsView = () => {
                   )}
                 >
                   <div className="flex items-center gap-3 min-w-0 flex-1">
-                    {/* Circle Avatar */}
+                    {/* Circle Avatar — 40px, group-icon fallback like the
+                        Flutter desktop sidebar */}
                     <div className={cn(
-                      "w-11 h-11 rounded-full flex items-center justify-center text-xs font-bold shrink-0 border overflow-hidden",
-                      isActive ? "bg-primary/20 text-primary border-primary/20" : "bg-primary/10 text-primary border-primary/10"
+                      "w-10 h-10 rounded-full flex items-center justify-center shrink-0 overflow-hidden",
+                      isActive ? "bg-primary/20 text-primary" : "bg-primary/10 text-primary"
                     )}>
                       {(g.imageUrl || g.image_url)
                         ? <img src={g.imageUrl || g.image_url} alt={g.name} className="w-full h-full object-cover" />
-                        : g.name.slice(0, 2).toUpperCase()}
+                        : <Users className="w-5 h-5" />}
                     </div>
                     <div className="min-w-0 flex-1 space-y-0.5">
                       <div className="flex items-baseline justify-between gap-2">
@@ -1017,19 +1043,15 @@ export const GroupsView = () => {
                   {isRTL ? <ChevronRight className="w-6 h-6 text-[#2A1A0A]" /> : <ChevronLeft className="w-6 h-6 text-[#2A1A0A]" />}
                 </button>
 
-                {/* Group Avatar in Header */}
-                <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-bold shrink-0 border border-primary/10 shadow-sm overflow-hidden">
+                {/* Group Avatar in Header — 36px, group-icon fallback,
+                    exactly like the Flutter apps' appbar title */}
+                <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0 overflow-hidden">
                   {(activeGroup.imageUrl || activeGroup.image_url)
                     ? <img src={activeGroup.imageUrl || activeGroup.image_url} alt={activeGroup.name} className="w-full h-full object-cover" />
-                    : activeGroup.name.slice(0, 2).toUpperCase()}
+                    : <Users className="w-5 h-5" />}
                 </div>
 
-                <div className="min-w-0">
-                  <h3 className="font-bold text-sm md:text-base text-foreground truncate leading-tight">{activeGroup.name}</h3>
-                  <span className="text-[10px] text-muted-foreground font-semibold block">
-                    {isRTL ? `${members.length || activeGroup.member_count || 1} חברים` : `${members.length || activeGroup.member_count || 1} members`}
-                  </span>
-                </div>
+                <h3 className="font-bold text-base text-foreground truncate leading-tight min-w-0">{activeGroup.name}</h3>
               </div>
 
               <div className="flex items-center gap-1.5">

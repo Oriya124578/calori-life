@@ -100,6 +100,21 @@ export const CourseView = () => {
     };
   }, [activeCourse]);
 
+  // Overall course progress across all weeks (same inclusion rules as the hub).
+  const courseProgress = useMemo(() => {
+    if (!activeCourse) return null;
+    const weeks = data.tasks[activeCourse.id] || {};
+    let total = 0, done = 0;
+    Object.values(weeks).forEach((weekTasks) => {
+      (weekTasks || []).forEach((task) => {
+        if (!isTaskIncludedInProgress(task, activeCourse)) return;
+        total += 1;
+        if (task.checked) done += 1;
+      });
+    });
+    return total > 0 ? { total, done, pct: Math.round((done / total) * 100) } : null;
+  }, [activeCourse, data.tasks]);
+
   // Hooks above run unconditionally; the early bail-out goes after them.
   if (!activeCourse) return null;
 
@@ -307,6 +322,19 @@ export const CourseView = () => {
             {activeCourse.credits > 0 && <span>{activeCourse.credits} {t('credits')}</span>}
             {activeCourse.semester && <span>{t('semester')} {activeCourse.semester}</span>}
           </div>
+          {courseProgress && (
+            <div className="mt-3 flex items-center gap-3 max-w-md">
+              <div className="flex-1 h-2 rounded-full bg-secondary overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-primary transition-all duration-500"
+                  style={{ width: `${courseProgress.pct}%` }}
+                />
+              </div>
+              <span className="text-xs font-semibold text-primary tabular-nums shrink-0">
+                {courseProgress.pct}% · {courseProgress.done}/{courseProgress.total}
+              </span>
+            </div>
+          )}
         </div>
         <Button variant="outline" size="sm" onClick={handleOpenSettings} className="gap-2">
           <Settings className="w-4 h-4" />
@@ -359,7 +387,7 @@ export const CourseView = () => {
       </div>
 
       {/* Tabs */}
-      <div className="flex flex-wrap border-b border-border mb-6 gap-2 pb-1 w-full">
+      <div className="flex flex-nowrap overflow-x-auto md:flex-wrap md:overflow-visible border-b border-border mb-6 gap-2 pb-1 w-full [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {[
           { id: 'weekly', label: t('weeklyTasksTab') },
           { id: 'lectures', label: t('allLecturesTab') },
@@ -391,18 +419,18 @@ export const CourseView = () => {
         {activeTab === 'weekly' && (
           <div className="space-y-6">
             {/* Week Selector */}
-            <div className="flex flex-wrap gap-2 mb-6">
+            <div className="flex flex-nowrap overflow-x-auto md:flex-wrap md:overflow-visible gap-2 mb-6 pb-1 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {Array.from({ length: activeCourse.weeksCount || 14 }, (_, i) => i + 1).map((week) => {
                 const weekTasks = data.tasks[activeCourse.id]?.[week];
                 const relevantTasks = weekTasks ? weekTasks.filter(t => isTaskIncludedInProgress(t, activeCourse)) : [];
                 const isCompleted = relevantTasks.length > 0 && relevantTasks.every(t => t.checked);
-                
+
                 return (
                   <button
                     key={week}
                     onClick={() => selectWeek(week)}
                     className={cn(
-                      "px-4 py-2 rounded-xl text-sm font-medium transition-colors flex items-center gap-2",
+                      "px-4 py-2 rounded-xl text-sm font-medium transition-colors flex items-center gap-1.5 shrink-0",
                       selectedWeek === week
                         ? "bg-primary text-primary-foreground shadow-sm"
                         : "bg-card border border-border text-foreground hover:bg-secondary/50",
@@ -410,12 +438,7 @@ export const CourseView = () => {
                     )}
                   >
                     {t('week')} {week}
-                    {isCompleted && (
-                      <span className={cn(
-                        "w-2 h-2 rounded-full",
-                        selectedWeek === week ? "bg-primary-foreground" : "bg-primary"
-                      )} />
-                    )}
+                    {isCompleted && <Check className="w-3.5 h-3.5" />}
                   </button>
                 );
               })}
