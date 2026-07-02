@@ -1027,6 +1027,29 @@ export const useStore = create((set, get) => ({
     return code;
   },
 
+  shareCourseToGroup: async (courseId, groupId) => {
+    const { uid, data } = get();
+    if (!uid) return;
+    const course = (data.courses || []).find((c) => c.id === courseId);
+    if (!course) return;
+    const authorName = data.profile?.displayName || 'סטודנט/ית';
+    const code = await get().shareCourse(courseId);
+    if (!code) return;
+    await postGroupMessage(groupId, {
+      kind: 'chat',
+      app_origin: 'life',
+      author_uid: uid,
+      author_name: authorName,
+      summary: `שיתפתי את מבנה הקורס "${course.name}" 🎓`,
+      payload: { kind: 'course', courseId: course.id, courseName: course.name, shareCode: code },
+      type: 'message',
+      user_uid: uid,
+      user_name: authorName,
+      message: `שיתפתי את מבנה הקורס "${course.name}" 🎓`,
+    });
+    return code;
+  },
+
   // Fetches the raw shared payload without importing anything — used by the
   // "adapt to me" preview step before the user commits to an import.
   previewSharedCourse: async (code) => {

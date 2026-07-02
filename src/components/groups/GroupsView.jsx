@@ -83,11 +83,11 @@ function ResizeHandle({ onMouseDown, label }) {
 }
 
 export const GroupsView = () => {
-  const { 
-    uid, data, createGroup, joinGroupByCode, leaveGroup, 
-    postGroupMessage, reactToGroupUpdate, loadGroupMembers, 
-    shareShoppingListToGroup, shareNoteToGroup, 
-    shareFileToGroup, addSharedExpense, deleteSharedExpense, shareCourse,
+  const {
+    uid, data, createGroup, joinGroupByCode, leaveGroup,
+    postGroupMessage, reactToGroupUpdate, loadGroupMembers,
+    shareShoppingListToGroup, shareNoteToGroup,
+    shareFileToGroup, addSharedExpense, deleteSharedExpense, shareCourse, shareCourseToGroup,
     importCourseFromCode, previewSharedCourse, copySharedNoteToPersonal, markGroupAsRead,
     setProfile, toggleGroupMute, setGroupChatMobileOpen
   } = useStore();
@@ -879,7 +879,7 @@ export const GroupsView = () => {
             filteredGroups.map((g) => {
               const isActive = g.id === selectedGroupId;
               const unread = isGroupUnread(g);
-              const lastActivity = g.lastActivitySnippet || (isRTL ? 'אין פעילות בקבוצה' : 'No recent activity');
+              const lastActivity = typeof g.lastActivitySnippet === 'string' && g.lastActivitySnippet ? g.lastActivitySnippet : (isRTL ? 'אין פעילות בקבוצה' : 'No recent activity');
               const lastTime = g.lastActivityTimestamp 
                 ? format(g.lastActivityTimestamp.toDate ? g.lastActivityTimestamp.toDate() : new Date(g.lastActivityTimestamp), 'HH:mm')
                 : '';
@@ -1103,7 +1103,7 @@ export const GroupsView = () => {
                       <React.Fragment key={update.id || idx}>
                         {divider}
                         <div className="text-center text-[11px] text-muted-foreground py-1 my-1 bg-white/40 rounded-full max-w-sm mx-auto border border-dashed border-border/40">
-                          {update.summary}
+                          {typeof update.summary === 'string' ? update.summary : (typeof update.message === 'string' ? update.message : '')}
                         </div>
                       </React.Fragment>
                     );
@@ -1257,7 +1257,7 @@ export const GroupsView = () => {
                                         {update.workout_name || (isRTL ? 'אימון כושר משותף 🏋️‍♂️' : 'Shared Workout 🏋️‍♂️')}
                                       </h4>
                                       <p className="text-[10px] text-muted-foreground mt-0.5 leading-relaxed">
-                                        {update.message || update.summary}
+                                        {typeof update.message === 'string' ? update.message : (typeof update.summary === 'string' ? update.summary : '')}
                                       </p>
                                       
                                       {(update.duration_minutes || update.calories_burned) && (
@@ -1326,7 +1326,7 @@ export const GroupsView = () => {
                                         {payload.title || payload.name || (isRTL ? 'שיתף/ה ארוחה 🍽️' : 'Shared a Meal 🍽️')}
                                       </h4>
                                       <p className="text-[10px] text-muted-foreground mt-0.5 leading-relaxed">
-                                        {update.message || update.summary}
+                                        {typeof update.message === 'string' ? update.message : (typeof update.summary === 'string' ? update.summary : '')}
                                       </p>
 
                                       {(payload.calories || payload.protein || payload.carbs || payload.fats) && (
@@ -1394,7 +1394,7 @@ export const GroupsView = () => {
                                         {payload.planName || (isRTL ? 'תוכנית אימונים משותפת 📋' : 'Shared Training Program 📋')}
                                       </h4>
                                       <p className="text-[10px] text-muted-foreground mt-0.5 leading-relaxed">
-                                        {update.message || update.summary}
+                                        {typeof update.message === 'string' ? update.message : (typeof update.summary === 'string' ? update.summary : '')}
                                       </p>
                                       <div className="flex flex-wrap gap-1.5 mt-2">
                                         {payload.dayCount != null && (
@@ -1448,7 +1448,7 @@ export const GroupsView = () => {
                                         {itemKind === 'weight_milestone' && (isRTL ? 'יעד משקל חדש! 🎉' : 'Weight Milestone! 🎉')}
                                       </h4>
                                       <p className="text-[10px] text-yellow-900 mt-1 font-semibold leading-relaxed">
-                                        {update.message || update.summary}
+                                        {typeof update.message === 'string' ? update.message : (typeof update.summary === 'string' ? update.summary : '')}
                                       </p>
                                     </div>
                                   </div>
@@ -1463,7 +1463,7 @@ export const GroupsView = () => {
                               isMe ? "bg-primary text-white rounded-te-none" : "bg-white border border-[rgba(180,140,80,.12)] text-[#2A1A0A] rounded-ts-none"
                             )}
                           >
-                            <p className="whitespace-pre-line leading-relaxed">{update.message || update.summary}</p>
+                            <p className="whitespace-pre-line leading-relaxed">{typeof update.message === 'string' ? update.message : (typeof update.summary === 'string' ? update.summary : '')}</p>
                           </div>
                         )}
 
@@ -1651,21 +1651,7 @@ export const GroupsView = () => {
                       <button
                         key={course.id}
                         onClick={async () => {
-                          const code = await shareCourse(course.id);
-                          if (code) {
-                            await postGroupMessage(selectedGroupId, {
-                              kind: 'chat',
-                              app_origin: 'life',
-                              author_uid: uid,
-                              author_name: data.profile?.displayName || 'סטודנט/ית',
-                              summary: `שיתפתי את מבנה הקורס "${course.name}" 🎓`,
-                              payload: { kind: 'course', courseId: course.id, courseName: course.name, shareCode: code },
-                              type: 'message',
-                              user_uid: uid,
-                              user_name: data.profile?.displayName || 'סטודנט/ית',
-                              message: `שיתפתי את מבנה הקורס "${course.name}" 🎓`
-                            });
-                          }
+                          await shareCourseToGroup(course.id, selectedGroupId);
                           setShareType(null);
                           toast.success(isRTL ? 'קוד שיתוף נוצר ונשלח!' : 'Course shared!');
                         }}
@@ -2762,7 +2748,7 @@ export const GroupsView = () => {
 
                 <div className="bg-white border border-[rgba(180,140,80,.08)] p-3.5 rounded-2xl text-xs leading-relaxed text-[#5A4A3A]">
                   <span className="font-black text-emerald-950 block mb-1">📝 {isRTL ? 'תיאור הארוחה/מתכון:' : 'Meal/Recipe Description:'}</span>
-                  <p className="whitespace-pre-line">{selectedMealDetail.message || selectedMealDetail.summary || (isRTL ? 'ארוחה ששותפה עם חברי הקבוצה.' : 'Shared meal.')}</p>
+                  <p className="whitespace-pre-line">{typeof selectedMealDetail.message === 'string' ? selectedMealDetail.message : (typeof selectedMealDetail.summary === 'string' ? selectedMealDetail.summary : (isRTL ? 'ארוחה ששותפה עם חברי הקבוצה.' : 'Shared meal.'))}</p>
                 </div>
               </div>
 
