@@ -26,9 +26,9 @@ import { cn } from '../../lib/utils';
 
 const NAV_ITEMS = [
   { key: 'overview',      icon: Home,         labelKey: 'navHome' },
+  { key: 'courses',       icon: BookOpen,     labelKey: 'navStudies' },
   { key: 'groups',        icon: Users,        labelKey: 'navGroups' },
   { key: 'calendar',      icon: Calendar,     labelKey: 'navCalendar' },
-  { key: 'courses',       icon: BookOpen,     labelKey: 'navStudies' },
   { key: 'commandCenter', icon: Sparkles,     labelKey: 'navManager' },
   { key: 'shopping',      icon: ShoppingCart, labelKey: 'navShopping' },
   { key: 'tasks',         icon: CheckSquare,  labelKey: 'navTasks' },
