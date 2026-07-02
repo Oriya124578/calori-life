@@ -179,6 +179,9 @@ export const GroupsView = () => {
   const activeGroup = groups.find((g) => g.id === selectedGroupId);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
+  // Single "+" action menu (create / join), matching the Flutter apps'
+  // add-actions bottom sheet instead of two separate header buttons.
+  const [showAddMenu, setShowAddMenu] = useState(false);
 
   const isGroupUnread = (g) => {
     if (!g.lastActivityTimestamp) return false;
@@ -814,21 +817,38 @@ export const GroupsView = () => {
           <h2 style={{ fontSize: 18, fontWeight: 700, color: '#2A1A0A' }}>
             {isRTL ? 'הקבוצות שלי' : 'My Groups'}
           </h2>
-          <div className="flex items-center gap-1.5">
+          <div className="relative">
             <button
-              onClick={() => setIsCreateModalOpen(true)}
-              className="p-2 rounded-xl text-primary hover:bg-[#FAF7F2] active:scale-95 transition-all cursor-pointer"
+              onClick={() => setShowAddMenu(!showAddMenu)}
+              className="p-2 rounded-xl text-primary hover:bg-[#F5F0E8] active:scale-95 transition-all cursor-pointer"
               title={isRTL ? 'קבוצה חדשה' : 'New Group'}
             >
               <Plus className="w-5 h-5" />
             </button>
-            <button
-              onClick={() => setIsJoinModalOpen(true)}
-              className="p-2 rounded-xl text-[#8A7A6A] hover:bg-[#FAF7F2] active:scale-95 transition-all cursor-pointer"
-              title={isRTL ? 'הצטרף לקבוצה' : 'Join Group'}
-            >
-              <Users className="w-5 h-5" />
-            </button>
+            {showAddMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowAddMenu(false)} />
+                <div className={cn(
+                  "absolute top-10 bg-white rounded-2xl border border-[rgba(180,140,80,.16)] shadow-xl p-2 w-52 space-y-1 z-50 animate-in fade-in slide-in-from-top-2 duration-150",
+                  isRTL ? "left-0" : "right-0"
+                )}>
+                  <button
+                    onClick={() => { setShowAddMenu(false); setIsCreateModalOpen(true); }}
+                    className="w-full text-start px-3 py-2.5 text-xs font-bold hover:bg-[#FAF7F2] rounded-xl flex items-center gap-2.5 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4 text-primary" />
+                    <span>{isRTL ? 'צור קבוצה חדשה' : 'Create New Group'}</span>
+                  </button>
+                  <button
+                    onClick={() => { setShowAddMenu(false); setIsJoinModalOpen(true); }}
+                    className="w-full text-start px-3 py-2.5 text-xs font-bold hover:bg-[#FAF7F2] rounded-xl flex items-center gap-2.5 cursor-pointer"
+                  >
+                    <Users className="w-4 h-4 text-primary" />
+                    <span>{isRTL ? 'הצטרף עם קוד' : 'Join with Code'}</span>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -848,7 +868,7 @@ export const GroupsView = () => {
             { id: 'all', label: isRTL ? 'הכל' : 'All' },
             { id: 'unread', label: isRTL ? 'לא נקראו' : 'Unread' },
             { id: 'favorites', label: isRTL ? 'מועדפים' : 'Favorites' },
-            { id: 'pinned', label: isRTL ? 'נעוצות' : 'Pinned' }
+            { id: 'pinned', label: isRTL ? 'מקובעות' : 'Pinned' }
           ].map(f => {
             const isActive = groupFilter === f.id;
             return (
@@ -885,6 +905,46 @@ export const GroupsView = () => {
                 : '';
               const isPinned = isGroupPinned(g);
               const isFavorite = isGroupFavorite(g);
+              if (!isDesktop) {
+                // Mobile row — mirrors the Flutter apps' _GroupCard exactly:
+                // flat row, [time + unread dot] column, pin/star before the
+                // name, avatar at the row's end.
+                return (
+                  <button
+                    key={g.id}
+                    onClick={() => {
+                      setSelectedGroupId(g.id);
+                      setActiveTab('chat');
+                    }}
+                    className="w-full text-start px-2 py-2.5 rounded-2xl flex items-center gap-3 transition-all cursor-pointer hover:bg-[rgba(180,140,80,.05)] active:bg-[rgba(180,140,80,.08)]"
+                  >
+                    <div className="flex flex-col items-center justify-center gap-1.5 shrink-0 w-10">
+                      <span className={cn(
+                        "text-[11px]",
+                        unread ? "font-bold text-primary" : "text-muted-foreground"
+                      )}>{lastTime}</span>
+                      {unread
+                        ? <span className="w-[11px] h-[11px] bg-primary rounded-full shadow-[0_0_6px_var(--primary)]" />
+                        : <span className="h-[11px]" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1">
+                        {isPinned && <Pin className="w-3.5 h-3.5 text-primary shrink-0" />}
+                        {isFavorite && <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500 shrink-0" />}
+                        <h4 className="font-bold text-base text-foreground truncate">{g.name}</h4>
+                      </div>
+                      <p className="text-[13px] text-muted-foreground truncate mt-0.5">
+                        {lastActivity}
+                      </p>
+                    </div>
+                    <div className="w-[54px] h-[54px] rounded-full flex items-center justify-center text-sm font-bold shrink-0 bg-primary/10 text-primary overflow-hidden">
+                      {(g.imageUrl || g.image_url)
+                        ? <img src={g.imageUrl || g.image_url} alt={g.name} className="w-full h-full object-cover" />
+                        : <Users className="w-6 h-6" />}
+                    </div>
+                  </button>
+                );
+              }
               return (
                 <button
                   key={g.id}
@@ -924,7 +984,7 @@ export const GroupsView = () => {
                       {isPinned && <Pin className="w-3 h-3 text-primary fill-primary" />}
                       {isFavorite && <Star className="w-3 h-3 text-amber-500 fill-amber-500" />}
                       {unread && (
-                        <span className="w-2 h-2 bg-red-500 rounded-full shrink-0 shadow-[0_0_6px_rgba(239,68,68,0.5)] animate-pulse" />
+                        <span className="w-2 h-2 bg-primary rounded-full shrink-0 shadow-[0_0_6px_var(--primary)]" />
                       )}
                     </div>
                   </div>
@@ -967,7 +1027,7 @@ export const GroupsView = () => {
                 <div className="min-w-0">
                   <h3 className="font-bold text-sm md:text-base text-foreground truncate leading-tight">{activeGroup.name}</h3>
                   <span className="text-[10px] text-muted-foreground font-semibold block">
-                    {isRTL ? 'קוד קבוצה:' : 'Group Code:'} <code className="font-bold text-primary select-all">{activeGroup.join_code || activeGroup.code}</code>
+                    {isRTL ? `${members.length || activeGroup.member_count || 1} חברים` : `${members.length || activeGroup.member_count || 1} members`}
                   </span>
                 </div>
               </div>
@@ -1012,21 +1072,6 @@ export const GroupsView = () => {
                   <Info className={cn("w-4 h-4", showInfoPanel && "text-primary fill-primary/10")} />
                 </button>
 
-                <button onClick={copyJoinCode} className="text-[#8A7A6A] hover:text-primary active:scale-90 transition-all p-2 rounded-xl hover:bg-[rgba(180,140,80,.05)] cursor-pointer" title={isRTL ? 'העתק קוד' : 'Copy Code'}>
-                  <Copy className="w-4 h-4" />
-                </button>
-                <button 
-                  onClick={() => {
-                    if (window.confirm(isRTL ? 'האם אתה בטוח שברצונך לעזוב את הקבוצה?' : 'Are you sure you want to leave the group?')) {
-                      leaveGroup(selectedGroupId);
-                      setSelectedGroupId('');
-                    }
-                  }}
-                  className="text-[#8A7A6A] hover:text-red-500 active:scale-95 transition-all p-2 rounded-xl hover:bg-red-50 cursor-pointer"
-                  title={isRTL ? 'עזוב קבוצה' : 'Leave Group'}
-                >
-                  <LogOut className="w-4 h-4" />
-                </button>
               </div>
             </div>
 
@@ -1034,26 +1079,24 @@ export const GroupsView = () => {
                 (Messages / Competition / Members), visible on desktop too. */}
             <div className="bg-[#FAF7F2] border-b border-[rgba(180,140,80,.08)] px-4 py-2 flex gap-2 shrink-0 overflow-x-auto select-none no-scrollbar">
               {[
-                { id: 'chat', label: isRTL ? 'צ\'אט ועדכונים' : 'Chat', icon: Send },
-                { id: 'exams', label: isRTL ? 'לוח בחינות' : 'Exams', icon: Clock },
-                { id: 'expenses', label: isRTL ? 'חלוקת הוצאות' : 'Expenses', icon: DollarSign },
-                { id: 'members', label: isRTL ? 'חברי קבוצה' : 'Members', icon: Users }
+                { id: 'chat', label: isRTL ? 'הודעות' : 'Messages' },
+                { id: 'exams', label: isRTL ? 'בחינות' : 'Exams' },
+                { id: 'expenses', label: isRTL ? 'הוצאות' : 'Expenses' },
+                { id: 'members', label: isRTL ? 'חברים' : 'Members' }
               ].map((tab) => {
-                const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
                 return (
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
                     className={cn(
-                      "px-4 py-1.5 rounded-full text-xs font-semibold flex items-center gap-2 cursor-pointer transition-all active:scale-95 shrink-0",
+                      "px-5 py-1.5 rounded-full text-xs font-bold cursor-pointer transition-all active:scale-95 shrink-0",
                       isActive
-                         ? "bg-primary text-white shadow-sm font-bold"
-                         : "bg-white text-[#8A7A6A] border border-[rgba(180,140,80,.12)] hover:bg-[#FFFDFA]"
+                         ? "bg-primary text-white shadow-sm"
+                         : "bg-transparent text-foreground/70 hover:bg-[rgba(180,140,80,.08)]"
                     )}
                   >
-                    <Icon className="w-3.5 h-3.5" />
-                    <span>{tab.label}</span>
+                    {tab.label}
                   </button>
                 );
               })}
@@ -2293,9 +2336,17 @@ export const GroupsView = () => {
         {/* 5. INFO PANEL (Desktop only) */}
         {showInfoPanel && (
           <>
-            <ResizeHandle onMouseDown={startPaneResize('info')} label={isRTL ? 'גרור לשינוי גודל' : 'Drag to resize'} />
+            {isDesktop && <ResizeHandle onMouseDown={startPaneResize('info')} label={isRTL ? 'גרור לשינוי גודל' : 'Drag to resize'} />}
+            {!isDesktop && (
+              <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-40" onClick={() => setShowInfoPanel(false)} />
+            )}
             <div
-              className="hidden min-[900px]:flex flex-col h-full bg-white border-s border-[rgba(180,140,80,.12)] overflow-y-auto shrink-0 animate-in slide-in-from-left duration-200"
+              className={cn(
+                "flex flex-col bg-white overflow-y-auto shrink-0",
+                isDesktop
+                  ? "h-full border-s border-[rgba(180,140,80,.12)] animate-in slide-in-from-left duration-200"
+                  : "fixed inset-y-0 end-0 w-[85%] max-w-sm z-50 shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-200"
+              )}
               style={isDesktop ? { width: infoPanelWidth } : undefined}
             >
             {/* Header */}
@@ -2303,7 +2354,7 @@ export const GroupsView = () => {
               <h3 className="font-bold text-xs text-[#2A1A0A]">{isRTL ? 'פרטי קבוצה' : 'Group Details'}</h3>
               <button 
                 onClick={() => setShowInfoPanel(false)}
-                className="p-1.5 hover:bg-slate-100 rounded-lg text-muted-foreground hover:text-foreground animate-pulse"
+                className="p-1.5 hover:bg-slate-100 rounded-lg text-muted-foreground hover:text-foreground cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -2894,6 +2945,7 @@ export const GroupsView = () => {
         </div>
       )}
 
+      {renderModals()}
     </div>
   );
 };
