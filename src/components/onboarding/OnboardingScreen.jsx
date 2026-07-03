@@ -177,10 +177,28 @@ export const OnboardingScreen = () => {
   };
 
   // ── Slide variants ────────────────────────────────────────────────────────
+  // Gentle slide + depth: the incoming step drifts in from the travel
+  // direction, slightly scaled down, while children cascade in.
   const slideVariants = {
-    enter:  (d) => ({ x: d > 0 ? (isRtl ? -1000 : 1000) : (isRtl ?  1000 : -1000), opacity: 0 }),
-    center: { zIndex: 1, x: 0, opacity: 1 },
-    exit:   (d) => ({ zIndex: 0, x: d < 0 ? (isRtl ? -1000 : 1000) : (isRtl ? 1000 : -1000), opacity: 0 }),
+    enter:  (d) => ({
+      x: d > 0 ? (isRtl ? -80 : 80) : (isRtl ? 80 : -80),
+      opacity: 0,
+      scale: 0.97,
+    }),
+    center: {
+      zIndex: 1, x: 0, opacity: 1, scale: 1,
+      transition: {
+        type: 'spring', stiffness: 320, damping: 32,
+        staggerChildren: 0.07, delayChildren: 0.05,
+      },
+    },
+    exit:   (d) => ({
+      zIndex: 0,
+      x: d < 0 ? (isRtl ? -80 : 80) : (isRtl ? 80 : -80),
+      opacity: 0,
+      scale: 0.97,
+      transition: { duration: 0.18 },
+    }),
   };
 
   const stepMotion = {
@@ -189,7 +207,6 @@ export const OnboardingScreen = () => {
     initial: 'enter',
     animate: 'center',
     exit:    'exit',
-    transition: { type: 'spring', stiffness: 300, damping: 30 },
     className: 'w-full flex flex-col items-center text-center space-y-6',
   };
 
@@ -223,17 +240,27 @@ export const OnboardingScreen = () => {
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center p-6 relative z-10 w-full max-w-2xl mx-auto">
-        {/* Step indicator */}
-        <div className="flex justify-center gap-2 mb-10">
-          {Array.from({ length: TOTAL_STEPS }, (_, i) => i + 1).map((s) => (
-            <div
-              key={s}
-              className={cn(
-                'h-2 rounded-full transition-all duration-300',
-                s === step ? 'w-8 bg-primary' : (s < step ? 'w-4 bg-primary/50' : 'w-4 bg-primary/20'),
-              )}
+        {/* Step indicator — animated gradient bar + step counter */}
+        <div className="flex items-center gap-3 mb-10 w-full max-w-sm">
+          <div className="flex-1 h-2 rounded-full bg-primary/10 overflow-hidden">
+            <motion.div
+              className="h-full rounded-full bg-gradient-to-l from-primary to-primary/60"
+              initial={false}
+              animate={{ width: `${(step / TOTAL_STEPS) * 100}%` }}
+              transition={{ type: 'spring', stiffness: 180, damping: 24 }}
             />
-          ))}
+          </div>
+          <AnimatePresence mode="popLayout" initial={false}>
+            <motion.span
+              key={step}
+              initial={{ opacity: 0, scale: 0.7 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.7 }}
+              className="text-xs font-bold text-primary bg-primary/10 rounded-full px-2.5 py-1 shrink-0"
+            >
+              {step}/{TOTAL_STEPS}
+            </motion.span>
+          </AnimatePresence>
         </div>
 
         <div className="w-full relative min-h-[400px] flex items-center justify-center">
@@ -321,7 +348,6 @@ export const OnboardingScreen = () => {
                 custom={direction}
                 variants={slideVariants}
                 initial="enter" animate="center" exit="exit"
-                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                 className="w-full h-full flex flex-col space-y-4"
               >
                 <div className="text-center">
@@ -424,7 +450,6 @@ export const OnboardingScreen = () => {
                 custom={direction}
                 variants={slideVariants}
                 initial="enter" animate="center" exit="exit"
-                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                 className="w-full flex flex-col space-y-5"
               >
                 <div className="text-center">

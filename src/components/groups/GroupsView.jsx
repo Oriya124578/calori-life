@@ -17,6 +17,7 @@ import {
 import { cn } from '../../lib/utils';
 import { format } from 'date-fns';
 import { DEFAULT_TASKS } from '../../data';
+import { DmChatView, NewDmModal, dmPeer, isDmUnread, dmUnreadCount } from './DmChatView';
 
 const EXPENSE_CATEGORIES = {
   food: { label: 'אוכל וסופר 🛒', color: '#10B981', bg: '#ECFDF5', icon: ShoppingCart },
@@ -89,7 +90,8 @@ export const GroupsView = () => {
     shareShoppingListToGroup, shareNoteToGroup,
     shareFileToGroup, addSharedExpense, deleteSharedExpense, shareCourse, shareCourseToGroup,
     importCourseFromCode, previewSharedCourse, copySharedNoteToPersonal, markGroupAsRead,
-    setProfile, toggleGroupMute, setGroupChatMobileOpen
+    setProfile, toggleGroupMute, setGroupChatMobileOpen,
+    openSharedShoppingList, openDm, markDmAsRead
   } = useStore();
 
   const { language } = useTranslation();
@@ -177,7 +179,15 @@ export const GroupsView = () => {
     });
   }, [data.groups, data.profile?.pinned_group_ids]);
   const [selectedGroupId, setSelectedGroupId] = useState('');
+  const [selectedDmId, setSelectedDmId] = useState('');
+  const [isNewDmOpen, setIsNewDmOpen] = useState(false);
   const activeGroup = groups.find((g) => g.id === selectedGroupId);
+
+  const openDmThreadInPane = (threadId) => {
+    setSelectedGroupId('');
+    setSelectedDmId(threadId);
+    markDmAsRead(threadId);
+  };
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
   // Single "+" action menu (create / join), matching the Flutter apps'
@@ -208,10 +218,10 @@ export const GroupsView = () => {
   // the most-recent group (groups is already sorted pinned-then-recent). Mobile
   // keeps the list-first behavior so the back button still makes sense.
   useEffect(() => {
-    if (isDesktop && !selectedGroupId && groups.length > 0) {
+    if (isDesktop && !selectedGroupId && !selectedDmId && groups.length > 0) {
       setSelectedGroupId(groups[0].id);
     }
-  }, [isDesktop, selectedGroupId, groups]);
+  }, [isDesktop, selectedGroupId, selectedDmId, groups]);
 
   const [activeTab, setActiveTab] = useState('chat'); // 'chat' | 'exams' | 'expenses' | 'members'
   
@@ -280,9 +290,9 @@ export const GroupsView = () => {
   // a fixed nav bar floating over a full-height composer just gets in the
   // way. Reset on unmount so leaving the Groups tab restores normal nav.
   useEffect(() => {
-    setGroupChatMobileOpen(!!selectedGroupId);
+    setGroupChatMobileOpen(!!selectedGroupId || !!selectedDmId);
     return () => setGroupChatMobileOpen(false);
-  }, [selectedGroupId, setGroupChatMobileOpen]);
+  }, [selectedGroupId, selectedDmId, setGroupChatMobileOpen]);
 
   // Sync group members and active group changes
   useEffect(() => {
@@ -644,20 +654,44 @@ export const GroupsView = () => {
   };
 
   const [searchQuery, setSearchQuery] = useState('');
+  // Groups + private (DM) chats merged into one WhatsApp-style list. DM rows
+  // carry `_dm: true` and reuse the same name/snippet/timestamp fields.
   const filteredGroups = useMemo(() => {
-    let list = groups;
+    const dmItems = (data.dmThreads || []).map((t) => {
+      const peer = dmPeer(t, uid);
+      return {
+        id: t.id,
+        _dm: true,
+        name: peer.name,
+        imageUrl: peer.photoUrl,
+        lastActivitySnippet: t.lastActivitySnippet || '',
+        lastActivityTimestamp: t.lastActivityTimestamp,
+        _unread: isDmUnread(t, uid),
+        _unreadCount: dmUnreadCount(t, uid),
+      };
+    });
+    let list = [...groups, ...dmItems];
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      list = list.filter((g) => g.name.toLowerCase().includes(q));
+      list = list.filter((g) => (g.name || '').toLowerCase().includes(q));
     }
-    return list.filter((g) => {
+    list = list.filter((g) => {
       if (groupFilter === 'all') return true;
-      if (groupFilter === 'unread') return isGroupUnread(g);
-      if (groupFilter === 'favorites') return isGroupFavorite(g);
-      if (groupFilter === 'pinned') return isGroupPinned(g);
+      if (groupFilter === 'unread') return g._dm ? g._unread : isGroupUnread(g);
+      if (groupFilter === 'favorites') return !g._dm && isGroupFavorite(g);
+      if (groupFilter === 'pinned') return !g._dm && isGroupPinned(g);
       return true;
     });
-  }, [groups, searchQuery, groupFilter]);
+    const pinnedIds = data.profile?.pinned_group_ids || [];
+    return list.sort((a, b) => {
+      const pa = !a._dm && pinnedIds.includes(a.id);
+      const pb = !b._dm && pinnedIds.includes(b.id);
+      if (pa !== pb) return pa ? -1 : 1;
+      const ta = a.lastActivityTimestamp ? (a.lastActivityTimestamp.toDate ? a.lastActivityTimestamp.toDate() : new Date(a.lastActivityTimestamp)) : new Date(0);
+      const tb = b.lastActivityTimestamp ? (b.lastActivityTimestamp.toDate ? b.lastActivityTimestamp.toDate() : new Date(b.lastActivityTimestamp)) : new Date(0);
+      return tb - ta;
+    });
+  }, [groups, data.dmThreads, data.profile?.pinned_group_ids, uid, searchQuery, groupFilter]);
 
   const renderModals = () => {
     return (
@@ -858,6 +892,13 @@ export const GroupsView = () => {
                   isRTL ? "left-0" : "right-0"
                 )}>
                   <button
+                    onClick={() => { setShowAddMenu(false); setIsNewDmOpen(true); }}
+                    className="w-full text-start px-3 py-2.5 text-xs font-bold hover:bg-[#FAF7F2] rounded-xl flex items-center gap-2.5 cursor-pointer"
+                  >
+                    <MessageCircle className="w-4 h-4 text-primary" />
+                    <span>{isRTL ? 'שיחה פרטית חדשה' : 'New Private Chat'}</span>
+                  </button>
+                  <button
                     onClick={() => { setShowAddMenu(false); setIsCreateModalOpen(true); }}
                     className="w-full text-start px-3 py-2.5 text-xs font-bold hover:bg-[#FAF7F2] rounded-xl flex items-center gap-2.5 cursor-pointer"
                   >
@@ -922,14 +963,23 @@ export const GroupsView = () => {
             </div>
           ) : (
             filteredGroups.map((g) => {
-              const isActive = g.id === selectedGroupId;
-              const unread = isGroupUnread(g);
+              const isActive = g._dm ? g.id === selectedDmId : g.id === selectedGroupId;
+              const unread = g._dm ? g._unread : isGroupUnread(g);
               const lastActivity = typeof g.lastActivitySnippet === 'string' && g.lastActivitySnippet ? g.lastActivitySnippet : (isRTL ? 'אין פעילות בקבוצה' : 'No recent activity');
               const lastTime = g.lastActivityTimestamp 
                 ? format(g.lastActivityTimestamp.toDate ? g.lastActivityTimestamp.toDate() : new Date(g.lastActivityTimestamp), 'HH:mm')
                 : '';
-              const isPinned = isGroupPinned(g);
-              const isFavorite = isGroupFavorite(g);
+              const isPinned = !g._dm && isGroupPinned(g);
+              const isFavorite = !g._dm && isGroupFavorite(g);
+              const openRow = () => {
+                if (g._dm) {
+                  openDmThreadInPane(g.id);
+                } else {
+                  setSelectedDmId('');
+                  setSelectedGroupId(g.id);
+                  setActiveTab('chat');
+                }
+              };
               if (!isDesktop) {
                 // Mobile row — mirrors the Flutter apps' _GroupCard exactly:
                 // flat row, [time + unread dot] column, pin/star before the
@@ -937,10 +987,7 @@ export const GroupsView = () => {
                 return (
                   <button
                     key={g.id}
-                    onClick={() => {
-                      setSelectedGroupId(g.id);
-                      setActiveTab('chat');
-                    }}
+                    onClick={openRow}
                     className="w-full text-start px-2 py-2.5 rounded-2xl flex items-center gap-3 transition-all cursor-pointer hover:bg-[rgba(180,140,80,.05)] active:bg-[rgba(180,140,80,.08)]"
                   >
                     <div className="flex flex-col items-center justify-center gap-1.5 shrink-0 w-10">
@@ -948,7 +995,9 @@ export const GroupsView = () => {
                         "text-[11px]",
                         unread ? "font-bold text-primary" : "text-muted-foreground"
                       )}>{lastTime}</span>
-                      {unread
+                      {g._unreadCount > 0
+                        ? <span className="min-w-[18px] h-[18px] px-1 bg-primary text-white rounded-full text-[10px] font-black flex items-center justify-center">{g._unreadCount > 99 ? '99+' : g._unreadCount}</span>
+                        : unread
                         ? <span className="w-[11px] h-[11px] bg-primary rounded-full shadow-[0_0_6px_var(--primary)]" />
                         : <span className="h-[11px]" />}
                     </div>
@@ -965,7 +1014,7 @@ export const GroupsView = () => {
                     <div className="w-[54px] h-[54px] rounded-full flex items-center justify-center text-sm font-bold shrink-0 bg-primary/10 text-primary overflow-hidden">
                       {(g.imageUrl || g.image_url)
                         ? <img src={g.imageUrl || g.image_url} alt={g.name} className="w-full h-full object-cover" />
-                        : <Users className="w-6 h-6" />}
+                        : g._dm ? (g.name || 'ח').slice(0, 2) : <Users className="w-6 h-6" />}
                     </div>
                   </button>
                 );
@@ -973,10 +1022,7 @@ export const GroupsView = () => {
               return (
                 <button
                   key={g.id}
-                  onClick={() => {
-                    setSelectedGroupId(g.id);
-                    setActiveTab('chat');
-                  }}
+                  onClick={openRow}
                   className={cn(
                     "w-full text-start p-3 rounded-2xl flex items-center justify-between gap-3 transition-all cursor-pointer border shadow-sm",
                     isActive
@@ -993,7 +1039,7 @@ export const GroupsView = () => {
                     )}>
                       {(g.imageUrl || g.image_url)
                         ? <img src={g.imageUrl || g.image_url} alt={g.name} className="w-full h-full object-cover" />
-                        : <Users className="w-5 h-5" />}
+                        : g._dm ? <span className="text-xs font-bold">{(g.name || 'ח').slice(0, 2)}</span> : <Users className="w-5 h-5" />}
                     </div>
                     <div className="min-w-0 flex-1 space-y-0.5">
                       <div className="flex items-baseline justify-between gap-2">
@@ -1009,7 +1055,9 @@ export const GroupsView = () => {
                     <div className="flex items-center gap-1">
                       {isPinned && <Pin className="w-3 h-3 text-primary fill-primary" />}
                       {isFavorite && <Star className="w-3 h-3 text-amber-500 fill-amber-500" />}
-                      {unread && (
+                      {g._unreadCount > 0 ? (
+                        <span className="min-w-[16px] h-[16px] px-1 bg-primary text-white rounded-full text-[9px] font-black flex items-center justify-center shrink-0">{g._unreadCount > 99 ? '99+' : g._unreadCount}</span>
+                      ) : unread && (
                         <span className="w-2 h-2 bg-primary rounded-full shrink-0 shadow-[0_0_6px_var(--primary)]" />
                       )}
                     </div>
@@ -1026,9 +1074,11 @@ export const GroupsView = () => {
       {/* 2. LEFT DETAIL PANE: Selected Group Content (On desktop: always visible. On mobile: visible only when selectedGroupId is NOT empty) */}
       <div className={cn(
         "flex-1 flex flex-col h-full bg-[#FAF7F2] overflow-hidden min-w-0",
-        selectedGroupId ? "flex" : "hidden min-[900px]:flex"
+        (selectedGroupId || selectedDmId) ? "flex" : "hidden min-[900px]:flex"
       )}>
-        {selectedGroupId && activeGroup ? (
+        {selectedDmId ? (
+          <DmChatView threadId={selectedDmId} onBack={() => setSelectedDmId('')} />
+        ) : selectedGroupId && activeGroup ? (
           <div className="flex flex-col h-full overflow-hidden w-full relative">
             {/* Sticky Group Header */}
             <div className="bg-white border-b border-[rgba(180,140,80,.12)] px-4 py-3 flex items-center justify-between gap-4 shrink-0 shadow-sm sticky top-0 z-20 h-[65px]">
@@ -1228,7 +1278,7 @@ export const GroupsView = () => {
                                   <Button 
                                     size="sm" 
                                     className="w-full text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white"
-                                    onClick={() => setActiveTab('expenses')}
+                                    onClick={() => openSharedShoppingList(payload.sharedListId)}
                                   >
                                     <ShoppingCart className="w-3.5 h-3.5 me-1.5" />
                                     {isRTL ? 'פתח רשימה משותפת' : 'Open List'}
@@ -2341,10 +2391,22 @@ export const GroupsView = () => {
                         </div>
                       </div>
                       
-                      <div className="text-end">
+                      <div className="text-end flex items-center gap-2">
                         <span className="text-[8px] font-bold block text-muted-foreground">
                           {isRTL ? `${member.courses?.length || 0} קורסים` : `${member.courses?.length || 0} courses`}
                         </span>
+                        {member.uid !== uid && (
+                          <button
+                            onClick={async () => {
+                              const tid = await openDm(member, selectedGroupId);
+                              if (tid) openDmThreadInPane(tid);
+                            }}
+                            className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 active:scale-95 transition-all cursor-pointer shrink-0"
+                            title={isRTL ? 'שלח הודעה פרטית' : 'Send private message'}
+                          >
+                            <MessageCircle className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -2968,6 +3030,11 @@ export const GroupsView = () => {
       )}
 
       {renderModals()}
+      <NewDmModal
+        open={isNewDmOpen}
+        onClose={() => setIsNewDmOpen(false)}
+        onOpened={openDmThreadInPane}
+      />
     </div>
   );
 };

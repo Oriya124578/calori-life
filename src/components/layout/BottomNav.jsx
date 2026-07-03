@@ -17,7 +17,7 @@ const NAV_ITEMS = [
 ];
 
 export const BottomNav = () => {
-  const { activeCategory, setActiveCategory, setActiveCourse, data, groupChatMobileOpen } = useStore();
+  const { uid, activeCategory, setActiveCategory, setActiveCourse, data, groupChatMobileOpen } = useStore();
   const { t } = useTranslation();
 
   const handleNavClick = (key) => {
@@ -35,8 +35,16 @@ export const BottomNav = () => {
       const lastDate = g.lastActivityTimestamp.toDate ? g.lastActivityTimestamp.toDate() : new Date(g.lastActivityTimestamp);
       const readDate = readTime.toDate ? readTime.toDate() : new Date(readTime);
       return lastDate > readDate;
+    }) || (data?.dmThreads || []).some((t) => {
+      if ((t.unread_counts?.[uid] || 0) > 0) return true;
+      if (!t.lastActivityTimestamp || t.last_author_uid === uid) return false;
+      const readTime = t.read_timestamps?.[uid];
+      if (!readTime) return true;
+      const lastDate = t.lastActivityTimestamp.toDate ? t.lastActivityTimestamp.toDate() : new Date(t.lastActivityTimestamp);
+      const readDate = readTime.toDate ? readTime.toDate() : new Date(readTime);
+      return lastDate > readDate;
     });
-  }, [data?.groups, data?.profile?.group_read_timestamps]);
+  }, [data?.groups, data?.dmThreads, data?.profile?.group_read_timestamps, uid]);
 
   return (
     <nav

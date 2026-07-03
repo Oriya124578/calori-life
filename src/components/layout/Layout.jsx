@@ -12,7 +12,7 @@ import { AddItemSheet } from '../add-item/AddItemSheet';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useNotificationScheduler } from '../../hooks/useNotificationScheduler';
 import { dateKey } from '../../lib/caloriRepo';
-import { Plus, CheckSquare, StickyNote, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
+import { Plus, CheckSquare, StickyNote, ChevronLeft, ChevronRight, Sparkles, Settings as SettingsIcon } from 'lucide-react';
 import { Avatar } from '../ui/Avatar';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../lib/utils';
@@ -126,7 +126,7 @@ export const Layout = () => {
       {/* Top header — cream v3: warm blur, avatar→settings, serif title, wordmark */}
       {!['calendar', 'groups'].includes(activeCategory) && (
         <header
-          className="flex items-center justify-between px-5 py-3 border-b z-20 shrink-0 sticky top-0 transition-all pt-[max(env(safe-area-inset-top),14px)] min-[900px]:max-w-[1120px] min-[900px]:mx-auto min-[900px]:w-full min-[900px]:px-8"
+          className="flex items-center justify-between px-5 py-3 border-b z-20 shrink-0 sticky top-0 transition-all pt-[max(env(safe-area-inset-top),14px)] min-[900px]:w-full min-[900px]:px-8"
           style={{
             background: 'var(--header-bg)',
             backdropFilter: 'blur(22px)',
@@ -166,6 +166,17 @@ export const Layout = () => {
                 />
               </button>
             )}
+            {/* Desktop: settings gear like the fitness/nutrition CaloriAppBar */}
+            {!isSubPage && (
+              <button
+                onClick={() => setActiveCategory('settings')}
+                className="hidden min-[900px]:flex w-9 h-9 -ms-1 rounded-full items-center justify-center transition-all hover:bg-[rgba(180,140,80,.08)] active:scale-95 shrink-0 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
+                title={t('navSettings', 'הגדרות')}
+                aria-label={t('navSettings', 'הגדרות')}
+              >
+                <SettingsIcon className="w-[22px] h-[22px]" style={{ color: '#059669' }} />
+              </button>
+            )}
             <h1
               className="text-[17px] tracking-tight truncate text-start select-none"
               style={{ fontFamily: "'Instrument Serif', serif", fontWeight: 400, color: 'var(--cream-text)' }}
@@ -173,7 +184,7 @@ export const Layout = () => {
               {headerTitle}
             </h1>
           </div>
-          <div className="flex items-center gap-3 shrink-0 min-[900px]:hidden" dir="ltr">
+          <div className="flex items-center gap-3 shrink-0" dir="ltr">
             <div
               className="flex flex-col items-end select-none cursor-pointer"
               onClick={() => setActiveCategory('overview')}

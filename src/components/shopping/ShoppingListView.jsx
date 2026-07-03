@@ -6,6 +6,8 @@ import {
   ChevronDown, X, ArrowRight, Loader2, Sparkles, Share2, GripVertical,
   ArrowUpDown, MoreVertical, Copy, Star, RotateCcw, ListChecks, ChefHat,
   Search, ChevronsDownUp, ChevronsUpDown, SlidersHorizontal, Store,
+  Users, History, Archive, ArchiveRestore, BookmarkPlus, Bookmark,
+  PackageX, Undo2, ListPlus,
 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -169,8 +171,14 @@ const QtyStepper = ({ item, onBump, t }) => {
 };
 
 /* ── Item Row (normal mode: tap-check + swipe-delete) ─────── */
-const ItemRow = ({ item, onToggle, onEdit, onDelete, onMoveCat, onBumpQty, t, isRTL, highlight = false }) => {
+const ItemRow = ({ item, onToggle, onEdit, onDelete, onMoveCat, onBumpQty, t, isRTL, highlight = false, shared = false }) => {
   const meta = item.qty ? `${item.qty}${item.unit ? ' ' + item.unit : ''}` : null;
+  // Member attribution on shared (group) lists — who added / who bought.
+  const whoLine = shared
+    ? (item.checked && item.checkedBy?.name
+        ? `✓ ${item.checkedBy.name}`
+        : item.addedBy?.name || null)
+    : null;
   const dragElastic = isRTL ? { left: 0, right: 0.6 } : { left: 0.6, right: 0 };
   const passedThreshold = (x) => (isRTL ? x > 90 : x < -90);
   return (
@@ -203,6 +211,7 @@ const ItemRow = ({ item, onToggle, onEdit, onDelete, onMoveCat, onBumpQty, t, is
             {item.name}
           </span>
           {item.unit && meta && <span className="text-[11px] font-medium" style={{ color: CREAM.muted }}>{meta}</span>}
+          {whoLine && <span className="text-[10px]" style={{ color: item.checked ? CREAM.green : CREAM.muted }}>{whoLine}</span>}
         </div>
         {/* Inline quantity stepper */}
         {onBumpQty && !item.checked && <QtyStepper item={item} onBump={onBumpQty} t={t} />}
@@ -474,7 +483,7 @@ const EmptyDropChip = ({ cat, language }) => {
 };
 
 /* ── Category Accordion ───────────────────────────────────── */
-const CategorySection = ({ group, isOpen, onToggleOpen, onToggleItem, onEditItem, onMoveItem, onDeleteItem, onAddItem, onBumpQty, t, language, isRTL, sinkChecked }) => {
+const CategorySection = ({ group, isOpen, onToggleOpen, onToggleItem, onEditItem, onMoveItem, onDeleteItem, onAddItem, onBumpQty, t, language, isRTL, sinkChecked, shared = false }) => {
   const meta = getCategoryMeta(group.key);
   const done = group.items.filter((i) => i.checked).length;
   const total = group.items.length;
@@ -531,7 +540,7 @@ const CategorySection = ({ group, isOpen, onToggleOpen, onToggleItem, onEditItem
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   transition={{ type: 'spring', stiffness: 380, damping: 26 }}
                 >
-                  <ItemRow item={item} highlight={fresh} onToggle={() => onToggleItem(item.id)} onEdit={() => onEditItem(item)} onMoveCat={() => onMoveItem(item)} onDelete={() => onDeleteItem(item.id)} onBumpQty={(d) => onBumpQty(item.id, d)} t={t} isRTL={isRTL} />
+                  <ItemRow item={item} highlight={fresh} shared={shared} onToggle={() => onToggleItem(item.id)} onEdit={() => onEditItem(item)} onMoveCat={() => onMoveItem(item)} onDelete={() => onDeleteItem(item.id)} onBumpQty={(d) => onBumpQty(item.id, d)} t={t} isRTL={isRTL} />
                 </motion.div>
               );
             })}
@@ -755,10 +764,11 @@ const ListCard = ({ list, onOpen, onMenu, t, locale, hero }) => {
     <div style={{ ...card, borderRadius: 14, overflow: 'hidden' }}>
       <div className="flex items-center gap-3 px-4 py-3">
         <button onClick={onOpen} className="flex items-center gap-3 flex-1 min-w-0 text-start">
-          <div className="w-9 h-9 rounded-[10px] flex items-center justify-center text-lg shrink-0" style={{ background: 'rgba(180,140,80,.06)' }}>🛒</div>
+          <div className="w-9 h-9 rounded-[10px] flex items-center justify-center text-lg shrink-0" style={{ background: list.groupId ? 'rgba(59,130,246,.08)' : 'rgba(180,140,80,.06)' }}>{list.groupId ? '👥' : '🛒'}</div>
           <div className="flex-1 min-w-0 flex flex-col gap-0.5">
             <span className="text-sm font-semibold truncate" style={{ color: CREAM.ink }}>
               {list.name}{list.isActive && <span className="ms-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full align-middle" style={{ background: CREAM.greenSoft, color: CREAM.green }}>{t('activeLabel')}</span>}
+              {list.groupName && <span className="ms-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full align-middle inline-flex items-center gap-1" style={{ background: 'rgba(59,130,246,.1)', color: '#2563EB' }}><Users className="w-2.5 h-2.5 inline" />{list.groupName}</span>}
             </span>
             <span className="text-[11px]" style={{ color: CREAM.muted }}>{date} · {total} {t('itemsCount')} · {done}/{total} {t('completedItems')}</span>
           </div>
@@ -982,9 +992,124 @@ const CategoryManagerSheet = ({ allCats, onReorder, onAddCustom, onRemoveCustom,
   );
 };
 
+/* ── Bottom-sheet shell shared by the new sheets ─────────────────────── */
+const Sheet = ({ title, icon: Icon, sub, onClose, isRTL, t, children }) => (
+  <div className="fixed inset-0 z-[60] flex items-end justify-center" role="dialog" aria-modal="true" aria-label={title}>
+    <motion.div className="fixed inset-0 bg-black/45 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} />
+    <motion.div
+      className="relative w-full max-w-xl z-10 p-5 pb-8"
+      style={{ background: '#fff', borderRadius: '24px 24px 0 0', border: `1px solid ${CREAM.border}`, boxShadow: '0 -8px 40px rgba(40,20,0,.18)', maxHeight: '78vh', overflowY: 'auto' }}
+      initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+      dir={isRTL ? 'rtl' : 'ltr'}
+    >
+      <div className="w-10 h-1 rounded-full mx-auto mb-4" style={{ background: 'rgba(180,140,80,.25)' }} />
+      <div className="flex items-center justify-between mb-1">
+        <h3 className="text-lg flex items-center gap-2" style={{ fontFamily: serif, color: CREAM.ink }}>
+          {Icon && <Icon className="w-5 h-5" style={{ color: CREAM.green }} />}
+          {title}
+        </h3>
+        <button onClick={onClose} aria-label={t('cancel')} className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 hover:bg-[rgba(180,140,80,.08)]">
+          <X className="w-4 h-4" style={{ color: CREAM.muted }} />
+        </button>
+      </div>
+      {sub && <p className="text-xs mb-4 px-0.5" style={{ color: CREAM.muted }}>{sub}</p>}
+      {children}
+    </motion.div>
+  </div>
+);
+
+/* ── Group picker — share an existing list or create a new group list ── */
+const GroupPickerSheet = ({ groups, onPick, onClose, t, isRTL, title, sub }) => (
+  <Sheet title={title} icon={Users} sub={sub} onClose={onClose} isRTL={isRTL} t={t}>
+    {groups.length === 0 ? (
+      <div className="flex flex-col items-center gap-2 py-10 text-center">
+        <Users className="w-12 h-12" style={{ color: 'rgba(180,140,80,.3)' }} strokeWidth={1.5} />
+        <p className="text-sm max-w-xs" style={{ color: CREAM.muted }}>{t('noGroupsYet', 'אין קבוצות עדיין. צור או הצטרף לקבוצה במסך הקבוצות.')}</p>
+      </div>
+    ) : (
+      <div className="flex flex-col gap-2 mt-2">
+        {groups.map((g) => (
+          <button key={g.id} onClick={() => onPick(g)} className="flex items-center gap-3 px-3 py-3 rounded-2xl text-start transition-colors hover:bg-[rgba(180,140,80,.05)]" style={{ border: `1px solid ${CREAM.borderLight}` }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(59,130,246,.08)' }}>
+              <Users className="w-5 h-5" style={{ color: '#2563EB' }} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold truncate" style={{ color: CREAM.ink }}>{g.name}</div>
+              {g.members?.length ? <div className="text-[11px]" style={{ color: CREAM.muted }}>{g.members.length} {t('members', 'חברים')}</div> : null}
+            </div>
+            <Plus className="w-4 h-4 shrink-0" style={{ color: CREAM.green }} />
+          </button>
+        ))}
+      </div>
+    )}
+  </Sheet>
+);
+
+/* ── Purchase history — every item ever bought, ranked; add to active list ── */
+const HistorySheet = ({ memory, onAdd, canAdd, onClose, t, isRTL, locale }) => (
+  <Sheet
+    title={t('purchaseHistory', 'היסטוריית קניות')} icon={History}
+    sub={t('purchaseHistorySub', 'הפריטים שקנית, לפי תדירות. הפופולריים מוצעים אוטומטית ברשימות חדשות.')}
+    onClose={onClose} isRTL={isRTL} t={t}
+  >
+    {memory.length === 0 ? (
+      <p className="text-sm text-center py-10" style={{ color: CREAM.muted }}>{t('noHistory', 'עדיין אין היסטוריה — התחל לקנות :)')}</p>
+    ) : (
+      <div className="flex flex-col">
+        {memory.slice(0, 40).map((m) => {
+          const meta = getCategoryMeta(m.category);
+          const last = m.lastUsed ? format(new Date(m.lastUsed), 'dd/MM/yy', { locale }) : null;
+          return (
+            <div key={m.key} className="flex items-center gap-3 py-2.5" style={{ borderBottom: `1px solid rgba(180,140,80,.06)` }}>
+              <span className="text-lg w-7 text-center shrink-0">{meta.emoji}</span>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm truncate" style={{ color: CREAM.ink }}>{m.name}</div>
+                <div className="text-[11px]" style={{ color: CREAM.muted }}>
+                  {t('boughtTimes', 'נקנה')} {m.bought || m.count} {t('times', 'פעמים')}{last ? ` · ${t('lastTime', 'לאחרונה')} ${last}` : ''}
+                </div>
+              </div>
+              {canAdd && (
+                <button onClick={() => onAdd(m)} aria-label={t('add')} className="w-8 h-8 rounded-[10px] flex items-center justify-center shrink-0" style={{ background: CREAM.greenLight, color: CREAM.green }}>
+                  <Plus className="w-4 h-4" strokeWidth={2.5} />
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    )}
+  </Sheet>
+);
+
+/* ── Template chips — one-tap new list from a saved template ─────────── */
+const TemplatesStrip = ({ templates, onUse, onDelete, t }) => {
+  if (!templates?.length) return null;
+  return (
+    <div style={{ ...card, borderRadius: 16 }} className="px-3.5 py-3">
+      <div className="flex items-center gap-1.5 mb-2 px-0.5">
+        <Bookmark className="w-3.5 h-3.5" style={{ color: '#7C3AED' }} />
+        <span className="text-[12px] font-bold" style={{ color: CREAM.sub }}>{t('myTemplates', 'תבניות שלי')}</span>
+      </div>
+      <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+        {templates.map((tpl) => (
+          <div key={tpl.id} className="shrink-0 flex items-center gap-1 ps-3 pe-1.5 py-1.5 rounded-full" style={{ background: 'rgba(124,58,237,.06)', border: '1px solid rgba(124,58,237,.18)' }}>
+            <button onClick={() => onUse(tpl)} className="flex items-center gap-1.5 transition-transform active:scale-95">
+              <span className="text-[13px] font-medium whitespace-nowrap" style={{ color: CREAM.ink }}>{tpl.name}</span>
+              <span className="text-[10px] font-bold" style={{ color: '#7C3AED' }}>{tpl.items.length}</span>
+            </button>
+            <button onClick={() => onDelete(tpl)} aria-label={t('delete')} className="w-5 h-5 rounded-full flex items-center justify-center" style={{ color: CREAM.muted }}>
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 /* ── Supermarket mode — focused, big-target shopping run; hides bought,
       keeps the screen awake ─────────────────────────────────────────── */
-const SupermarketMode = ({ list, onToggle, onClose, t, language, isRTL }) => {
+const SupermarketMode = ({ list, onToggle, onUpdateItem, onClose, onCreateFollowup, onSaveRoute, t, language, isRTL }) => {
   useEffect(() => {
     let lock = null;
     let released = false;
@@ -997,12 +1122,47 @@ const SupermarketMode = ({ list, onToggle, onClose, t, language, isRTL }) => {
     return () => { released = true; document.removeEventListener('visibilitychange', onVis); try { lock && lock.release(); } catch { /* ignore */ } };
   }, []);
 
+  // Undo stack of this session's actions + the category order actually walked
+  // (first-check order) — used to learn the user's personal aisle route.
+  const [undoStack, setUndoStack] = useState([]);
+  const [routeSeq, setRouteSeq] = useState([]);
+  const [confirmExit, setConfirmExit] = useState(false);
+  const [summary, setSummary] = useState(false);
+
   const items = list.items || [];
-  const remaining = groupByCategory(items.filter((i) => !i.checked));
+  const unavailable = items.filter((i) => !i.checked && i.unavailable);
+  const remaining = groupByCategory(items.filter((i) => !i.checked && !i.unavailable));
   const done = items.filter((i) => i.checked).length;
   const total = items.length;
   const pct = total ? Math.round((done / total) * 100) : 0;
-  const allDone = total > 0 && done === total;
+  const leftCount = total - done;
+  const allPicked = total > 0 && remaining.length === 0;
+
+  const handleCheck = (item) => {
+    setRouteSeq((s) => (s.includes(item.category) ? s : [...s, item.category]));
+    setUndoStack((s) => [...s.slice(-19), { type: 'check', id: item.id }]);
+    onToggle(item.id);
+  };
+  const handleUnavailable = (item) => {
+    setUndoStack((s) => [...s.slice(-19), { type: 'unavail', id: item.id }]);
+    onUpdateItem(item.id, { unavailable: true });
+  };
+  const handleUndo = () => {
+    const last = undoStack[undoStack.length - 1];
+    if (!last) return;
+    setUndoStack((s) => s.slice(0, -1));
+    if (last.type === 'check') onToggle(last.id);
+    else onUpdateItem(last.id, { unavailable: false });
+  };
+
+  const tryClose = () => {
+    if (leftCount > 0 && done > 0) setConfirmExit(true);
+    else if (allPicked || (total > 0 && done === total)) setSummary(true);
+    else onClose();
+  };
+
+  const followupCount = leftCount; // unchecked (incl. unavailable)
+  const canSaveRoute = routeSeq.length >= 3;
 
   return (
     <motion.div
@@ -1014,7 +1174,7 @@ const SupermarketMode = ({ list, onToggle, onClose, t, language, isRTL }) => {
       {/* Header + progress */}
       <div className="shrink-0 px-4 pt-4 pb-3" style={{ background: '#fff', borderBottom: `1px solid ${CREAM.border}` }}>
         <div className="flex items-center gap-3 mb-3">
-          <button onClick={onClose} aria-label={t('exitSupermarket', 'צא ממצב סופר')} className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(180,140,80,.08)', color: CREAM.ink }}>
+          <button onClick={tryClose} aria-label={t('exitSupermarket', 'צא ממצב סופר')} className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(180,140,80,.08)', color: CREAM.ink }}>
             <X className="w-5 h-5" />
           </button>
           <div className="flex-1 min-w-0">
@@ -1031,14 +1191,17 @@ const SupermarketMode = ({ list, onToggle, onClose, t, language, isRTL }) => {
       </div>
 
       {/* Big-target list — only unbought items */}
-      <div className="flex-1 overflow-y-auto px-3 py-3" style={{ WebkitOverflowScrolling: 'touch' }}>
-        {allDone ? (
+      <div className="flex-1 overflow-y-auto px-3 py-3 pb-24" style={{ WebkitOverflowScrolling: 'touch' }}>
+        {allPicked ? (
           <div className="flex flex-col items-center justify-center gap-4 h-full text-center px-6">
             <div className="w-20 h-20 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg,#10B981,#047857)' }}>
               <Check className="w-10 h-10 text-white" strokeWidth={3} />
             </div>
             <div className="text-2xl" style={{ fontFamily: serif, color: CREAM.ink }}>{t('shoppingDoneTitle', 'הקנייה הושלמה 🎉')}</div>
-            <button onClick={onClose} className="px-6 py-3 rounded-2xl text-white text-[15px] font-semibold" style={{ background: CREAM.green }}>{t('done', 'סיום')}</button>
+            {unavailable.length > 0 && (
+              <p className="text-sm" style={{ color: CREAM.muted }}>{unavailable.length} {t('itemsMissingAtStore', 'פריטים לא היו במלאי')}</p>
+            )}
+            <button onClick={() => setSummary(true)} className="px-6 py-3 rounded-2xl text-white text-[15px] font-semibold" style={{ background: CREAM.green }}>{t('finishShopping', 'סיכום קנייה')}</button>
           </div>
         ) : (
           <div className="flex flex-col gap-3 max-w-xl mx-auto">
@@ -1051,24 +1214,114 @@ const SupermarketMode = ({ list, onToggle, onClose, t, language, isRTL }) => {
                 </div>
                 <div className="flex flex-col gap-2">
                   {g.items.map((item) => (
-                    <motion.button
-                      key={item.id}
-                      onClick={() => onToggle(item.id)}
-                      layout
-                      className="flex items-center gap-4 w-full px-4 py-4 rounded-2xl text-start transition-transform active:scale-[.98]"
-                      style={{ ...card, borderRadius: 18 }}
-                    >
-                      <span className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center" style={{ border: `2.5px solid rgba(180,140,80,.3)` }} />
-                      <span className="flex-1 min-w-0 text-[17px] font-semibold truncate" style={{ color: CREAM.ink }}>{item.name}</span>
-                      {item.qty && <span className="text-[15px] font-bold tabular-nums shrink-0" style={{ color: CREAM.green }}>{item.qty}{item.unit ? ` ${item.unit}` : ''}</span>}
-                    </motion.button>
+                    <motion.div key={item.id} layout className="flex items-center gap-2 w-full px-3 py-3 rounded-2xl" style={{ ...card, borderRadius: 18 }}>
+                      <button onClick={() => handleCheck(item)} className="flex items-center gap-4 flex-1 min-w-0 text-start transition-transform active:scale-[.98] py-1">
+                        <span className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center" style={{ border: `2.5px solid rgba(180,140,80,.3)` }} />
+                        <span className="flex-1 min-w-0 text-[17px] font-semibold truncate" style={{ color: CREAM.ink }}>{item.name}</span>
+                        {item.qty && <span className="text-[15px] font-bold tabular-nums shrink-0" style={{ color: CREAM.green }}>{item.qty}{item.unit ? ` ${item.unit}` : ''}</span>}
+                      </button>
+                      <button onClick={() => handleUnavailable(item)} aria-label={t('outOfStock', 'אין במלאי')} className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-transform active:scale-90" style={{ background: 'rgba(220,38,38,.06)', color: CREAM.red }}>
+                        <PackageX className="w-5 h-5" />
+                      </button>
+                    </motion.div>
                   ))}
                 </div>
               </div>
             ))}
+
+            {/* Out-of-stock shelf — tap to restore */}
+            {unavailable.length > 0 && (
+              <div className="mt-2">
+                <div className="flex items-center gap-2 px-1 pb-1.5">
+                  <PackageX className="w-4 h-4" style={{ color: CREAM.red }} />
+                  <span className="text-sm font-bold" style={{ color: CREAM.sub }}>{t('outOfStockSection', 'לא היה במלאי')}</span>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  {unavailable.map((item) => (
+                    <button key={item.id} onClick={() => onUpdateItem(item.id, { unavailable: false })} className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl text-start" style={{ background: 'rgba(220,38,38,.04)', border: '1px dashed rgba(220,38,38,.25)', opacity: 0.8 }}>
+                      <PackageX className="w-4 h-4 shrink-0" style={{ color: CREAM.red }} />
+                      <span className="flex-1 min-w-0 text-sm truncate" style={{ color: CREAM.sub, textDecoration: 'line-through' }}>{item.name}</span>
+                      <RotateCcw className="w-3.5 h-3.5 shrink-0" style={{ color: CREAM.muted }} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
+
+      {/* Bottom bar: undo + finish */}
+      <div className="absolute bottom-0 left-0 right-0 px-4 pb-5 pt-3 flex items-center gap-2" style={{ background: 'linear-gradient(0deg, rgba(250,247,242,.98), rgba(250,247,242,0))' }}>
+        <AnimatePresence>
+          {undoStack.length > 0 && (
+            <motion.button
+              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
+              onClick={handleUndo}
+              className="flex items-center gap-2 px-4 py-3 rounded-2xl text-sm font-semibold shrink-0"
+              style={{ background: '#fff', border: `1px solid ${CREAM.border}`, color: CREAM.ink, boxShadow: '0 4px 14px rgba(40,20,0,.1)' }}
+            >
+              <Undo2 className="w-4 h-4" />{t('undo', 'בטל')}
+            </motion.button>
+          )}
+        </AnimatePresence>
+        <div className="flex-1" />
+        <button onClick={tryClose} className="px-5 py-3 rounded-2xl text-sm font-semibold text-white" style={{ background: CREAM.green, boxShadow: '0 4px 14px rgba(5,150,105,.3)' }}>
+          {t('finishShopping', 'סיכום קנייה')}
+        </button>
+      </div>
+
+      {/* Exit confirmation — items still left */}
+      <AnimatePresence>
+        {confirmExit && (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center p-6">
+            <motion.div className="fixed inset-0 bg-black/50 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setConfirmExit(false)} />
+            <motion.div className="relative w-full max-w-sm p-5 z-10 flex flex-col gap-3" style={{ background: '#fff', borderRadius: 22 }} initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.92, opacity: 0 }}>
+              <div className="text-lg" style={{ fontFamily: serif, color: CREAM.ink }}>{t('itemsLeftTitle', 'נשארו פריטים ברשימה')}</div>
+              <p className="text-sm" style={{ color: CREAM.muted }}>{leftCount} {t('itemsLeftSub', 'פריטים עדיין לא סומנו. לסיים בכל זאת?')}</p>
+              <button onClick={() => { setConfirmExit(false); setSummary(true); }} className="w-full py-3 rounded-xl text-white text-sm font-semibold" style={{ background: CREAM.green }}>{t('finishAnyway', 'סיים וראה סיכום')}</button>
+              <button onClick={() => setConfirmExit(false)} className="w-full py-3 rounded-xl text-sm font-semibold" style={{ background: 'rgba(180,140,80,.08)', color: CREAM.ink }}>{t('keepShopping', 'המשך קנייה')}</button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Shopping summary */}
+      <AnimatePresence>
+        {summary && (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center p-6">
+            <motion.div className="fixed inset-0 bg-black/50 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
+            <motion.div className="relative w-full max-w-sm p-5 z-10 flex flex-col gap-4" style={{ background: '#fff', borderRadius: 22 }} initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.92, opacity: 0 }}>
+              <div className="text-xl text-center" style={{ fontFamily: serif, color: CREAM.ink }}>{t('shoppingSummary', 'סיכום קנייה')} 🛒</div>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="rounded-xl py-3" style={{ background: CREAM.greenLight }}>
+                  <div className="text-xl font-bold" style={{ fontFamily: display, color: CREAM.green }}>{done}</div>
+                  <div className="text-[11px]" style={{ color: CREAM.sub }}>{t('bought', 'נקנו')}</div>
+                </div>
+                <div className="rounded-xl py-3" style={{ background: 'rgba(220,38,38,.06)' }}>
+                  <div className="text-xl font-bold" style={{ fontFamily: display, color: CREAM.red }}>{unavailable.length}</div>
+                  <div className="text-[11px]" style={{ color: CREAM.sub }}>{t('outOfStockShort', 'אין במלאי')}</div>
+                </div>
+                <div className="rounded-xl py-3" style={{ background: 'rgba(180,140,80,.07)' }}>
+                  <div className="text-xl font-bold" style={{ fontFamily: display, color: CREAM.sub }}>{leftCount - unavailable.length}</div>
+                  <div className="text-[11px]" style={{ color: CREAM.sub }}>{t('skipped', 'דולגו')}</div>
+                </div>
+              </div>
+              {followupCount > 0 && (
+                <button onClick={() => { onCreateFollowup(); onClose(); }} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-white text-sm font-semibold" style={{ background: CREAM.green }}>
+                  <ListPlus className="w-4 h-4" />{t('createFollowup', 'צור רשימת השלמות')} ({followupCount})
+                </button>
+              )}
+              {canSaveRoute && (
+                <button onClick={() => { onSaveRoute(routeSeq); setSummary(false); onClose(); }} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold" style={{ background: 'rgba(124,58,237,.08)', color: '#7C3AED' }}>
+                  <SlidersHorizontal className="w-4 h-4" />{t('saveRoute', 'שמור את סדר המסלול שלי')}
+                </button>
+              )}
+              <button onClick={onClose} className="w-full py-3 rounded-xl text-sm font-semibold" style={{ background: 'rgba(180,140,80,.08)', color: CREAM.ink }}>{t('done', 'סיום')}</button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };
@@ -1099,6 +1352,31 @@ export const ShoppingListView = () => {
   const setShoppingCategoryOrder = useStore((s) => s.setShoppingCategoryOrder);
   const addShoppingCustomCategory = useStore((s) => s.addShoppingCustomCategory);
   const removeShoppingCustomCategory = useStore((s) => s.removeShoppingCustomCategory);
+  // Groups + shared lists
+  const myGroups = useStore((s) => s.data.groups);
+  const groupShoppingLists = useStore((s) => s.data.groupShoppingLists);
+  const toggleGroupShoppingItem = useStore((s) => s.toggleGroupShoppingItem);
+  const addGroupShoppingItem = useStore((s) => s.addGroupShoppingItem);
+  const updateGroupShoppingItem = useStore((s) => s.updateGroupShoppingItem);
+  const removeGroupShoppingItem = useStore((s) => s.removeGroupShoppingItem);
+  const bumpGroupShoppingItemQty = useStore((s) => s.bumpGroupShoppingItemQty);
+  const moveGroupShoppingItem = useStore((s) => s.moveGroupShoppingItem);
+  const resetGroupShoppingChecks = useStore((s) => s.resetGroupShoppingChecks);
+  const renameGroupShoppingList = useStore((s) => s.renameGroupShoppingList);
+  const createGroupShoppingList = useStore((s) => s.createGroupShoppingList);
+  const deleteGroupShoppingList = useStore((s) => s.deleteGroupShoppingList);
+  const shareShoppingListToGroup = useStore((s) => s.shareShoppingListToGroup);
+  // Deep-link: a shared list id to auto-open (set from the group "Open List" card).
+  const pendingShoppingListId = useStore((s) => s.pendingShoppingListId);
+  const clearPendingShoppingList = useStore((s) => s.clearPendingShoppingList);
+  // Archive + templates + follow-up
+  const archiveShoppingList = useStore((s) => s.archiveShoppingList);
+  const unarchiveShoppingList = useStore((s) => s.unarchiveShoppingList);
+  const saveShoppingTemplate = useStore((s) => s.saveShoppingTemplate);
+  const deleteShoppingTemplate = useStore((s) => s.deleteShoppingTemplate);
+  const createListFromTemplate = useStore((s) => s.createListFromTemplate);
+  const createFollowupList = useStore((s) => s.createFollowupList);
+  const shoppingTemplates = useStore((s) => s.data.profile?.shoppingTemplates);
   const shoppingRegulars = useStore((s) => s.data.profile?.shoppingRegulars);
   const shoppingCategoryOrder = useStore((s) => s.data.profile?.shoppingCategoryOrder);
   const shoppingCustomCategories = useStore((s) => s.data.profile?.shoppingCustomCategories);
@@ -1126,9 +1404,62 @@ export const ShoppingListView = () => {
   const [query, setQuery] = useState('');
   const [showCatManager, setShowCatManager] = useState(false);
   const [supermarketOpen, setSupermarketOpen] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const [groupPicker, setGroupPicker] = useState(null); // { mode: 'share'|'create', listId? }
 
-  const activeList = useMemo(() => shoppingLists.find((l) => l.isActive), [shoppingLists]);
-  const viewingList = useMemo(() => shoppingLists.find((l) => l.id === viewingListId), [shoppingLists, viewingListId]);
+  // Flatten group lists (from every group the user belongs to) into the same
+  // shape as personal lists, tagged with groupId + groupName.
+  const groupLists = useMemo(() => {
+    const byId = {};
+    (myGroups || []).forEach((g) => { byId[g.id] = g; });
+    return Object.entries(groupShoppingLists || {}).flatMap(([gid, ls]) =>
+      (ls || []).map((l) => ({ ...l, groupId: gid, groupName: byId[gid]?.name || '' }))
+    );
+  }, [groupShoppingLists, myGroups]);
+
+  const visibleLists = useMemo(() => shoppingLists.filter((l) => !l.archived), [shoppingLists]);
+  const archivedLists = useMemo(() => shoppingLists.filter((l) => l.archived), [shoppingLists]);
+  const templates = useMemo(() => shoppingTemplates || [], [shoppingTemplates]);
+
+  const activeList = useMemo(() => visibleLists.find((l) => l.isActive), [visibleLists]);
+  const viewingList = useMemo(
+    () => shoppingLists.find((l) => l.id === viewingListId) || groupLists.find((l) => l.id === viewingListId),
+    [shoppingLists, groupLists, viewingListId],
+  );
+
+  // Single action surface for the detail view — personal and group lists get
+  // the same UI; only the store calls differ.
+  const listApi = useMemo(() => {
+    if (!viewingList) return null;
+    const id = viewingList.id;
+    const gid = viewingList.groupId;
+    if (gid) {
+      return {
+        shared: true,
+        toggle: (itemId) => toggleGroupShoppingItem(gid, id, itemId),
+        add: (item) => addGroupShoppingItem(gid, id, item),
+        update: (itemId, patch) => updateGroupShoppingItem(gid, id, itemId, patch),
+        remove: (itemId) => removeGroupShoppingItem(gid, id, itemId),
+        bump: (itemId, d) => bumpGroupShoppingItemQty(gid, id, itemId, d),
+        move: (itemId, cat, idx) => moveGroupShoppingItem(gid, id, itemId, cat, idx),
+        rename: (name) => renameGroupShoppingList(gid, id, name),
+        resetChecks: () => resetGroupShoppingChecks(gid, id),
+      };
+    }
+    return {
+      shared: false,
+      toggle: (itemId) => toggleShoppingItem(id, itemId),
+      add: (item) => addShoppingItem(id, item),
+      update: (itemId, patch) => updateShoppingItem(id, itemId, patch),
+      remove: (itemId) => removeShoppingItem(id, itemId),
+      bump: (itemId, d) => bumpShoppingItemQty(id, itemId, d),
+      move: (itemId, cat, idx) => moveShoppingItem(id, itemId, cat, idx),
+      rename: (name) => renameShoppingList(id, name),
+      resetChecks: () => resetShoppingChecks(id),
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewingList?.id, viewingList?.groupId]);
   // groupByCategory/getAllCategories read the aisle config set via
   // setShoppingCatConfig above, so these must recompute when the profile config
   // changes even though the callbacks don't name those vars directly.
@@ -1148,7 +1479,7 @@ export const ShoppingListView = () => {
 
   // Purchase memory across all lists + the set of names already in this list
   // (so suggestions never duplicate what's already here).
-  const itemMemory = useMemo(() => buildItemMemory(shoppingLists), [shoppingLists]);
+  const itemMemory = useMemo(() => buildItemMemory([...shoppingLists, ...groupLists]), [shoppingLists, groupLists]);
   const existingNames = useMemo(
     () => new Set((viewingList?.items || []).map((i) => (i.name || '').trim().toLowerCase())),
     [viewingList],
@@ -1175,7 +1506,7 @@ export const ShoppingListView = () => {
     const { source, destination, draggableId } = result;
     if (!destination) return;
     if (source.droppableId === destination.droppableId && source.index === destination.index) return;
-    moveShoppingItem(viewingList.id, draggableId, destination.droppableId, destination.index);
+    listApi.move(draggableId, destination.droppableId, destination.index);
     // Moving across categories teaches the dictionary (like the edit picker).
     if (source.droppableId !== destination.droppableId) {
       const it = (viewingList.items || []).find((i) => i.id === draggableId);
@@ -1187,6 +1518,19 @@ export const ShoppingListView = () => {
   useEffect(() => {
     if (viewingListId && !viewingList) { setViewingListId(null); setReorderMode(false); }
   }, [viewingListId, viewingList]);
+
+  // Deep-link from a group's "Open List" card: open that shared list once it has
+  // loaded (group lists arrive async), then clear the pending flag so it fires once.
+  useEffect(() => {
+    if (!pendingShoppingListId) return;
+    const exists =
+      shoppingLists.some((l) => l.id === pendingShoppingListId) ||
+      groupLists.some((l) => l.id === pendingShoppingListId);
+    if (exists) {
+      setViewingListId(pendingShoppingListId);
+      clearPendingShoppingList();
+    }
+  }, [pendingShoppingListId, shoppingLists, groupLists, clearPendingShoppingList]);
 
   const totals = useMemo(() => {
     const items = viewingList?.items || [];
@@ -1222,7 +1566,7 @@ export const ShoppingListView = () => {
     });
   };
 
-  const handleBumpQty = (itemId, delta) => bumpShoppingItemQty(viewingList.id, itemId, delta);
+  const handleBumpQty = (itemId, delta) => listApi.bump(itemId, delta);
 
   const handleAddCustomCat = (c) => {
     const key = addShoppingCustomCategory(c);
@@ -1235,7 +1579,7 @@ export const ShoppingListView = () => {
   const handleQuickAdd = (raw) => {
     const { items, unresolved } = parseShoppingText(raw);
     const it = items[0] || { name: raw, qty: null, unit: null, category: 'other' };
-    addShoppingItem(viewingList.id, it);
+    listApi.add(it);
     // Pop the target category open so the user SEES the item land in place.
     setOpenOverrides((o) => ({ ...o, [it.category]: true }));
     const m = getCategoryMeta(it.category);
@@ -1251,7 +1595,7 @@ export const ShoppingListView = () => {
 
   // Add a remembered item directly — category/qty are known, so no AI round-trip.
   const handleAddKnown = (mem) => {
-    addShoppingItem(viewingList.id, { name: mem.name, category: mem.category, qty: mem.qty, unit: mem.unit });
+    listApi.add({ name: mem.name, category: mem.category, qty: mem.qty, unit: mem.unit });
     setOpenOverrides((o) => ({ ...o, [mem.category]: true }));
     const m = getCategoryMeta(mem.category);
     toast.success(`${mem.name} ← ${m.emoji} ${language === 'he' ? m.he : m.en}`);
@@ -1260,7 +1604,7 @@ export const ShoppingListView = () => {
   // Add every regular not already on the list, in one tap.
   const handleAddAllRegulars = () => {
     const pending = regulars.filter((r) => !existingNames.has((r.name || '').trim().toLowerCase()));
-    pending.forEach((r) => addShoppingItem(viewingList.id, { name: r.name, category: r.category, qty: r.qty, unit: r.unit }));
+    pending.forEach((r) => listApi.add({ name: r.name, category: r.category, qty: r.qty, unit: r.unit }));
     if (pending.length) toast.success(`${pending.length} ${t('itemsAdded', 'מוצרים נוספו')}`);
   };
 
@@ -1273,7 +1617,7 @@ export const ShoppingListView = () => {
 
   // One-tap move from the row's category badge.
   const handleMoveToCategory = (item, catKey) => {
-    moveShoppingItem(viewingList.id, item.id, catKey, 0);
+    listApi.move(item.id, catKey, 0);
     learnGroceryItems(learnCategory(item.name, catKey));
     const m = getCategoryMeta(catKey);
     toast.success(`${item.name} ← ${m.emoji} ${language === 'he' ? m.he : m.en}`);
@@ -1337,16 +1681,91 @@ export const ShoppingListView = () => {
     } catch { /* cancelled */ }
   };
 
-  const menuList = shoppingLists.find((l) => l.id === menuListId);
-  const buildMenu = (list) => [
-    list.isActive
-      ? { icon: Star, label: t('unsetActive'), onClick: () => unsetActiveShoppingList(list.id) }
-      : { icon: Star, label: t('setActive'), onClick: () => setActiveShoppingList(list.id) },
-    { icon: Copy, label: t('duplicateList'), onClick: async () => { const id = await duplicateShoppingList(list.id); if (id) setViewingListId(id); } },
-    { icon: Share2, label: t('shareList'), onClick: () => handleShare(list) },
-    ...((list.items || []).some((i) => i.checked) ? [{ icon: RotateCcw, label: t('resetChecks'), onClick: () => resetShoppingChecks(list.id) }] : []),
-    { icon: Trash2, label: t('delete'), danger: true, onClick: () => { if (window.confirm(t('deleteListConfirm'))) { if (viewingListId === list.id) setViewingListId(null); deleteShoppingList(list.id); } } },
-  ];
+  // Follow-up list from everything left unbought — then jump into it.
+  const handleFollowup = async (list) => {
+    const id = await createFollowupList(list);
+    if (id) { setViewingListId(id); toast.success(t('followupCreated', 'רשימת השלמות נוצרה')); }
+  };
+
+  const handleSaveTemplate = (list) => {
+    const name = window.prompt(t('templateNamePrompt', 'שם התבנית:'), list.name);
+    if (name === null) return;
+    saveShoppingTemplate(list, name);
+    toast.success(t('templateSaved', 'נשמר כתבנית'));
+  };
+
+  const handleUseTemplate = async (tpl) => {
+    const id = await createListFromTemplate(tpl.id);
+    if (id) { setViewingListId(id); toast.success(t('addedSuccessfully')); }
+  };
+
+  // Learn the walked aisle route: categories in check order first, the rest keep
+  // their current relative order.
+  const handleSaveRoute = (seq) => {
+    const current = getAllCategories().map((c) => c.key);
+    const merged = [...seq.filter((k) => current.includes(k)), ...current.filter((k) => !seq.includes(k))];
+    setShoppingCategoryOrder(merged);
+    toast.success(t('routeSaved', 'סדר המסלול נשמר'));
+  };
+
+  const handleCreateEmpty = async () => {
+    const name = window.prompt(t('listNamePlaceholder'), t('shoppingTitle', 'רשימת קניות'));
+    if (name === null) return;
+    const id = await createShoppingList(name || t('shoppingTitle', 'רשימת קניות'), '', []);
+    setOpenOverrides({});
+    setViewingListId(id);
+  };
+
+  const handleGroupPick = async (g) => {
+    const picker = groupPicker;
+    setGroupPicker(null);
+    if (!picker) return;
+    if (picker.mode === 'share') {
+      await shareShoppingListToGroup(picker.listId, g.id);
+      if (viewingListId === picker.listId) setViewingListId(null);
+      toast.success(t('sharedToGroup', 'הרשימה שותפה לקבוצה') + ` · ${g.name}`);
+    } else {
+      const name = window.prompt(t('listNamePlaceholder'), t('shoppingTitle', 'רשימת קניות'));
+      if (name === null) return;
+      const id = await createGroupShoppingList(g.id, name || t('shoppingTitle', 'רשימת קניות'), '', []);
+      if (id) { setViewingListId(id); toast.success(t('addedSuccessfully')); }
+    }
+  };
+
+  const menuList = shoppingLists.find((l) => l.id === menuListId) || groupLists.find((l) => l.id === menuListId);
+  const buildMenu = (list) => {
+    if (list.groupId) {
+      // Shared list — no pin/archive; delete removes it for the whole group.
+      return [
+        { icon: Share2, label: t('shareList'), onClick: () => handleShare(list) },
+        ...((list.items || []).some((i) => i.checked) ? [{ icon: RotateCcw, label: t('resetChecks'), onClick: () => resetGroupShoppingChecks(list.groupId, list.id) }] : []),
+        ...((list.items || []).some((i) => !i.checked || i.unavailable) ? [{ icon: ListPlus, label: t('createFollowup', 'צור רשימת השלמות'), onClick: () => handleFollowup(list) }] : []),
+        { icon: BookmarkPlus, label: t('saveAsTemplate', 'שמור כתבנית'), onClick: () => handleSaveTemplate(list) },
+        { icon: Trash2, label: t('delete'), danger: true, onClick: () => { if (window.confirm(t('deleteGroupListConfirm', 'למחוק את הרשימה לכל חברי הקבוצה?'))) { if (viewingListId === list.id) setViewingListId(null); deleteGroupShoppingList(list.groupId, list.id); } } },
+      ];
+    }
+    if (list.archived) {
+      return [
+        { icon: ArchiveRestore, label: t('unarchive', 'שחזר מהארכיון'), onClick: () => unarchiveShoppingList(list.id) },
+        { icon: Copy, label: t('duplicateList'), onClick: async () => { const id = await duplicateShoppingList(list.id); if (id) setViewingListId(id); } },
+        { icon: BookmarkPlus, label: t('saveAsTemplate', 'שמור כתבנית'), onClick: () => handleSaveTemplate(list) },
+        { icon: Trash2, label: t('delete'), danger: true, onClick: () => { if (window.confirm(t('deleteListConfirm'))) deleteShoppingList(list.id); } },
+      ];
+    }
+    return [
+      list.isActive
+        ? { icon: Star, label: t('unsetActive'), onClick: () => unsetActiveShoppingList(list.id) }
+        : { icon: Star, label: t('setActive'), onClick: () => setActiveShoppingList(list.id) },
+      { icon: Copy, label: t('duplicateList'), onClick: async () => { const id = await duplicateShoppingList(list.id); if (id) setViewingListId(id); } },
+      { icon: Users, label: t('shareToGroup', 'שתף לקבוצה'), onClick: () => setGroupPicker({ mode: 'share', listId: list.id }) },
+      { icon: BookmarkPlus, label: t('saveAsTemplate', 'שמור כתבנית'), onClick: () => handleSaveTemplate(list) },
+      { icon: Share2, label: t('shareList'), onClick: () => handleShare(list) },
+      ...((list.items || []).some((i) => i.checked) ? [{ icon: RotateCcw, label: t('resetChecks'), onClick: () => resetShoppingChecks(list.id) }] : []),
+      ...((list.items || []).some((i) => !i.checked || i.unavailable) && (list.items || []).some((i) => i.checked) ? [{ icon: ListPlus, label: t('createFollowup', 'צור רשימת השלמות'), onClick: () => handleFollowup(list) }] : []),
+      { icon: Archive, label: t('archiveList', 'העבר לארכיון'), onClick: () => archiveShoppingList(list.id) },
+      { icon: Trash2, label: t('delete'), danger: true, onClick: () => { if (window.confirm(t('deleteListConfirm'))) { if (viewingListId === list.id) setViewingListId(null); deleteShoppingList(list.id); } } },
+    ];
+  };
 
   /* — Paste mode — */
   if (mode === 'paste') {
@@ -1369,11 +1788,12 @@ export const ShoppingListView = () => {
           </button>
           <div className="flex-1 min-w-0 flex items-center gap-2 justify-end">
             {renaming ? (
-              <InlineRename value={viewingList.name} style={{ fontFamily: serif, fontSize: 18, color: CREAM.ink, textAlign: isRTL ? 'right' : 'left' }} onSave={(v) => { renameShoppingList(viewingList.id, v); setRenaming(false); }} onCancel={() => setRenaming(false)} />
+              <InlineRename value={viewingList.name} style={{ fontFamily: serif, fontSize: 18, color: CREAM.ink, textAlign: isRTL ? 'right' : 'left' }} onSave={(v) => { listApi.rename(v); setRenaming(false); }} onCancel={() => setRenaming(false)} />
             ) : (
               <button onClick={() => setRenaming(true)} className="text-lg truncate min-w-0" style={{ fontFamily: serif, color: CREAM.ink }}>{viewingList.name}</button>
             )}
             {viewingList.isActive && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0" style={{ background: CREAM.greenSoft, color: CREAM.green }}>{t('activeLabel')}</span>}
+            {viewingList.groupName && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 inline-flex items-center gap-1" style={{ background: 'rgba(59,130,246,.1)', color: '#2563EB' }}><Users className="w-2.5 h-2.5" />{viewingList.groupName}</span>}
           </div>
           <button onClick={() => setMenuListId(viewingList.id)} aria-label={t('listOptions')} className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 hover:bg-[rgba(180,140,80,.08)]" style={{ color: CREAM.muted }}>
             <MoreVertical className="w-[18px] h-[18px]" />
@@ -1463,7 +1883,7 @@ export const ShoppingListView = () => {
                 <div className="text-[15px] font-bold">{t('shoppingDoneTitle', 'הקנייה הושלמה 🎉')}</div>
                 <div className="text-xs opacity-85">{t('shoppingDoneSub', 'כל הפריטים סומנו')}</div>
               </div>
-              <button onClick={() => resetShoppingChecks(viewingList.id)} className="text-xs font-bold px-3 py-2 rounded-xl shrink-0 transition-transform active:scale-95" style={{ background: 'rgba(255,255,255,.18)', color: '#fff' }}>
+              <button onClick={() => listApi.resetChecks()} className="text-xs font-bold px-3 py-2 rounded-xl shrink-0 transition-transform active:scale-95" style={{ background: 'rgba(255,255,255,.18)', color: '#fff' }}>
                 {t('resetChecks')}
               </button>
             </motion.div>
@@ -1514,16 +1934,17 @@ export const ShoppingListView = () => {
                   group={g}
                   isOpen={isCatOpen(g)}
                   onToggleOpen={() => toggleCat(g)}
-                  onToggleItem={(itemId) => toggleShoppingItem(viewingList.id, itemId)}
+                  onToggleItem={(itemId) => listApi.toggle(itemId)}
                   onEditItem={(item) => setEditItem(item)}
                   onMoveItem={(item) => setMoveItem(item)}
-                  onDeleteItem={(itemId) => removeShoppingItem(viewingList.id, itemId)}
-                  onAddItem={(nameVal, catKey) => addShoppingItem(viewingList.id, { name: nameVal, category: catKey })}
+                  onDeleteItem={(itemId) => listApi.remove(itemId)}
+                  onAddItem={(nameVal, catKey) => listApi.add({ name: nameVal, category: catKey })}
                   onBumpQty={handleBumpQty}
                   t={t}
                   language={language}
                   isRTL={isRTL}
                   sinkChecked={sinkChecked}
+                  shared={listApi.shared}
                 />
               </div>
             ))}
@@ -1559,6 +1980,16 @@ export const ShoppingListView = () => {
           {menuList && <OptionsMenu items={buildMenu(menuList)} onClose={() => setMenuListId(null)} isRTL={isRTL} />}
         </AnimatePresence>
         <AnimatePresence>
+          {groupPicker && (
+            <GroupPickerSheet
+              groups={myGroups || []} t={t} isRTL={isRTL}
+              title={groupPicker.mode === 'share' ? t('shareToGroup', 'שתף לקבוצה') : t('newGroupList', 'רשימה קבוצתית חדשה')}
+              sub={groupPicker.mode === 'share' ? t('shareToGroupSub', 'הרשימה תעבור לקבוצה וכל החברים יוכלו לערוך אותה') : t('newGroupListSub', 'כל חברי הקבוצה יראו ויערכו את הרשימה')}
+              onPick={handleGroupPick} onClose={() => setGroupPicker(null)}
+            />
+          )}
+        </AnimatePresence>
+        <AnimatePresence>
           {recipePicker && (
             <RecipePickerSheet uid={uid} busyId={recipeBusyId} t={t} isRTL={isRTL} onClose={() => setRecipePicker(false)} onPick={handleRecipeToList} />
           )}
@@ -1571,7 +2002,7 @@ export const ShoppingListView = () => {
               onToggleRegular={handleToggleRegular}
               onClose={() => setEditItem(null)}
               onSave={(patch, categoryChanged) => {
-                updateShoppingItem(viewingList.id, editItem.id, patch);
+                listApi.update(editItem.id, patch);
                 if (categoryChanged && patch.name) learnGroceryItems(learnCategory(patch.name, patch.category));
               }}
             />
@@ -1602,7 +2033,10 @@ export const ShoppingListView = () => {
           {supermarketOpen && (
             <SupermarketMode
               list={viewingList}
-              onToggle={(itemId) => toggleShoppingItem(viewingList.id, itemId)}
+              onToggle={(itemId) => listApi.toggle(itemId)}
+              onUpdateItem={(itemId, patch) => listApi.update(itemId, patch)}
+              onCreateFollowup={() => handleFollowup(viewingList)}
+              onSaveRoute={handleSaveRoute}
               onClose={() => setSupermarketOpen(false)}
               t={t} language={language} isRTL={isRTL}
             />
@@ -1613,20 +2047,41 @@ export const ShoppingListView = () => {
   }
 
   /* — Overview — */
-  const hasLists = shoppingLists.length > 0;
+  const hasLists = visibleLists.length > 0 || groupLists.length > 0;
   return (
     <div className="max-w-xl mx-auto px-4 py-4 flex flex-col gap-3.5" dir={isRTL ? 'rtl' : 'ltr'}>
       <div className="flex items-center justify-between -mt-1">
         <h2 className="text-xl" style={{ fontFamily: serif, color: CREAM.ink }}>{t('myLists')}</h2>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setRecipePicker(true)} aria-label={t('fromRecipe', 'ממתכון')} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[13px] font-semibold" style={{ background: CREAM.greenLight, color: CREAM.green }}>
-            <ChefHat className="w-4 h-4" />{t('fromRecipe', 'ממתכון')}
+        <div className="flex items-center gap-1.5">
+          <button onClick={() => setShowHistory(true)} aria-label={t('purchaseHistory', 'היסטוריית קניות')} className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: '#fff', border: `1px solid ${CREAM.border}`, color: CREAM.muted }}>
+            <History className="w-4 h-4" />
+          </button>
+          <button onClick={() => setRecipePicker(true)} aria-label={t('fromRecipe', 'ממתכון')} className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: CREAM.greenLight, color: CREAM.green }}>
+            <ChefHat className="w-4 h-4" />
           </button>
           <button onClick={() => setMode('paste')} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[13px] font-semibold" style={{ background: CREAM.green, color: '#fff', boxShadow: '0 2px 10px rgba(5,150,105,.25)' }}>
             <Plus className="w-4 h-4" strokeWidth={2.5} />{t('newList')}
           </button>
         </div>
       </div>
+
+      {/* Quick-create row: empty list · group list */}
+      <div className="flex items-center gap-2">
+        <button onClick={handleCreateEmpty} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[13px] font-semibold" style={{ border: `1px solid ${CREAM.borderLight}`, color: CREAM.green, background: '#fff' }}>
+          <ListPlus className="w-4 h-4" />{t('emptyList', 'רשימה ריקה')}
+        </button>
+        <button onClick={() => setGroupPicker({ mode: 'create' })} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[13px] font-semibold" style={{ border: '1px solid rgba(59,130,246,.2)', color: '#2563EB', background: '#fff' }}>
+          <Users className="w-4 h-4" />{t('newGroupList', 'רשימה קבוצתית')}
+        </button>
+      </div>
+
+      {/* Templates — one tap to rebuild a saved list */}
+      <TemplatesStrip
+        templates={templates}
+        onUse={handleUseTemplate}
+        onDelete={(tpl) => { if (window.confirm(t('deleteTemplateConfirm', 'למחוק את התבנית?'))) deleteShoppingTemplate(tpl.id); }}
+        t={t}
+      />
 
       {!hasLists ? (
         <div className="flex flex-col items-center justify-center gap-6 py-12">
@@ -1643,10 +2098,49 @@ export const ShoppingListView = () => {
         <>
           {activeList && <ListCard list={activeList} hero t={t} locale={locale} onOpen={() => setViewingListId(activeList.id)} />}
           <div className="flex flex-col gap-2.5 rise-in-stagger">
-            {shoppingLists.filter((l) => !l.isActive).map((l) => (
+            {visibleLists.filter((l) => !l.isActive).map((l) => (
               <ListCard key={l.id} list={l} t={t} locale={locale} onOpen={() => setViewingListId(l.id)} onMenu={() => setMenuListId(l.id)} />
             ))}
           </div>
+
+          {/* Group lists — live-synced with every member */}
+          {groupLists.length > 0 && (
+            <>
+              <div className="flex items-center gap-1.5 px-1 mt-1">
+                <Users className="w-3.5 h-3.5" style={{ color: '#2563EB' }} />
+                <span className="text-[12px] font-bold" style={{ color: CREAM.sub }}>{t('groupLists', 'רשימות קבוצתיות')}</span>
+              </div>
+              <div className="flex flex-col gap-2.5">
+                {groupLists.map((l) => (
+                  <ListCard key={`${l.groupId}-${l.id}`} list={l} t={t} locale={locale} onOpen={() => setViewingListId(l.id)} onMenu={() => setMenuListId(l.id)} />
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* Archive — completed lists tucked away */}
+          {archivedLists.length > 0 && (
+            <div className="mt-1">
+              <button onClick={() => setShowArchived((v) => !v)} className="w-full flex items-center gap-2 px-1 py-1.5">
+                <Archive className="w-3.5 h-3.5" style={{ color: CREAM.muted }} />
+                <span className="text-[12px] font-bold" style={{ color: CREAM.sub }}>{t('archive', 'ארכיון')} ({archivedLists.length})</span>
+                <motion.div animate={{ rotate: showArchived ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                  <ChevronDown className="w-4 h-4" style={{ color: CREAM.muted }} />
+                </motion.div>
+              </button>
+              <AnimatePresence initial={false}>
+                {showArchived && (
+                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.22 }} className="overflow-hidden">
+                    <div className="flex flex-col gap-2.5 pt-1.5" style={{ opacity: 0.75 }}>
+                      {archivedLists.map((l) => (
+                        <ListCard key={l.id} list={l} t={t} locale={locale} onOpen={() => setViewingListId(l.id)} onMenu={() => setMenuListId(l.id)} />
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
         </>
       )}
 
@@ -1656,6 +2150,26 @@ export const ShoppingListView = () => {
       <AnimatePresence>
         {recipePicker && (
           <RecipePickerSheet uid={uid} busyId={recipeBusyId} t={t} isRTL={isRTL} onClose={() => setRecipePicker(false)} onPick={handleRecipeToList} />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {groupPicker && (
+          <GroupPickerSheet
+            groups={myGroups || []} t={t} isRTL={isRTL}
+            title={groupPicker.mode === 'share' ? t('shareToGroup', 'שתף לקבוצה') : t('newGroupList', 'רשימה קבוצתית חדשה')}
+            sub={groupPicker.mode === 'share' ? t('shareToGroupSub', 'הרשימה תעבור לקבוצה וכל החברים יוכלו לערוך אותה') : t('newGroupListSub', 'כל חברי הקבוצה יראו ויערכו את הרשימה')}
+            onPick={handleGroupPick} onClose={() => setGroupPicker(null)}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showHistory && (
+          <HistorySheet
+            memory={itemMemory} locale={locale} t={t} isRTL={isRTL}
+            canAdd={!!activeList}
+            onAdd={(m) => { addShoppingItem(activeList.id, { name: m.name, category: m.category, qty: m.qty, unit: m.unit }); toast.success(`${m.name} ← ${activeList.name}`); }}
+            onClose={() => setShowHistory(false)}
+          />
         )}
       </AnimatePresence>
     </div>

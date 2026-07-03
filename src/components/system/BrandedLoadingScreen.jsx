@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import pkg from '../../../package.json';
 
 const QUOTES = [
   'מחשבים לך את הדרך להצלחה...',
@@ -93,7 +94,7 @@ export const BrandedLoadingScreen = () => {
 
         {/* Version — Fraunces italic, green em like settings */}
         <div className="mt-2 select-text" dir="ltr" style={{ fontFamily: "'Fraunces', serif", fontStyle: 'italic', fontWeight: 600, fontSize: 13, color: '#8A7A6A', letterSpacing: '-.01em' }}>
-          Calori Life · <em style={{ color: '#059669' }}>v7.1.5</em>
+          Calori Life · <em style={{ color: '#059669' }}>v{pkg.version}</em>
         </div>
 
         {/* Indicator dots — warm inactive, green active */}

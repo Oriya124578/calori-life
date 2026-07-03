@@ -80,6 +80,16 @@ import {
   getSharedCourse as fsGetSharedCourse,
   markGroupAsRead as fsMarkGroupAsRead,
   toggleGroupMute as fsToggleGroupMute,
+  subscribeDmThreads,
+  subscribeDmMessages,
+  openDmThread as fsOpenDmThread,
+  postDmMessage as fsPostDmMessage,
+  reactToDmMessage as fsReactToDmMessage,
+  markDmAsRead as fsMarkDmAsRead,
+  uploadDmImage as fsUploadDmImage,
+  deleteDmMessage as fsDeleteDmMessage,
+  setDmBlocked as fsSetDmBlocked,
+  reportDmThread as fsReportDmThread,
 } from '../lib/firestoreRepo';
 import { applyExternalDict, genItemId } from '../lib/groceryCategories';
 import { recurringInstancesForDate } from '../lib/recurrence';
@@ -326,11 +336,16 @@ export const useStore = create((set, get) => ({
   dataLoaded: false, // true once the first Firestore snapshot has arrived
   _unsubs: [], // active onSnapshot cleanup fns
   _groupUnsubs: {}, // groupId -> array of unsubscribe functions
+  _dmUnsubs: {}, // dm threadId -> unsubscribe function
+  _dmLimits: {}, // dm threadId -> current message subscription limit
 
   // --- UI-only state ------------------------------------------------------
   activeCourse: null,
   activeCategory: 'overview',
   categoryHistory: [],
+  // A shared list id to auto-open when the Shopping view mounts (set when a user
+  // taps "Open List" on a group's shared-list card). Consumed + cleared there.
+  pendingShoppingListId: null,
   theme: localStorage.getItem('theme') || 'light',
   language: localStorage.getItem('language') || 'he',
   desktopModeForced: localStorage.getItem('desktopModeForced') === '1',
@@ -554,11 +569,17 @@ export const useStore = create((set, get) => ({
 
     const unsubShoppingLists = subscribeShoppingLists(uid, (shoppingLists) => {
       set((state) => ({ data: { ...state.data, shoppingLists } }));
+      get()._autoArchiveShoppingLists(shoppingLists);
     });
 
     const unsubGroups = subscribeGroups(uid, (groups) => {
       set((state) => ({ data: { ...state.data, groups } }));
       get()._syncGroupSubscriptions(groups);
+    });
+
+    const unsubDmThreads = subscribeDmThreads(uid, (dmThreads) => {
+      set((state) => ({ data: { ...state.data, dmThreads } }));
+      get()._syncDmSubscriptions(dmThreads);
     });
 
     // Seed the local grocery dict cache from Firestore so AI learnings flow
@@ -637,6 +658,7 @@ export const useStore = create((set, get) => ({
         unsubShoppingLists,
         unsubGroceryDict,
         unsubGroups,
+        unsubDmThreads,
       ],
     });
 
@@ -655,12 +677,15 @@ export const useStore = create((set, get) => ({
     Object.values(get()._groupUnsubs).forEach((unsubList) => {
       unsubList.forEach((u) => { try { u(); } catch { /* ignore */ } });
     });
+    Object.values(get()._dmUnsubs).forEach((u) => { try { u(); } catch { /* ignore */ } });
 
     set({
       uid: null,
       _unsubs: [],
       _caloriDayUnsubs: [],
       _groupUnsubs: {},
+      _dmUnsubs: {},
+      _dmLimits: {},
       _scheduleUnsub: null,
       data: generateInitialState(),
       hasCompletedOnboarding: undefined,
@@ -674,6 +699,155 @@ export const useStore = create((set, get) => ({
   },
 
   // ---------- Shared Groups (groups) -------------------------------------
+
+  _syncDmSubscriptions: (threads) => {
+    const { uid, _dmUnsubs } = get();
+    if (!uid) return;
+
+    const activeIds = threads.map((t) => t.id);
+    const next = { ..._dmUnsubs };
+
+    Object.keys(_dmUnsubs).forEach((tid) => {
+      if (!activeIds.includes(tid)) {
+        try { _dmUnsubs[tid](); } catch (err) { console.error(err); }
+        delete next[tid];
+      }
+    });
+
+    threads.forEach((t) => {
+      if (!next[t.id]) {
+        const max = get()._dmLimits[t.id] || 60;
+        next[t.id] = subscribeDmMessages(t.id, (messages) => {
+          const prev = get().data.dmMessages?.[t.id] || [];
+          if (prev.length > 0 && messages.length > 0) {
+            const latest = messages[0];
+            if (latest.id !== prev[0].id) {
+              const isFromMe = latest.author_uid === uid || latest.user_uid === uid;
+              if (!isFromMe) {
+                const title = latest.author_name || 'הודעה פרטית';
+                const body = latest.summary || latest.message || 'הודעה חדשה 💬';
+                try {
+                  const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav');
+                  audio.volume = 0.5;
+                  audio.play().catch(() => {});
+                } catch { /* ignore audio play failures */ }
+                toast.info(`${title}: ${body}`);
+              }
+            }
+          }
+          set((state) => ({
+            data: {
+              ...state.data,
+              dmMessages: { ...state.data.dmMessages, [t.id]: messages },
+            },
+          }));
+        }, max);
+      }
+    });
+
+    set({ _dmUnsubs: next });
+  },
+
+  // Pagination: bump the thread's message window and resubscribe.
+  loadMoreDmMessages: (threadId) => {
+    const { _dmUnsubs, _dmLimits } = get();
+    const nextLimit = (_dmLimits[threadId] || 60) + 60;
+    if (_dmUnsubs[threadId]) {
+      try { _dmUnsubs[threadId](); } catch { /* ignore */ }
+    }
+    const unsub = subscribeDmMessages(threadId, (messages) => {
+      set((state) => ({
+        data: {
+          ...state.data,
+          dmMessages: { ...state.data.dmMessages, [threadId]: messages },
+        },
+      }));
+    }, nextLimit);
+    set({
+      _dmUnsubs: { ..._dmUnsubs, [threadId]: unsub },
+      _dmLimits: { ..._dmLimits, [threadId]: nextLimit },
+    });
+  },
+
+  deleteDmMessage: async (threadId, messageId) => {
+    await fsDeleteDmMessage(threadId, messageId);
+  },
+
+  setDmBlocked: async (threadId, blocked) => {
+    const { uid } = get();
+    if (!uid) return;
+    await fsSetDmBlocked(threadId, uid, blocked);
+  },
+
+  reportDmThread: async (threadId) => {
+    const { uid } = get();
+    if (!uid) return;
+    await fsReportDmThread(threadId, uid);
+  },
+
+  // Opens (creating if needed) a private chat with a group-mate and returns
+  // the thread id.
+  openDm: async (peer, viaGroupId) => {
+    const { uid, data } = get();
+    if (!uid || !viaGroupId) return null;
+    const myInfo = {
+      name: data.profile?.displayName || 'סטודנט/ית',
+      ...(data.profile?.photoURL ? { photo_url: data.profile.photoURL } : {}),
+    };
+    const peerInfo = {
+      name: peer.name || 'חבר/ה',
+      ...(peer.photoUrl ? { photo_url: peer.photoUrl } : {}),
+    };
+    return fsOpenDmThread(uid, myInfo, peer.uid, peerInfo, viaGroupId);
+  },
+
+  postDmMessage: async (threadId, text) => {
+    const { uid, data } = get();
+    if (!uid) return;
+    const authorName = data.profile?.displayName || 'סטודנט/ית';
+    await fsPostDmMessage(threadId, uid, {
+      kind: 'chat',
+      app_origin: 'life',
+      author_uid: uid,
+      author_name: authorName,
+      summary: text,
+      type: 'message', // legacy
+      user_uid: uid,    // legacy
+      user_name: authorName, // legacy
+      message: text,   // legacy
+    });
+  },
+
+  postDmImage: async (threadId, file) => {
+    const { uid, data } = get();
+    if (!uid) return;
+    const url = await fsUploadDmImage(threadId, file);
+    const authorName = data.profile?.displayName || 'סטודנט/ית';
+    await fsPostDmMessage(threadId, uid, {
+      kind: 'chat',
+      app_origin: 'life',
+      author_uid: uid,
+      author_name: authorName,
+      summary: '📷 תמונה',
+      payload: { imageUrl: url },
+      type: 'message',
+      user_uid: uid,
+      user_name: authorName,
+      message: '📷 תמונה',
+    });
+  },
+
+  reactToDmMessage: async (threadId, messageId, emoji) => {
+    const { uid } = get();
+    if (!uid) return;
+    await fsReactToDmMessage(threadId, messageId, uid, emoji);
+  },
+
+  markDmAsRead: async (threadId) => {
+    const { uid } = get();
+    if (!uid) return;
+    await fsMarkDmAsRead(threadId, uid);
+  },
 
   _syncGroupSubscriptions: (groups) => {
     const { uid, _groupUnsubs } = get();
@@ -853,31 +1027,169 @@ export const useStore = create((set, get) => ({
     });
   },
 
-  updateGroupShoppingItem: async (groupId, listId, itemId, patch) => {
-    const { data } = get();
-    const lists = data.groupShoppingLists[groupId] || [];
-    const list = lists.find(l => l.id === listId);
-    if (!list) return;
-    const nextItems = list.items.map((it) => (it.id === itemId ? { ...it, ...patch } : it));
-    await fsSetGroupShoppingList(groupId, listId, { items: nextItems, updatedAt: new Date().toISOString() });
+  // Optimistic group-list item mutation, mirroring _patchShoppingItems: update
+  // local state inside the set updater, then persist. The group listener will
+  // reconcile with the server copy.
+  _patchGroupShoppingItems: (groupId, listId, mutate) => {
+    const now = new Date().toISOString();
+    let nextItems = null;
+    set((state) => ({
+      data: {
+        ...state.data,
+        groupShoppingLists: {
+          ...state.data.groupShoppingLists,
+          [groupId]: (state.data.groupShoppingLists[groupId] || []).map((l) => {
+            if (l.id !== listId) return l;
+            nextItems = mutate(l.items || []);
+            return { ...l, items: nextItems, updatedAt: now };
+          }),
+        },
+      },
+    }));
+    if (nextItems) fsSetGroupShoppingList(groupId, listId, { items: nextItems, updatedAt: now }).catch(console.error);
   },
 
-  addGroupShoppingItem: async (groupId, listId, item) => {
-    const { data } = get();
-    const lists = data.groupShoppingLists[groupId] || [];
-    const list = lists.find(l => l.id === listId);
-    if (!list) return;
-    const nextItems = [...list.items, item];
-    await fsSetGroupShoppingList(groupId, listId, { items: nextItems, updatedAt: new Date().toISOString() });
+  // Short {uid, name} stamp for member attribution on shared lists.
+  _memberStamp: () => {
+    const { uid, data } = get();
+    return { uid, name: data.profile?.displayName || 'חבר קבוצה' };
   },
 
-  removeGroupShoppingItem: async (groupId, listId, itemId) => {
-    const { data } = get();
-    const lists = data.groupShoppingLists[groupId] || [];
-    const list = lists.find(l => l.id === listId);
-    if (!list) return;
-    const nextItems = list.items.filter((it) => it.id !== itemId);
-    await fsSetGroupShoppingList(groupId, listId, { items: nextItems, updatedAt: new Date().toISOString() });
+  toggleGroupShoppingItem: (groupId, listId, itemId) => {
+    const by = get()._memberStamp();
+    get()._patchGroupShoppingItems(groupId, listId, (items) =>
+      items.map((it) =>
+        it.id === itemId
+          ? { ...it, checked: !it.checked, checkedBy: !it.checked ? by : null }
+          : it
+      )
+    );
+  },
+
+  updateGroupShoppingItem: (groupId, listId, itemId, patch) =>
+    get()._patchGroupShoppingItems(groupId, listId, (items) =>
+      items.map((it) => (it.id === itemId ? { ...it, ...patch } : it))
+    ),
+
+  // Same merge-on-duplicate behavior as the personal addShoppingItem, plus an
+  // addedBy stamp so members see who added what.
+  addGroupShoppingItem: (groupId, listId, item) => {
+    const by = get()._memberStamp();
+    get()._patchGroupShoppingItems(groupId, listId, (items) => {
+      const name = (item.name || '').trim();
+      const key = name.toLowerCase();
+      const idx = key ? items.findIndex((it) => (it.name || '').trim().toLowerCase() === key) : -1;
+      if (idx !== -1) {
+        const ex = items[idx];
+        const incoming = parseInt(item.qty, 10);
+        const base = parseInt(ex.qty, 10);
+        const nextN = (Number.isFinite(base) ? base : 1) + (Number.isFinite(incoming) ? incoming : 1);
+        const copy = [...items];
+        copy[idx] = { ...ex, qty: String(nextN), unit: ex.unit || item.unit || null, checked: false, checkedBy: null };
+        return copy;
+      }
+      return [
+        ...items,
+        {
+          id: genItemId(),
+          name,
+          category: item.category || 'other',
+          checked: false,
+          qty: item.qty || null,
+          unit: item.unit || null,
+          addedAt: new Date().toISOString(),
+          addedBy: by,
+        },
+      ];
+    });
+  },
+
+  removeGroupShoppingItem: (groupId, listId, itemId) =>
+    get()._patchGroupShoppingItems(groupId, listId, (items) =>
+      items.filter((it) => it.id !== itemId)
+    ),
+
+  bumpGroupShoppingItemQty: (groupId, listId, itemId, delta) =>
+    get()._patchGroupShoppingItems(groupId, listId, (items) =>
+      items.map((it) => {
+        if (it.id !== itemId) return it;
+        const cur = parseInt(it.qty, 10);
+        const next = Math.max(1, (Number.isFinite(cur) ? cur : 1) + delta);
+        return { ...it, qty: next === 1 && !Number.isFinite(cur) ? null : String(next) };
+      })
+    ),
+
+  moveGroupShoppingItem: (groupId, listId, itemId, toCategory, toIndex) =>
+    get()._patchGroupShoppingItems(groupId, listId, (items) => {
+      const moved = items.find((i) => i.id === itemId);
+      if (!moved) return items;
+      const without = items.filter((i) => i.id !== itemId);
+      const updated = { ...moved, category: toCategory };
+      const destItems = without.filter((i) => i.category === toCategory);
+      const target = destItems[toIndex] || null;
+      const out = [];
+      let inserted = false;
+      for (const it of without) {
+        if (target && it.id === target.id) { out.push(updated); inserted = true; }
+        out.push(it);
+      }
+      if (!inserted) out.push(updated);
+      return out;
+    }),
+
+  resetGroupShoppingChecks: (groupId, listId) =>
+    get()._patchGroupShoppingItems(groupId, listId, (items) =>
+      items.map((it) => (it.checked ? { ...it, checked: false, checkedBy: null } : it))
+    ),
+
+  renameGroupShoppingList: (groupId, listId, name) => {
+    const now = new Date().toISOString();
+    set((state) => ({
+      data: {
+        ...state.data,
+        groupShoppingLists: {
+          ...state.data.groupShoppingLists,
+          [groupId]: (state.data.groupShoppingLists[groupId] || []).map((l) =>
+            l.id === listId ? { ...l, name, updatedAt: now } : l
+          ),
+        },
+      },
+    }));
+    fsSetGroupShoppingList(groupId, listId, { name, updatedAt: now }).catch(console.error);
+  },
+
+  // Create a list directly inside a group — every member sees and edits it.
+  createGroupShoppingList: async (groupId, name, rawText, items) => {
+    const { uid, data } = get();
+    if (!uid) return null;
+    const by = get()._memberStamp();
+    const id = newId(uid, 'shoppingList');
+    const now = new Date().toISOString();
+    const list = {
+      name: name || 'רשימת קניות',
+      createdAt: now,
+      updatedAt: now,
+      isActive: false,
+      groupId,
+      createdBy: by,
+      items: (items || []).map((it) => ({ ...it, addedBy: by })),
+      rawText: rawText || '',
+    };
+    await fsSetGroupShoppingList(groupId, id, list).catch(console.error);
+    const authorName = data.profile?.displayName || 'חבר קבוצה';
+    postGroupMessage(groupId, {
+      kind: 'chat',
+      app_origin: 'life',
+      author_uid: uid,
+      author_name: authorName,
+      summary: `פתחתי רשימת קניות חדשה "${list.name}" 🛒`,
+      payload: { sharedListId: id, sharedListName: list.name, kind: 'shoppingList' },
+      type: 'message',
+      user_uid: uid,
+      user_name: authorName,
+      message: `פתחתי רשימת קניות חדשה "${list.name}" 🛒`,
+    }).catch(console.error);
+    return id;
   },
 
   deleteGroupShoppingList: async (groupId, listId) => {
@@ -1294,6 +1606,19 @@ export const useStore = create((set, get) => ({
           ? state.categoryHistory
           : [...state.categoryHistory, state.activeCategory].slice(-25),
     })),
+
+  // Navigate to the Shopping view and flag [listId] to auto-open there. Used by
+  // the group "Open List" card so it lands on the shopping list, not a group tab.
+  openSharedShoppingList: (listId) =>
+    set((state) => ({
+      pendingShoppingListId: listId,
+      activeCategory: 'shopping',
+      categoryHistory:
+        state.activeCategory === 'shopping'
+          ? state.categoryHistory
+          : [...state.categoryHistory, state.activeCategory].slice(-25),
+    })),
+  clearPendingShoppingList: () => set({ pendingShoppingListId: null }),
 
   // Pop the last screen; default to the home overview when history is empty.
   goBack: () =>
@@ -1807,6 +2132,102 @@ export const useStore = create((set, get) => ({
     }));
     await fsSetShoppingList(uid, id, copy).catch(console.error);
     return id;
+  },
+
+  // ---------- Archive ----------------------------------------------------
+  // archived lists stay in cl_shoppingLists with archived:true; the UI hides
+  // them behind an "archive" section. Fully-bought lists auto-archive after
+  // 3 days of inactivity (checked once per session on first snapshot).
+
+  archiveShoppingList: (listId) => {
+    const { uid } = get();
+    if (!uid) return;
+    const now = new Date().toISOString();
+    set((state) => ({
+      data: {
+        ...state.data,
+        shoppingLists: state.data.shoppingLists.map((l) =>
+          l.id === listId ? { ...l, archived: true, isActive: false, archivedAt: now, updatedAt: now } : l
+        ),
+      },
+    }));
+    fsSetShoppingList(uid, listId, { archived: true, isActive: false, archivedAt: now, updatedAt: now }).catch(console.error);
+  },
+
+  unarchiveShoppingList: (listId) => {
+    const { uid } = get();
+    if (!uid) return;
+    const now = new Date().toISOString();
+    set((state) => ({
+      data: {
+        ...state.data,
+        shoppingLists: state.data.shoppingLists.map((l) =>
+          l.id === listId ? { ...l, archived: false, updatedAt: now } : l
+        ),
+      },
+    }));
+    fsSetShoppingList(uid, listId, { archived: false, updatedAt: now }).catch(console.error);
+  },
+
+  _autoArchiveShoppingLists: (lists) => {
+    const { uid, _didAutoArchiveShopping } = get();
+    if (!uid || _didAutoArchiveShopping) return;
+    set({ _didAutoArchiveShopping: true });
+    const cutoff = Date.now() - 3 * 24 * 60 * 60 * 1000;
+    lists.forEach((l) => {
+      const items = l.items || [];
+      const done = items.length > 0 && items.every((i) => i.checked);
+      const stale = l.updatedAt && new Date(l.updatedAt).getTime() < cutoff;
+      if (!l.archived && done && stale) {
+        fsSetShoppingList(uid, l.id, { archived: true, isActive: false, archivedAt: new Date().toISOString() }).catch(console.error);
+      }
+    });
+  },
+
+  // ---------- Templates — reusable named lists on the profile ------------
+
+  saveShoppingTemplate: (list, name) => {
+    const { uid, data } = get();
+    if (!uid || !list) return;
+    const tpl = {
+      id: `tpl_${Date.now().toString(36)}`,
+      name: (name || list.name || 'תבנית').trim(),
+      createdAt: new Date().toISOString(),
+      items: (list.items || []).map(({ name: n, category, qty, unit }) => ({ name: n, category, qty: qty ?? null, unit: unit ?? null })),
+    };
+    const next = [...(data.profile?.shoppingTemplates || []), tpl];
+    set((state) => ({ data: { ...state.data, profile: { ...state.data.profile, shoppingTemplates: next } } }));
+    fsSetProfile(uid, { shoppingTemplates: next }).catch(console.error);
+    return tpl.id;
+  },
+
+  deleteShoppingTemplate: (tplId) => {
+    const { uid, data } = get();
+    const next = (data.profile?.shoppingTemplates || []).filter((t) => t.id !== tplId);
+    set((state) => ({ data: { ...state.data, profile: { ...state.data.profile, shoppingTemplates: next } } }));
+    if (uid) fsSetProfile(uid, { shoppingTemplates: next }).catch(console.error);
+  },
+
+  createListFromTemplate: async (tplId) => {
+    const { data, createShoppingList } = get();
+    const tpl = (data.profile?.shoppingTemplates || []).find((t) => t.id === tplId);
+    if (!tpl) return null;
+    const items = tpl.items.map((it) => ({ ...it, id: genItemId(), checked: false, addedAt: new Date().toISOString() }));
+    return await createShoppingList(tpl.name, '', items);
+  },
+
+  // Follow-up ("רשימת השלמות"): new personal list from everything not bought —
+  // unchecked items plus ones flagged unavailable at the store.
+  createFollowupList: async (list) => {
+    const { createShoppingList } = get();
+    if (!list) return null;
+    const leftovers = (list.items || []).filter((i) => !i.checked || i.unavailable);
+    if (leftovers.length === 0) return null;
+    const items = leftovers.map(({ name, category, qty, unit }) => ({
+      name, category, qty: qty ?? null, unit: unit ?? null,
+      id: genItemId(), checked: false, addedAt: new Date().toISOString(),
+    }));
+    return await createShoppingList(`השלמות — ${list.name}`, '', items);
   },
 
   // Persist a learned item→category mapping to Firestore (cross-device sync).

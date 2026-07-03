@@ -20,6 +20,8 @@ import {
   arrayRemove,
   serverTimestamp,
   increment,
+  updateDoc,
+  addDoc,
 } from 'firebase/firestore';
 import { db, storage } from './firebase';
 
@@ -623,6 +625,120 @@ export const getSharedCourse = async (code) => {
 
 export const toggleGroupMute = async (groupId, isMuted) => {
   await setDoc(groupDoc(groupId), { silentUpdates: isMuted }, { merge: true });
+};
+
+// --- Private chats (dm_threads) ---------------------------------------------
+// Shared with the Flutter apps: thread id = the two uids sorted + '_'.
+// Threads survive leaving shared groups; group membership only gates
+// starting new chats (client-side).
+
+export const dmThreadIdFor = (a, b) => [a, b].sort().join('_');
+
+export const subscribeDmThreads = (uid, cb) =>
+  onSnapshot(
+    query(collection(db, 'dm_threads'), where('participants', 'array-contains', uid)),
+    (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+  );
+
+export const subscribeDmMessages = (threadId, cb, max = 60) =>
+  onSnapshot(
+    query(collection(db, 'dm_threads', threadId, 'messages'), orderBy('timestamp', 'desc'), limit(max)),
+    (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+  );
+
+// Creates the thread if needed (viaGroupId = shared group both users belong
+// to, verified server-side by the rules) and refreshes the caller's own
+// name/photo snapshot (rules restrict participant_info edits to own entry).
+export const openDmThread = async (myUid, myInfo, peerUid, peerInfo, viaGroupId) => {
+  const id = dmThreadIdFor(myUid, peerUid);
+  const ref = doc(db, 'dm_threads', id);
+  const existing = await getDoc(ref);
+  if (existing.exists()) {
+    await setDoc(ref, {
+      participant_info: { [myUid]: myInfo },
+    }, { merge: true });
+  } else {
+    await setDoc(ref, {
+      participants: [myUid, peerUid].sort(),
+      participant_info: {
+        [myUid]: myInfo,
+        [peerUid]: peerInfo,
+      },
+      via_group: viaGroupId,
+      created_at: serverTimestamp(),
+    });
+  }
+  return id;
+};
+
+export const postDmMessage = async (threadId, uid, update) => {
+  const ref = doc(collection(db, 'dm_threads', threadId, 'messages'));
+  const batch = writeBatch(db);
+  batch.set(ref, {
+    ...update,
+    timestamp: serverTimestamp(),
+  });
+  const peerUid = threadId.split('_').find((p) => p !== uid);
+  batch.set(doc(db, 'dm_threads', threadId), {
+    lastActivityTimestamp: serverTimestamp(),
+    lastActivitySnippet: update.summary || update.message || '',
+    last_author_uid: uid,
+    ...(peerUid ? { unread_counts: { [peerUid]: increment(1) } } : {}),
+  }, { merge: true });
+  await batch.commit();
+};
+
+export const deleteDmMessage = async (threadId, messageId) => {
+  await deleteDoc(doc(db, 'dm_threads', threadId, 'messages', messageId));
+};
+
+// Block/unblock: while anyone has the thread blocked, rules reject all new
+// messages from both sides.
+export const setDmBlocked = async (threadId, uid, blocked) => {
+  await updateDoc(doc(db, 'dm_threads', threadId), {
+    blocked: blocked ? arrayUnion(uid) : arrayRemove(uid),
+  });
+};
+
+export const reportDmThread = async (threadId, reporterUid) => {
+  await addDoc(collection(db, 'reports'), {
+    reporter_uid: reporterUid,
+    kind: 'dm',
+    thread_id: threadId,
+    reason: '',
+    created_at: serverTimestamp(),
+  });
+};
+
+export const reactToDmMessage = async (threadId, messageId, uid, emoji) => {
+  const ref = doc(db, 'dm_threads', threadId, 'messages', messageId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const raw = snap.data().reactions || {};
+  const already = Array.isArray(raw[emoji]) && raw[emoji].includes(uid);
+  const updates = {};
+  Object.keys(raw).forEach((e) => {
+    updates[`reactions.${e}`] = arrayRemove(uid);
+  });
+  if (!already) {
+    updates[`reactions.${emoji}`] = arrayUnion(uid);
+  }
+  await setDoc(ref, updates, { merge: true });
+};
+
+// Read state lives on the thread doc itself (unlike groups) so both apps and
+// the peer's blue ticks read the same timestamp.
+export const markDmAsRead = async (threadId, uid) => {
+  await setDoc(doc(db, 'dm_threads', threadId), {
+    read_timestamps: { [uid]: serverTimestamp() },
+    unread_counts: { [uid]: 0 },
+  }, { merge: true });
+};
+
+export const uploadDmImage = async (threadId, file) => {
+  const fileRef = sRef(storage, `dm_chat/${threadId}/${Date.now()}.jpg`);
+  await uploadBytes(fileRef, file);
+  return await getDownloadURL(fileRef);
 };
 
 export const markGroupAsRead = async (uid, gid) => {

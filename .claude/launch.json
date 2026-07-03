@@ -4,21 +4,48 @@
     {
       "name": "dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 5173,
       "autoPort": true
     },
     {
       "name": "preview",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "preview", "--", "--port", "4173"],
-      "port": 4173
+      "runtimeArgs": [
+        "run",
+        "preview"
+      ],
+      "port": 4173,
+      "autoPort": true
     },
     {
       "name": "marketing-site",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["-y", "serve", "marketing-site", "-l", "4321"],
+      "runtimeArgs": [
+        "-y",
+        "serve",
+        "marketing-site",
+        "-l",
+        "4321"
+      ],
       "port": 4321
+    },
+    {
+      "name": "dev-alt",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5199",
+        "--strictPort"
+      ],
+      "port": 5199,
+      "autoPort": false
     }
   ]
 }

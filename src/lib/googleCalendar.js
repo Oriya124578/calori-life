@@ -56,7 +56,7 @@ export const fetchGoogleEvents = async (dateStr) => {
     if (response.status === 401 || response.status === 403) {
       throw new Error("No access token available. Please connect Google Calendar.");
     }
-    throw new Error(`Cloud Function error: ${response.statusText}`);
+    throw new Error(`Cloud Function error: HTTP ${response.status}`);
   }
 
   const data = await response.json();
@@ -89,7 +89,7 @@ const authedFetch = async (path, options = {}) => {
     let body = null;
     try { body = await response.json(); } catch { /* not JSON */ }
     if (body) return { error: body.error || `HTTP ${response.status}`, detail: body.detail || '' };
-    throw new Error(`Cloud Function error: ${response.statusText}`);
+    throw new Error(`Cloud Function error: HTTP ${response.status}`);
   }
   return response.json();
 };

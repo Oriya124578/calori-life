@@ -22,8 +22,20 @@ export default function CalendarManager() {
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  const [error, setError] = useState(null);
+
   const load = async () => {
     setLoading(true);
+    setError(null);
+    try {
+      await loadInner();
+    } catch (e) {
+      setError(String(e?.message || e));
+      setLoading(false);
+    }
+  };
+
+  const loadInner = async () => {
     const cals = await listGoogleCalendars();
     if (cals === null) {
       setConnected(false);
@@ -90,6 +102,14 @@ export default function CalendarManager() {
 
   if (loading) {
     return <p className="text-sm text-muted-foreground">טוען יומנים…</p>;
+  }
+  if (error) {
+    return (
+      <div className="space-y-2 text-sm">
+        <p className="text-destructive">טעינת היומנים נכשלה: {error}</p>
+        <Button variant="outline" size="sm" onClick={load}>נסה שוב</Button>
+      </div>
+    );
   }
   if (!connected) {
     return (
